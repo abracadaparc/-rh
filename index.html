@@ -2127,7 +2127,7 @@ function generateDefaultShifts(team) {
   // ── POEI Florence (t5) & Joris (t4) : 1–19 avril ──
   ["t4","t5"].forEach(id=>{
     let d2=new Date("2026-04-01T12:00");
-    while(fmt(d2)<"2026-04-20"){shifts[`${id}_${fmt(d2)}`]={type:"ecole",note:"POEI – Formation France Travail"};d2=addDays(d2,1);}
+    while(fmt(d2)<"2026-04-20"){shifts[`${id}_${fmt(d2)}`]={type:"poei",deb:"09:00",fin:"17:00",h:0,note:"POEI – Formation France Travail"};d2=addDays(d2,1);}
   });
 
   return shifts;
@@ -2165,7 +2165,7 @@ function shH(sh) {
 }
 
 function ShiftModal({emp,date,shift,onSave,onClose}) {
-  const [type,setType]=useState(shift?.type||"travail");
+  const inPoei=(emp.poei_debut&&emp.poei_fin&&date>=emp.poei_debut&&date<=emp.poei_fin);const [type,setType]=useState(shift?.type||(inPoei?"poei":"travail"));
   const [deb,setDeb]=useState(shift?.deb||"09:30");
   const [fin,setFin]=useState(shift?.fin||"17:00");
   const [note,setNote]=useState(shift?.note||"");
@@ -2930,7 +2930,7 @@ function PlanningEquipeTab({team,shifts,setShifts,readonly}) {
                 </td>
                 {week.map((d,i)=>{
                   const ds=fmtLocal(d);const sh=getShift(emp.id,ds);const st=sh?STATUTS[sh.type]:null;
-                  const hors=ds<emp.debut||ds>emp.fin;const isOuvert=!!getDayType(ds);const is1Mai=ds==="2026-05-01";
+                  const effD=(emp.poei_debut&&emp.poei_debut<emp.debut)?emp.poei_debut:emp.debut;const hors=ds<effD||ds>emp.fin;const isOuvert=!!getDayType(ds);const is1Mai=ds==="2026-05-01";
                   return <td key={i} style={{padding:2,verticalAlign:"top"}}>
                     {hors?(<div style={{minHeight:52,borderRadius:7,background:"#FAFAFA",border:"1px dashed #EEEEEE",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:10,color:"#E0E0E0"}}>—</span></div>):(
                       <div onClick={()=>!readonly&&setEditing({empId:emp.id,date:ds})}
@@ -3091,7 +3091,7 @@ function MonPlanningTab({emp,shifts,setShifts}) {
               {days.map((d,di)=>{
                 const ds=fmtLocal(d);const sh=shifts[`${emp.id}_${ds}`];const st=sh?STATUTS[sh.type]:null;
                 const isToday=ds===todayStr;const dow=d.getDay();const isWE=dow===0||dow===6;
-                const isOuvert=!!getDayType(ds);const hors=ds<emp.debut||ds>emp.fin;const wrongMonth=d.getMonth()!==m;
+                const isOuvert=!!getDayType(ds);const effD3=(emp.poei_debut&&emp.poei_debut<emp.debut)?emp.poei_debut:emp.debut;const hors=ds<effD3||ds>emp.fin;const wrongMonth=d.getMonth()!==m;
                 return (<div key={di} onClick={()=>!hors&&!wrongMonth&&setCommenting({empId:emp.id,date:ds})}
                   style={{borderRadius:8,padding:"5px 3px",textAlign:"center",cursor:!hors&&!wrongMonth?"pointer":"default",
                     background:hors||wrongMonth?"#FAFAFA":st?st.bg:isToday?"#FFFDE7":isOuvert?"#F9FBF9":"#F5F5F5",
@@ -3647,7 +3647,7 @@ function AdminMonthView({team, shifts, setShifts}) {
                     {days.map((d,di)=>{
                       const ds=fmtLocal(d);const sh=getShift(emp.id,ds);const st=sh?STATUTS[sh.type]:null;
                       const isToday=ds===todayStr;const dow=d.getDay();const isWE=dow===0||dow===6;
-                      const hors=ds<emp.debut||ds>emp.fin;const wrongM=d.getMonth()!==m;
+                      const effD2=(emp.poei_debut&&emp.poei_debut<emp.debut)?emp.poei_debut:emp.debut;const hors=ds<effD2||ds>emp.fin;const wrongM=d.getMonth()!==m;
                       const ptg=(() => {try{return sh?.pointage?JSON.parse(sh.pointage):null;}catch{return null;}})();
                       return (
                         <div key={di} onClick={()=>!hors&&!wrongM&&setEditing({empId:emp.id,date:ds})}
