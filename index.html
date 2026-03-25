@@ -831,6 +831,17 @@ function EquipeTab({ team, setTeam }) {
               <div><label style={S.lbl}>Lien (ex : conjoint, parent)</label><input value={form.urgence_lien||""} onChange={f("urgence_lien")} style={S.inp} placeholder="Conjoint·e"/></div>
             </div>
           </div>
+          {form.type==="poei"&&(
+            <div style={{background:"#E8EAF6",border:"1px solid #7986CB",borderRadius:10,padding:"12px 14px",marginTop:8}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#283593",marginBottom:10}}>🎓 Informations POEI France Travail</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                <div><label style={S.lbl}>Début formation POEI</label><input type="date" value={form.poei_debut||""} onChange={f("poei_debut")} style={S.inp}/></div>
+                <div><label style={S.lbl}>Fin formation POEI</label><input type="date" value={form.poei_fin||""} onChange={f("poei_fin")} style={S.inp}/></div>
+                <div><label style={S.lbl}>Organisme de formation</label><input value={form.poei_organisme||""} onChange={f("poei_organisme")} placeholder="ex: AFPA" style={S.inp}/></div>
+              </div>
+              <div style={{fontSize:11,color:"#5C6BC0",marginTop:8}}>⚠️ Pendant la POEI : rémunération assurée par France Travail — aucune charge pour AbracadaParc</div>
+            </div>
+          )}
           <div style={{ display:"flex", gap:8, paddingTop:4 }}>
             <button onClick={save} style={{ ...S.btn, ...S.btnG, flex:1 }}>Enregistrer</button>
             <button onClick={() => setShowForm(false)} style={{ ...S.btn, ...S.btnS }}>Annuler</button>
@@ -2135,6 +2146,7 @@ const STATUTS = {
   ecole:      {label:"Ecole OK",  bg:"#E3F2FD",color:"#0D47A1",border:"#64B5F6"},
   absent_inj: {label:"Absent X",  bg:"#FFCDD2",color:"#B71C1C",border:"#E57373"},
   soir:       {label:"Soir",      bg:"#EDE7F6",color:"#4527A0",border:"#9575CD", hidden:true},
+  poei:       {label:"POEI 🎓",   bg:"#E8EAF6",color:"#283593",border:"#7986CB", hidden:false},
 };
 
 // ═══════════════════════════════════════════════════════════
