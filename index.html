@@ -86,7 +86,7 @@ const TEAM_INIT = [
   {
     id:"t1", nom:"MYRON", prenom:"", color:"#1565C0",
     type:"apprenti", contrat:"Contrat d'apprentissage",
-    debut:"2026-04-01", fin:"2026-08-31", heures_mois:151.67, taux:6.13,
+    debut:"2026-04-01", fin:"2027-08-31", heures_mois:151.67, taux:6.13,
     disponibilite:"Disponible tous les jours par défaut. Marquer manuellement 'ÉCOLE' les jours de formation.",
     ecole_periodes:["18–22 mai","23 juin","17–21 août"],
     poste:"Polyvalent", actif:true, note:"51% SMIC = 929,75 €/mois brut. Charges patronales quasi nulles (exo apprentissage). Entrée: 01/09/2025. CP: 14.84acq / 23.00pris = -8.16 au 28/02/2026.",
@@ -200,16 +200,36 @@ function useStorage(key, init) {
   const [val, setVal] = useState(() => {
     try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : init; } catch { return init; }
   });
-  const [ready, setReady] = useState(true);
+  const [ready, setReady] = useState(false);
   const ref = useRef(val); ref.current = val;
+
+  // Firebase listener — sync remote changes to all devices in real time
+  useEffect(() => {
+    const db = getFbDb();
+    if (!db) { setReady(true); return; }
+    const fbRef = db.ref("abracadaparc/" + key);
+    fbRef.on("value", snap => {
+      if (snap.val() !== null) {
+        try {
+          const remote = typeof snap.val() === "string" ? JSON.parse(snap.val()) : snap.val();
+          ref.current = remote;
+          setVal(remote);
+          localStorage.setItem(key, JSON.stringify(remote));
+        } catch {}
+      }
+      setReady(true);
+    });
+    return () => fbRef.off("value");
+  }, [key]);
+
   const save = useCallback(v => {
     const next = typeof v==="function" ? v(ref.current) : v;
     ref.current = next; setVal(next);
     try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
     fbSave(key, JSON.stringify(next));
-    // Track planning modifications for employee notification
     if (key === "abr26_shifts_v4") {
       localStorage.setItem("abr26_planning_updated", Date.now().toString());
+      fbSave("abr26_planning_updated", Date.now().toString());
     }
   }, [key]);
   return [val, save, ready];
@@ -1793,13 +1813,13 @@ function getFbDb() {
   try {
     if (!window.firebase) return null;
     const cfg = {
-      apiKey:"AIzaSyAmt_5CblGSqNAuSztC74a2HU-qhsMyhG8",
-      authDomain:"abracadaparc-rh.firebaseapp.com",
-      databaseURL:"https://abracadaparc-rh-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId:"abracadaparc-rh",
-      storageBucket:"abracadaparc-rh.firebasestorage.app",
-      messagingSenderId:"969133981244",
-      appId:"1:969133981244:web:453350c310b7986f7d4d39"
+      apiKey:"AIzaSyCPE1KzlK-bnjlFIKh68TlOtmqK7PKwkvg",
+      authDomain:"abracadaparc-rh-5dd09.firebaseapp.com",
+      databaseURL:"https://abracadaparc-rh-5dd09-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId:"abracadaparc-rh-5dd09",
+      storageBucket:"abracadaparc-rh-5dd09.firebasestorage.app",
+      messagingSenderId:"468321623779",
+      appId:"1:468321623779:web:1dc21a8c981572d880efd6"
     };
     if (!firebase.apps?.length) firebase.initializeApp(cfg);
     _fbDb = firebase.database();
@@ -2920,8 +2940,19 @@ function PlanningEquipeTab({team,shifts,setShifts,readonly}) {
                   <span style={{padding:"3px 8px",borderRadius:20,fontSize:12,fontWeight:700,background:weekH(emp.id)>0?"#E8F5E9":"#F5F5F5",color:weekH(emp.id)>0?"#1B5E20":"#CCCCCC"}}>{weekH(emp.id).toFixed(1)}h</span>
                 </td>
                 <td style={{padding:"3px 6px",textAlign:"center",verticalAlign:"middle"}}>
-                  {weekH(emp.id)>0&&(()=>{const theo=emp.heures_mois/4.33,delta=weekH(emp.id)-theo,pos=delta>=0;
-                  return <span title={`Moy. théorique: ${theo.toFixed(0)}h/sem (${emp.heures_mois}h÷4,33)`} style={{padding:"3px 7px",borderRadius:20,fontSize:11,fontWeight:700,background:pos?"#E8F5E9":"#FFEBEE",color:pos?"#1B5E20":"#C62828",cursor:"help"}}>{pos?"+":""}{delta.toFixed(1)}h/sem</span>;})()}
+                  {(()=>{
+                  // Proportional delta: only count contract days in this week
+                  const contractDays = week.filter(d=>{const ds=fmtLocal(d);return ds>=emp.debut&&ds<=emp.fin&&getDayType(ds)!==null||ds>=emp.debut&&ds<=emp.fin}).length;
+                  const openDays = week.filter(d=>{const ds=fmtLocal(d);return ds>=emp.debut&&ds<=emp.fin&&getDayType(ds)}).length;
+                  if(openDays===0&&weekH(emp.id)===0) return null;
+                  // Theoretical hours = (heures_mois / 30) * contract days in week
+                  const dailyH = emp.heures_mois / 30;
+                  const contractDaysInWeek = week.filter(d=>{const ds=fmtLocal(d);return ds>=emp.debut&&ds<=emp.fin;}).length;
+                  const theo = dailyH * contractDaysInWeek;
+                  const delta = weekH(emp.id) - theo;
+                  const pos = delta >= 0;
+                  return <span title={`Théorique: ${theo.toFixed(1)}h (${contractDaysInWeek}j × ${dailyH.toFixed(1)}h/j)`} style={{padding:"3px 7px",borderRadius:20,fontSize:11,fontWeight:700,background:pos?"#E8F5E9":"#FFEBEE",color:pos?"#1B5E20":"#C62828",cursor:"help"}}>{pos?"+":""}{delta.toFixed(1)}h</span>;
+                })()}
                 </td>
               </tr>
             ))}
@@ -3033,7 +3064,14 @@ function MonPlanningTab({emp,shifts,setShifts}) {
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 {wH>0&&<span style={{fontWeight:800,color:"#1B5E20",fontSize:13}}>{wH.toFixed(1)}h</span>}
-                {wH>0&&<span title={`Moy. théorique: ${(emp.heures_mois/4.33).toFixed(0)}h/sem — inclut travail + école`} style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:delta>=0?"#E8F5E9":"#FFEBEE",color:delta>=0?"#1B5E20":"#C62828",cursor:"help"}}>{delta>=0?"+":""}{delta.toFixed(1)}h/sem</span>}
+                {(()=>{
+                    const contractDaysInWeek = days.filter(d=>fmtLocal(d)>=emp.debut&&fmtLocal(d)<=emp.fin).length;
+                    if(contractDaysInWeek===0) return null;
+                    const theoW = (emp.heures_mois/30)*contractDaysInWeek;
+                    const deltaW = wH - theoW;
+                    const pos = deltaW>=0;
+                    return wH>0?<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:pos?"#E8F5E9":"#FFEBEE",color:pos?"#1B5E20":"#C62828"}}>{pos?"+":""}{deltaW.toFixed(1)}h</span>:null;
+                  })()}
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
