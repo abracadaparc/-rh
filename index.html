@@ -122,6 +122,7 @@ const TEAM_INIT = [
     poste:"Polyvalent + Développement commercial", actif:true, note:"⏳ POEI en attente retour Joris. Si refus : CDD au 1er avril — à relancer rapidement. Mentionner tâches commerciales dans le contrat.",
     ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"",
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+    poei_debut:"2026-04-01", poei_fin:"2026-04-19", poei_organisme:"France Travail",
   },
   {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
@@ -132,6 +133,7 @@ const TEAM_INIT = [
     poste:"Polyvalente Journée", actif:true, note:"✅ POEI confirmé. CDD à signer avant le 1er avril avec date de démarrage au 20/04. Pas de bulletin AbracadaParc pendant la formation.",
     ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"",
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+    poei_debut:"2026-04-01", poei_fin:"2026-04-19", poei_organisme:"France Travail",
   },
   {
     id:"t6", nom:"NOUVEAU C", prenom:"", color:"#546E7A",
@@ -665,7 +667,7 @@ function CalendrierTab({ dayLevels, setDayLevels }) {
 function EquipeTab({ team, setTeam }) {
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0 };
+  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
   const [form, setForm] = useState(blank);
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -3355,7 +3357,7 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
   const [geoCoords, setGeoCoords] = useState(null);
 
   // AbracadaParc coordinates (Goussainville 95190)
-  const PARC_LAT = 49.0197, PARC_LNG = 2.4697, PARC_RADIUS = 300;
+  const PARC_LAT = 49.01265, PARC_LNG = 2.46468, PARC_RADIUS = 1200; // AbracadaParc — Place Hyacinthe Drujon 95190 Goussainville (coords vérifiées OpenStreetMap)
 
   const haversine = (lat1,lng1,lat2,lng2) => {
     const R=6371000, phi1=lat1*Math.PI/180, phi2=lat2*Math.PI/180;
@@ -3372,7 +3374,7 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
         const {latitude:lat, longitude:lng, accuracy} = pos.coords;
         setGeoCoords({lat,lng,accuracy});
         const dist = haversine(lat,lng,PARC_LAT,PARC_LNG);
-        if (dist <= PARC_RADIUS + Math.min(accuracy, 100)) {
+        if (dist <= PARC_RADIUS + Math.min(accuracy, 200)) { // Tolérance GPS mobile élargie
           setGeoStatus("ok");
           setGeoMsg(`✅ Position confirmée (${Math.round(dist)}m du parc)`);
           resolve(true);
@@ -4027,6 +4029,25 @@ function App() {
   // Auto-fill shifts
   useEffect(()=>{
     if(sReady&&tReady&&Object.keys(shifts).length===0&&team.length>0) setShifts(generateDefaultShifts(team));
+  },[sReady,tReady]);
+
+  // Migration: convert old ecole shifts during POEI periods to poei type
+  useEffect(()=>{
+    if(!sReady||!tReady||Object.keys(shifts).length===0) return;
+    const updates = {};
+    team.filter(e=>e.poei_debut&&e.poei_fin).forEach(emp=>{
+      let d=new Date(emp.poei_debut+"T12:00");
+      while(fmt(d)<=emp.poei_fin){
+        const ds=fmt(d);
+        const k=`${emp.id}_${ds}`;
+        const sh=shifts[k];
+        if(sh&&sh.type==="ecole"&&sh.note&&sh.note.includes("POEI")){
+          updates[k]={type:"poei",deb:"09:00",fin:"17:00",h:0,note:sh.note};
+        }
+        d=addDays(d,1);
+      }
+    });
+    if(Object.keys(updates).length>0) setShifts(p=>({...p,...updates}));
   },[sReady,tReady]);
 
   const loginAdmin    = ()=>{sessionStorage.setItem("abr_auth","admin");setAuthMode("admin");};
