@@ -930,51 +930,12 @@ contact@abracadaparc.fr`;
       if (e.target.closest('#save-memo')) { saveMemo(); return; }
     });
 
-    // Calendar resa click → show detail modal
+    // Calendar resa click → switch to liste view with this resa
     el.querySelectorAll('[data-resa-id]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const id = btn.dataset.resaId;
-        const r = state.reservations[id];
-        if (!r) return;
-        const seg = getSegment(r.segment);
-        const st = getStatut(r.statut||'1');
-        const dateStr = r.date ? new Date(r.date+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '—';
-        const total = calcTotal(r);
-        const solde = Math.max(0, total - (parseFloat(r.acompte_paye)||0));
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-        modal.innerHTML = `<div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:85vh;overflow-y:auto">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-            <span style="font-size:15px;font-weight:800;color:#1B5E20">${esc(r.prenom_enfant||r.organisation||r.nom_contact||'Réservation')}</span>
-            <button id="close-resa-modal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#9E9E9E">×</button>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${seg.color}18;color:${seg.color}">${seg.label}</span>
-            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${st.bg};color:${st.color}">${st.label}</span>
-            ${r.ref?`<span style="padding:3px 10px;border-radius:20px;font-size:11px;background:#F5F5F5;color:#757575">${esc(r.ref)}</span>`:''}
-          </div>
-          <div style="font-size:13px;color:#424242;line-height:2;border-top:1px solid #E8F5E9;padding-top:12px">
-            📅 <strong>${dateStr}</strong><br>
-            ⏰ ${r.heure_debut||'—'} → ${r.heure_fin||'—'}<br>
-            👥 ${r.effectif_enfants||0} enfant${r.effectif_enfants>1?'s':''} ${r.effectif_adultes>0?'· '+r.effectif_adultes+' adulte'+(r.effectif_adultes>1?'s':''):''}<br>
-            ${r.formule_id&&r.formule_id!=='mesure'?'📋 Formule : '+r.formule_id+'<br>':''}
-            ${r.gateau_nacima?'🎂 Gâteau : '+(r.gateau_type||'')+(r.gateau_inscription?' "'+esc(r.gateau_inscription)+'"':'')+(r.gateau_allergies?' ⚠️ '+esc(r.gateau_allergies):'')+(r.gateau_commande?' ✅ Commandé':' ⏳ À commander')+'<br>':''}
-            ${r.option_animateur?'🎭 Animateur inclus<br>':''}
-            📞 <a href="tel:${r.tel||''}" style="color:#1565C0">${esc(r.tel||'—')}</a><br>
-            📧 ${esc(r.email_contact||'—')}<br>
-            ${r.notes?'💬 '+esc(r.notes.slice(0,150))+'<br>':''}
-          </div>
-          ${total>0?`<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px">
-            💶 Total : <strong>${total.toLocaleString('fr')} €</strong>
-            · Acompte : ${(parseFloat(r.acompte_paye)||0).toLocaleString('fr')} €
-            · <span style="color:${solde>0?'#C62828':'#1B5E20'};font-weight:700">Solde : ${solde.toLocaleString('fr')} €</span>
-          </div>`:''}
-          ${r.modified_by?`<div style="margin-top:8px;font-size:10px;color:#BDBDBD">Modifié par ${esc(r.modified_by)} le ${r.modified_at?new Date(r.modified_at).toLocaleDateString('fr-FR'):''}</div>`:''}
-        </div>`;
-        modal.querySelector('#close-resa-modal').addEventListener('click', () => modal.remove());
-        modal.addEventListener('click', (e) => { if(e.target===modal) modal.remove(); });
-        document.getElementById('res-root').appendChild(modal);
+        state.view = 'liste';
+        render();
       });
     });
 
@@ -2939,19 +2900,19 @@ Document confidentiel — usage RH uniquement`;
 // ═══════════════════════════════════════════════════════════
 
 function MesResasTab({ emp, reservations }) {
-  const today = new Date().toISOString().slice(0,10);
-  const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const todayDate = new Date().toISOString().slice(0,10);
+  const tomorrowDate = new Date(Date.now()+86400000).toISOString().slice(0,10);
   const [filtre, setFiltre] = React.useState("today");
 
   const all = Object.values(reservations || {});
   const filtered = all.filter(r => {
-    if (filtre === "today")    return r.date === today;
-    if (filtre === "tomorrow") return r.date === tomorrow;
+    if (filtre === "today")    return r.date === todayDate;
+    if (filtre === "tomorrow") return r.date === tomorrowDate;
     if (filtre === "week") {
-      const d = new Date(today); const end = new Date(d.getTime()+7*86400000);
-      return r.date >= today && r.date <= end.toISOString().slice(0,10);
+      const d = new Date(todayDate); const end = new Date(d.getTime()+7*86400000);
+      return r.date >= todayDate && r.date <= end.toISOString().slice(0,10);
     }
-    return r.date >= today;
+    return r.date >= todayDate;
   }).sort((a,b)=>(a.date+a.heure_debut).localeCompare(b.date+b.heure_debut));
 
   const segColors = {
