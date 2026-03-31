@@ -1375,17 +1375,31 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
-    state.reservations = load('reservations', {});
+    // Vider le localStorage pour toujours charger depuis Firebase
+    try { localStorage.removeItem('abr_reservations'); } catch(e) {}
+    state.reservations = {};
     state.memos = load('memos', {});
 
-    listen('reservations', data => { if (data) { state.reservations = data; render(); } });
+    listen('reservations', data => {
+      if (data) {
+        state.reservations = data;
+        try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
+        render();
+      }
+    });
     listen('memos', data => { if (data) { state.memos = data; render(); } });
 
     if (autoRender) {
-      // Attendre que le DOM soit prêt
       const tryRender = () => {
         const el = document.getElementById('tab-reservations');
-        if (el) { render(); } else { setTimeout(tryRender, 100); }
+        if (el) {
+          // Afficher un loader pendant que Firebase charge
+          el.innerHTML = '<div style="text-align:center;padding:40px;color:#2E7D32;font-size:14px;">🌿 Chargement des réservations…</div>';
+          // Firebase répond en général en moins d'1 seconde
+          setTimeout(() => render(), 1500);
+        } else {
+          setTimeout(tryRender, 100);
+        }
       };
       tryRender();
     }
