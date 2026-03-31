@@ -415,7 +415,7 @@ contact@abracadaparc.fr`;
   <div style="font-size:11px;font-weight:${isToday?800:400};color:${isToday?'#2E7D32':'#757575'};margin-bottom:3px;">${d}</div>
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
-    return `<div style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;">${esc(r.prenom_enfant || r.nom_contact || r.organisation || '?')} ${r.heure_debut?'·'+r.heure_debut:''}</div>`;
+    return `<div data-resa-id="${r.id}" style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;">${esc(r.prenom_enfant || r.nom_contact || r.organisation || '?')} ${r.heure_debut?'·'+r.heure_debut:''}</div>`;
   }).join('')}
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
@@ -930,6 +930,54 @@ contact@abracadaparc.fr`;
       if (e.target.closest('#save-memo')) { saveMemo(); return; }
     });
 
+    // Calendar resa click → show detail modal
+    el.querySelectorAll('[data-resa-id]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.resaId;
+        const r = state.reservations[id];
+        if (!r) return;
+        const seg = getSegment(r.segment);
+        const st = getStatut(r.statut||'1');
+        const dateStr = r.date ? new Date(r.date+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '—';
+        const total = calcTotal(r);
+        const solde = Math.max(0, total - (parseFloat(r.acompte_paye)||0));
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+        modal.innerHTML = `<div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:85vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <span style="font-size:15px;font-weight:800;color:#1B5E20">${esc(r.prenom_enfant||r.organisation||r.nom_contact||'Réservation')}</span>
+            <button id="close-resa-modal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#9E9E9E">×</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${seg.color}18;color:${seg.color}">${seg.label}</span>
+            <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${st.bg};color:${st.color}">${st.label}</span>
+            ${r.ref?`<span style="padding:3px 10px;border-radius:20px;font-size:11px;background:#F5F5F5;color:#757575">${esc(r.ref)}</span>`:''}
+          </div>
+          <div style="font-size:13px;color:#424242;line-height:2;border-top:1px solid #E8F5E9;padding-top:12px">
+            📅 <strong>${dateStr}</strong><br>
+            ⏰ ${r.heure_debut||'—'} → ${r.heure_fin||'—'}<br>
+            👥 ${r.effectif_enfants||0} enfant${r.effectif_enfants>1?'s':''} ${r.effectif_adultes>0?'· '+r.effectif_adultes+' adulte'+(r.effectif_adultes>1?'s':''):''}<br>
+            ${r.formule_id&&r.formule_id!=='mesure'?'📋 Formule : '+r.formule_id+'<br>':''}
+            ${r.gateau_nacima?'🎂 Gâteau : '+(r.gateau_type||'')+(r.gateau_inscription?' "'+esc(r.gateau_inscription)+'"':'')+(r.gateau_allergies?' ⚠️ '+esc(r.gateau_allergies):'')+(r.gateau_commande?' ✅ Commandé':' ⏳ À commander')+'<br>':''}
+            ${r.option_animateur?'🎭 Animateur inclus<br>':''}
+            📞 <a href="tel:${r.tel||''}" style="color:#1565C0">${esc(r.tel||'—')}</a><br>
+            📧 ${esc(r.email_contact||'—')}<br>
+            ${r.notes?'💬 '+esc(r.notes.slice(0,150))+'<br>':''}
+          </div>
+          ${total>0?`<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px">
+            💶 Total : <strong>${total.toLocaleString('fr')} €</strong>
+            · Acompte : ${(parseFloat(r.acompte_paye)||0).toLocaleString('fr')} €
+            · <span style="color:${solde>0?'#C62828':'#1B5E20'};font-weight:700">Solde : ${solde.toLocaleString('fr')} €</span>
+          </div>`:''}
+          ${r.modified_by?`<div style="margin-top:8px;font-size:10px;color:#BDBDBD">Modifié par ${esc(r.modified_by)} le ${r.modified_at?new Date(r.modified_at).toLocaleDateString('fr-FR'):''}</div>`:''}
+        </div>`;
+        modal.querySelector('#close-resa-modal').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => { if(e.target===modal) modal.remove(); });
+        document.getElementById('res-root').appendChild(modal);
+      });
+    });
+
     // Calendar navigation
     const calPrev = el.querySelector('#cal-prev');
     if (calPrev) calPrev.addEventListener('click', () => {
@@ -1009,6 +1057,15 @@ contact@abracadaparc.fr`;
       r.effectif_total = get('f-eff');
     }
 
+    // Traçabilité — qui a fait la modification
+    r.modified_by = "Admin";
+    r.modified_at = new Date().toISOString();
+    if (state.editId && state.reservations[state.editId]) {
+      r.created_by = state.reservations[state.editId].created_by || "Auto";
+      r.created_at = state.reservations[state.editId].created_at;
+    } else {
+      r.created_by = "Admin";
+    }
     state.reservations[r.id] = r;
     state.showForm = false;
     state.walkin = false;
@@ -2875,6 +2932,119 @@ Document confidentiel — usage RH uniquement`;
 
 
 
+
+
+// ═══════════════════════════════════════════════════════════
+// MES RESAS TAB — Vue salarié (lecture seule, sans données financières)
+// ═══════════════════════════════════════════════════════════
+
+function MesResasTab({ emp, reservations }) {
+  const today = new Date().toISOString().slice(0,10);
+  const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const [filtre, setFiltre] = React.useState("today");
+
+  const all = Object.values(reservations || {});
+  const filtered = all.filter(r => {
+    if (filtre === "today")    return r.date === today;
+    if (filtre === "tomorrow") return r.date === tomorrow;
+    if (filtre === "week") {
+      const d = new Date(today); const end = new Date(d.getTime()+7*86400000);
+      return r.date >= today && r.date <= end.toISOString().slice(0,10);
+    }
+    return r.date >= today;
+  }).sort((a,b)=>(a.date+a.heure_debut).localeCompare(b.date+b.heure_debut));
+
+  const segColors = {
+    anniversaire:"#AD1457", scolaire:"#1565C0", alsh:"#2E7D32",
+    privatisation:"#6A1B9A", groupe:"#E65100", association:"#00695C", entreprise:"#37474F"
+  };
+  const segLabels = {
+    anniversaire:"🎂 Anniversaire", scolaire:"🏫 Scolaire", alsh:"🏕️ ALSH/CDL",
+    privatisation:"🏡 Privatisation", groupe:"👨‍👩‍👧 Groupe", association:"🌟 Association", entreprise:"🏢 Entreprise"
+  };
+
+  return (
+    <div>
+      <div style={{...S.card, marginBottom:14, background:"#E3F2FD", border:"1px solid #90CAF9"}}>
+        <div style={{fontSize:12, color:"#1565C0", lineHeight:1.7}}>
+          📋 <strong>Réservations</strong> — Vue équipe (informations opérationnelles uniquement)<br/>
+          Pour toute question ou modification, contacter Vanessa.
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
+        {[["today","Aujourd'hui"],["tomorrow","Demain"],["week","7 prochains jours"],["all","Tout voir"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setFiltre(k)} style={{...S.btn, padding:"6px 14px", fontSize:12,
+            background: filtre===k?"#2E7D32":"#F1F8E9",
+            color: filtre===k?"#fff":"#2E7D32",
+            border: filtre===k?"none":"1px solid #C8E6C9"}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{...S.card, textAlign:"center", padding:40, color:"#9E9E9E"}}>
+          <div style={{fontSize:28, marginBottom:8}}>📋</div>
+          <div>Aucune réservation {filtre==="today"?"aujourd'hui":filtre==="tomorrow"?"demain":"sur cette période"}</div>
+        </div>
+      ) : (
+        <div style={{display:"flex", flexDirection:"column", gap:10}}>
+          {filtered.map(r => {
+            const color = segColors[r.segment] || "#757575";
+            const label = segLabels[r.segment] || r.segment;
+            const nom = r.prenom_enfant || r.organisation || r.nom_contact || "—";
+            const dateStr = r.date ? new Date(r.date+"T12:00").toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long"}) : "—";
+            const gateau = r.gateau_nacima && !r.gateau_commande;
+            return (
+              <div key={r.id} style={{...S.card, borderLeft:`4px solid ${color}`, padding:"14px 16px"}}>
+                <div style={{display:"flex", alignItems:"flex-start", gap:12, flexWrap:"wrap"}}>
+                  <div style={{flex:1}}>
+                    {/* Badge + date */}
+                    <div style={{display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:6}}>
+                      <span style={{padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:color+"18", color}}>{label}</span>
+                      {gateau && <span style={{padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:700, background:"#FBE9E7", color:"#BF360C"}}>🎂 Gâteau à prévoir</span>}
+                      {r.option_animateur && <span style={{padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:700, background:"#F3E5F5", color:"#6A1B9A"}}>🎭 Animateur</span>}
+                    </div>
+                    {/* Infos principales */}
+                    <div style={{fontSize:14, fontWeight:800, color:"#212121", marginBottom:4}}>{nom}</div>
+                    <div style={{fontSize:12, color:"#616161", marginBottom:4}}>
+                      📅 {dateStr} · {r.heure_debut||"—"} → {r.heure_fin||"—"}
+                      {r.formule_id && r.formule_id !== "mesure" && <span style={{marginLeft:8, fontSize:11, background:"#F1F8E9", color:"#2E7D32", padding:"1px 8px", borderRadius:8, fontWeight:600}}>{r.formule_id}</span>}
+                    </div>
+                    {/* Effectif */}
+                    {(r.effectif_enfants || r.effectif_adultes) && (
+                      <div style={{fontSize:12, color:"#424242", marginBottom:4}}>
+                        👥 {r.effectif_enfants||0} enfant{r.effectif_enfants>1?"s":""} {r.effectif_adultes>0?`· ${r.effectif_adultes} adulte${r.effectif_adultes>1?"s":""}`:""} 
+                      </div>
+                    )}
+                    {/* Gâteau opérationnel */}
+                    {r.gateau_nacima && (
+                      <div style={{fontSize:11, color: r.gateau_commande?"#1B5E20":"#BF360C", background: r.gateau_commande?"#E8F5E9":"#FBE9E7", padding:"4px 10px", borderRadius:8, display:"inline-block", marginTop:4}}>
+                        🎂 {r.gateau_type||"Gâteau"} {r.gateau_inscription?`· "${r.gateau_inscription}"`:""}
+                        {r.gateau_allergies && r.gateau_allergies!=="aucune" && <span style={{color:"#C62828", fontWeight:700}}> · ⚠️ Allergies: {r.gateau_allergies}</span>}
+                        {r.gateau_commande ? " ✅ Commandé" : " ⏳ À prévoir"}
+                      </div>
+                    )}
+                    {/* Contact opérationnel (tel uniquement) */}
+                    {r.tel && (
+                      <div style={{fontSize:11, color:"#9E9E9E", marginTop:6}}>
+                        📞 <a href={`tel:${r.tel}`} style={{color:"#1565C0"}}>{r.tel}</a>
+                      </div>
+                    )}
+                    {/* Notes */}
+                    {r.notes && <div style={{fontSize:11, color:"#757575", marginTop:4, fontStyle:"italic"}}>💬 {r.notes.slice(0,120)}</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════
 // RESERVATIONS WRAPPER — mounts vanilla JS v5 component
@@ -5144,7 +5314,7 @@ function App() {
   // ── VUE SALARIÉ ──
   if(authMode==="employee") {
     const emp=team.find(e=>e.id===currentEmpId);
-    if(!emp){logout();return null;}
+    const resasData = (() => { try { const s = localStorage.getItem('abr_reservations'); return s ? JSON.parse(s) : {}; } catch { return {}; } })();f(!emp){logout();return null;}
     return (
       <div style={{fontFamily:"system-ui,-apple-system,'Segoe UI',sans-serif",background:"#F4F8F4",minHeight:"100vh"}}>
         <div style={{background:"linear-gradient(135deg,#1B5E20 0%,#2E7D32 100%)",padding:"13px 18px"}}>
@@ -5157,13 +5327,14 @@ function App() {
           </div>
         </div>
         <div style={{background:"#fff",borderBottom:"1.5px solid #E8F5E9",padding:"0 14px",display:"flex"}}>
-          {[["mon_planning","👤 Mon planning"],["pointage","⏱ Pointage"],["equipe","👥 Planning équipe"]].map(([k,l])=>(
+          {[["mon_planning","👤 Mon planning"],["pointage","⏱ Pointage"],["mes_resas","📋 Réservations"],["equipe","👥 Planning équipe"]].map(([k,l])=>(
             <button key={k} onClick={()=>setEmpTab(k)} style={{padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:12,whiteSpace:"nowrap",fontWeight:empTab===k?700:400,color:empTab===k?"#2E7D32":"#9E9E9E",borderBottom:`2.5px solid ${empTab===k?"#2E7D32":"transparent"}`,fontFamily:"inherit"}}>{l}</button>
           ))}
         </div>
         <div style={{padding:"16px",maxWidth:900,margin:"0 auto"}}>
           {empTab==="mon_planning"&&<MonPlanningTab emp={emp} shifts={shifts} setShifts={setShifts}/>}
           {empTab==="pointage"   &&<PointageTab emp={emp} shifts={shifts} setShifts={setShifts}/>}
+          {empTab==="mes_resas"  &&<MesResasTab emp={emp} reservations={resasData}/>}
           {empTab==="equipe"     &&<PlanningEquipeTab team={team} shifts={shifts} setShifts={()=>{}} readonly={true}/>}
         </div>
       </div>
