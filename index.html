@@ -393,9 +393,9 @@ contact@abracadaparc.fr`;
   // ─── VUE CALENDRIER ──────────────────────────────────────────────────────────
 
   function buildCalView() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    if (!state.calYear) { state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); }
+    const year = state.calYear;
+    const month = state.calMonth;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const nomsMois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -415,18 +415,24 @@ contact@abracadaparc.fr`;
   <div style="font-size:11px;font-weight:${isToday?800:400};color:${isToday?'#2E7D32':'#757575'};margin-bottom:3px;">${d}</div>
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
-    return `<div style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;">${esc(r.prenom_enfant || r.nom_contact || '?')}</div>`;
+    return `<div style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;">${esc(r.prenom_enfant || r.nom_contact || r.organisation || '?')} ${r.heure_debut?'·'+r.heure_debut:''}</div>`;
   }).join('')}
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
     }
     return `
 <div>
-  <div style="text-align:center;font-size:15px;font-weight:700;color:#2E7D32;margin-bottom:12px;">${nomsMois[month]} ${year}</div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px;">
+    <button id="cal-prev" style="background:#F1F8E9;border:1px solid #C8E6C9;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px;color:#2E7D32;">←</button>
+    <span style="font-size:16px;font-weight:800;color:#2E7D32;min-width:180px;text-align:center;">${nomsMois[month]} ${year}</span>
+    <button id="cal-next" style="background:#F1F8E9;border:1px solid #C8E6C9;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px;color:#2E7D32;">→</button>
+    <button id="cal-today" style="background:#2E7D32;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:700;color:#fff;">Aujourd'hui</button>
+  </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px;">
     ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map(j => `<div style="text-align:center;font-size:10px;font-weight:700;color:#9E9E9E;">${j}</div>`).join('')}
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
+  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
 </div>`;
   }
 
@@ -465,8 +471,15 @@ contact@abracadaparc.fr`;
   <td style="padding:8px 10px;"><span style="font-weight:800;color:${urgColor};">J-${diffJ}</span></td>
   <td style="padding:8px 10px;">
     <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${r.gateau_commande ? '#E8F5E9' : '#FFF3E0'};color:${r.gateau_commande ? '#1B5E20' : '#E65100'};font-weight:700;">
-      ${r.gateau_commande ? '✅ Commandé' : '⏳ À commander'}
+      ${r.gateau_commande === 'livre' ? '🎂 Livré ✓' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander'}
     </span>
+  </td>
+  <td style="padding:8px 10px;">
+    <div style="display:flex;gap:4px;">
+      ${!r.gateau_commande ? `<button data-gateau-cmd="${r.id}" style="padding:4px 10px;background:#E65100;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">📞 Commander</button>` : ''}
+      ${r.gateau_commande && r.gateau_commande !== 'livre' ? `<button data-gateau-livre="${r.id}" style="padding:4px 10px;background:#1B5E20;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">🎂 Livré</button>` : ''}
+      ${r.gateau_commande === 'livre' ? '<span style="color:#1B5E20;font-size:12px;font-weight:700;">✓ Réceptionné</span>' : ''}
+    </div>
   </td>
 </tr>`;
     }).join('')}
@@ -915,6 +928,37 @@ contact@abracadaparc.fr`;
 
       // Save memo
       if (e.target.closest('#save-memo')) { saveMemo(); return; }
+    });
+
+    // Calendar navigation
+    const calPrev = el.querySelector('#cal-prev');
+    if (calPrev) calPrev.addEventListener('click', () => {
+      if (!state.calYear) { state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); }
+      state.calMonth--; if (state.calMonth < 0) { state.calMonth = 11; state.calYear--; }
+      render();
+    });
+    const calNext = el.querySelector('#cal-next');
+    if (calNext) calNext.addEventListener('click', () => {
+      if (!state.calYear) { state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); }
+      state.calMonth++; if (state.calMonth > 11) { state.calMonth = 0; state.calYear++; }
+      render();
+    });
+    const calToday = el.querySelector('#cal-today');
+    if (calToday) calToday.addEventListener('click', () => {
+      state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); render();
+    });
+    // Gâteau boutons
+    el.querySelectorAll('[data-gateau-cmd]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.gateauCmd;
+        if (state.reservations[id]) { state.reservations[id].gateau_commande = true; saveAll(); render(); }
+      });
+    });
+    el.querySelectorAll('[data-gateau-livre]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.gateauLivre;
+        if (state.reservations[id]) { state.reservations[id].gateau_commande = 'livre'; saveAll(); render(); }
+      });
     });
 
     // Filtres
