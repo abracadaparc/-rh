@@ -425,6 +425,71 @@ contact@abracadaparc.fr`;
 </div>`;
   }
 
+  // ─── MODAL DÉTAIL RÉSERVATION (clic calendrier) ─────────────────────────────
+  function buildResaDetailModal(r) {
+    var seg = getSegment(r.segment);
+    var st = getStatut(r.statut || '1');
+    var nom = esc(r.prenom_enfant || r.organisation || r.nom_contact || '—');
+    var dateStr = r.date ? new Date(r.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '—';
+    var total = calcTotal(r);
+    var solde = Math.max(0, total - (parseFloat(r.acompte_paye) || 0));
+    var modePay = {internet_cb:'CB en ligne',virement:'Virement',especes:'Espèces',cheque:'Chèque',cheque_vacances:'Chèques vacances',bon_commande:'Bon de commande',cb:'CB sur place',Carte:'Carte',Virement:'Virement'};
+
+    var lignesInfos = '';
+    lignesInfos += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">';
+    lignesInfos += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + seg.color + '18;color:' + seg.color + ';">' + seg.label + '</span>';
+    lignesInfos += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + st.bg + ';color:' + st.color + ';">' + st.label + '</span>';
+    if (r.ref) lignesInfos += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;background:#F5F5F5;color:#757575;">' + esc(r.ref) + '</span>';
+    lignesInfos += '</div>';
+
+    lignesInfos += '<div style="font-size:13px;color:#424242;line-height:2.2;border-top:1px solid #E8F5E9;padding-top:12px;">';
+    lignesInfos += '📅 <strong>' + dateStr + '</strong><br/>';
+    lignesInfos += '⏰ ' + (r.heure_debut || '—') + ' → ' + (r.heure_fin || '—') + '<br/>';
+    if (r.effectif_enfants) lignesInfos += '👶 ' + r.effectif_enfants + ' enfant' + (r.effectif_enfants > 1 ? 's' : '') + (r.effectif_adultes > 0 ? ' · ' + r.effectif_adultes + ' adulte' + (r.effectif_adultes > 1 ? 's' : '') : '') + '<br/>';
+    if (r.prenom_enfant && r.age_enfant) lignesInfos += '🎂 ' + esc(r.prenom_enfant) + ' · ' + r.age_enfant + ' ans<br/>';
+    if (r.organisation) lignesInfos += '🏫 ' + esc(r.organisation) + (r.ville ? ' · ' + esc(r.ville) : '') + '<br/>';
+    if (r.formule_id && r.formule_id !== 'mesure') lignesInfos += '📋 Formule : ' + r.formule_id + '<br/>';
+    if (r.option_animateur) lignesInfos += '🎭 Animateur inclus<br/>';
+    if (r.gateau_nacima) {
+      lignesInfos += '🎂 Gâteau : ' + esc(r.gateau_type || '') + (r.gateau_inscription ? ' · "' + esc(r.gateau_inscription) + '"' : '');
+      if (r.gateau_allergies && r.gateau_allergies !== 'aucune') lignesInfos += ' · <strong style="color:#C62828;">⚠️ Allergies : ' + esc(r.gateau_allergies) + '</strong>';
+      lignesInfos += ' · ' + (r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander') + '<br/>';
+    }
+    if (r.nom_contact) lignesInfos += '👤 ' + esc(r.nom_contact) + '<br/>';
+    if (r.tel) lignesInfos += '📞 <a href="tel:' + r.tel + '" style="color:#1565C0;">' + esc(r.tel) + '</a><br/>';
+    if (r.email_contact) lignesInfos += '📧 ' + esc(r.email_contact) + '<br/>';
+    if (r.notes) lignesInfos += '💬 ' + esc(r.notes.slice(0, 150)) + '<br/>';
+    lignesInfos += '</div>';
+
+    if (total > 0) {
+      var soldeColor = solde > 0 ? '#C62828' : '#1B5E20';
+      lignesInfos += '<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px;">';
+      lignesInfos += '💶 Total : <strong>' + total.toLocaleString('fr') + ' €</strong>';
+      lignesInfos += ' · Acompte : ' + ((parseFloat(r.acompte_paye) || 0)).toLocaleString('fr') + ' €';
+      lignesInfos += ' · <span style="color:' + soldeColor + ';font-weight:700;">Solde : ' + solde.toLocaleString('fr') + ' €</span>';
+      if (r.acompte_paye && modePay[r.mode_paiement]) lignesInfos += ' (' + modePay[r.mode_paiement] + ')';
+      lignesInfos += '</div>';
+    }
+
+    if (r.modified_by) {
+      lignesInfos += '<div style="margin-top:8px;font-size:10px;color:#BDBDBD;">Modifié par ' + esc(r.modified_by) + ' le ' + (r.modified_at ? new Date(r.modified_at).toLocaleDateString('fr-FR') : '') + '</div>';
+    }
+
+    return '<div id="resa-detail-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">' +
+      '<div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:85vh;overflow-y:auto">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">' +
+          '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + nom + '</div>' +
+          '<button id="close-resa-detail" style="background:none;border:none;font-size:26px;cursor:pointer;color:#9E9E9E;line-height:1;padding:0;margin-left:10px;">×</button>' +
+        '</div>' +
+        lignesInfos +
+        '<div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E8F5E9;">' +
+          '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
+          '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   // ─── MODAL ÉDITION GÂTEAU ────────────────────────────────────────────────────
   function buildGateauEditModal(r) {
     return '<div id="gateau-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">' +
@@ -487,7 +552,11 @@ contact@abracadaparc.fr`;
   <div style="font-size:11px;font-weight:${isToday?800:400};color:${isToday?'#2E7D32':'#757575'};margin-bottom:3px;">${d}</div>
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
-    return `<div style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;">${esc(r.prenom_enfant || r.nom_contact || r.organisation || '?')} ${r.heure_debut?'·'+r.heure_debut:''}</div>`;
+    (function(resa) {
+        var nom = esc(resa.prenom_enfant || resa.nom_contact || resa.organisation || '?');
+        var heure = resa.heure_debut ? ' · ' + resa.heure_debut : '';
+        return '<div data-cal-resa="' + resa.id + '" style="font-size:9px;background:' + seg.color + '22;color:' + seg.color + ';border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;">' + nom + heure + '</div>';
+      })(r);
   }).join('')}
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
@@ -1037,6 +1106,43 @@ contact@abracadaparc.fr`;
     if (calToday) calToday.addEventListener('click', () => {
       state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); render();
     });
+    // Clic sur réservation dans le calendrier
+    el.querySelectorAll('[data-cal-resa]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = btn.dataset.calResa;
+        var r = state.reservations[id];
+        if (!r) return;
+        var existing = document.getElementById('resa-detail-modal');
+        if (existing) existing.remove();
+        var div = document.createElement('div');
+        div.innerHTML = buildResaDetailModal(r);
+        document.getElementById('res-root').appendChild(div.firstChild);
+        var closeModal = function() { var m = document.getElementById('resa-detail-modal'); if(m) m.remove(); };
+        document.getElementById('close-resa-detail').addEventListener('click', closeModal);
+        document.getElementById('resa-detail-modal').addEventListener('click', function(ev) { if(ev.target.id === 'resa-detail-modal') closeModal(); });
+        // Bouton modifier depuis la modal
+        var editBtn = document.getElementById('detail-edit-btn');
+        if (editBtn) editBtn.addEventListener('click', function() {
+          closeModal();
+          state.editId = id; state.walkin = false; state.showForm = true; state.formData = Object.assign({}, r);
+          render();
+        });
+        // Bouton historique depuis la modal
+        var histBtn = document.getElementById('detail-hist-btn');
+        if (histBtn) histBtn.addEventListener('click', function() {
+          closeModal();
+          var histDiv = document.createElement('div');
+          histDiv.innerHTML = buildHistoryModal(r);
+          document.getElementById('res-root').appendChild(histDiv.firstChild);
+          var closeHist = function() { var m = document.getElementById('history-modal'); if(m) m.remove(); };
+          var closeHistBtn = document.getElementById('close-history-modal');
+          if (closeHistBtn) closeHistBtn.addEventListener('click', closeHist);
+          document.getElementById('history-modal').addEventListener('click', function(ev) { if(ev.target.id==='history-modal') closeHist(); });
+        });
+      });
+    });
+
     // Gâteau edit
     el.querySelectorAll('[data-gateau-edit]').forEach(function(btn) {
       btn.addEventListener('click', function() {
