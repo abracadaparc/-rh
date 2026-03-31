@@ -415,7 +415,7 @@ contact@abracadaparc.fr`;
   <div style="font-size:11px;font-weight:${isToday?800:400};color:${isToday?'#2E7D32':'#757575'};margin-bottom:3px;">${d}</div>
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
-    return `<div data-resa-id="${r.id}" style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;">${esc(r.prenom_enfant || r.nom_contact || r.organisation || '?')} ${r.heure_debut?'·'+r.heure_debut:''}</div>`;
+    return `<div style="font-size:9px;background:${seg.color}22;color:${seg.color};border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;">${esc(r.prenom_enfant || r.nom_contact || r.organisation || '?')} ${r.heure_debut?'·'+r.heure_debut:''}</div>`;
   }).join('')}
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
@@ -928,15 +928,6 @@ contact@abracadaparc.fr`;
 
       // Save memo
       if (e.target.closest('#save-memo')) { saveMemo(); return; }
-    });
-
-    // Calendar resa click → switch to liste view with this resa
-    el.querySelectorAll('[data-resa-id]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        state.view = 'liste';
-        render();
-      });
     });
 
     // Calendar navigation
@@ -5275,7 +5266,8 @@ function App() {
   // ── VUE SALARIÉ ──
   if(authMode==="employee") {
     const emp=team.find(e=>e.id===currentEmpId);
-    const resasData = (() => { try { const s = localStorage.getItem('abr_reservations'); return s ? JSON.parse(s) : {}; } catch { return {}; } })();f(!emp){logout();return null;}
+    const resasData = (() => { try { const s = localStorage.getItem('abr_reservations'); return s ? JSON.parse(s) : {}; } catch { return {}; } })();
+    if(!emp){logout();return null;}
     return (
       <div style={{fontFamily:"system-ui,-apple-system,'Segoe UI',sans-serif",background:"#F4F8F4",minHeight:"100vh"}}>
         <div style={{background:"linear-gradient(135deg,#1B5E20 0%,#2E7D32 100%)",padding:"13px 18px"}}>
