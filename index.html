@@ -390,6 +390,43 @@ contact@abracadaparc.fr`;
 </div>`;
   }
 
+  // ─── MODAL ÉDITION GÂTEAU ────────────────────────────────────────────────────
+  function buildGateauEditModal(r) {
+    return '<div id="gateau-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">' +
+      '<div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">' +
+          '<div style="font-size:15px;font-weight:800;color:#1B5E20">🎂 ' + esc(r.prenom_enfant || r.nom_contact || '') + '</div>' +
+          '<button id="close-gateau-modal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#9E9E9E">×</button>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px">Gâteau</div>' +
+          '<div style="font-size:13px;color:#424242;">' + esc(r.gateau_type || '—') + (r.gateau_inscription ? ' · "' + esc(r.gateau_inscription) + '"' : '') + '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<label style="display:block;font-size:10px;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px">⚠️ Allergies</label>' +
+          '<input id="gm-allergies" value="' + esc(r.gateau_allergies || '') + '" placeholder="Aucune / gluten / fruits à coque…" style="width:100%;padding:8px 12px;border:1.5px solid #FFCDD2;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;outline:none" />' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<label style="display:block;font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px">Statut commande</label>' +
+          '<select id="gm-statut" style="width:100%;padding:8px 12px;border:1.5px solid #C8E6C9;border-radius:8px;font-size:13px;font-family:inherit;outline:none">' +
+            '<option value="">⏳ À commander</option>' +
+            '<option value="commande"' + (r.gateau_commande === 'commande' || r.gateau_commande === true ? ' selected' : '') + '>✅ Commandé</option>' +
+            '<option value="prevu"' + (r.gateau_commande === 'prevu' ? ' selected' : '') + '>📅 Livraison prévue</option>' +
+            '<option value="livre"' + (r.gateau_commande === 'livre' ? ' selected' : '') + '>🎂 Réceptionné / Livré</option>' +
+          '</select>' +
+        '</div>' +
+        '<div style="margin-bottom:18px">' +
+          '<label style="display:block;font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px">Date de livraison prévue</label>' +
+          '<input id="gm-date" type="date" value="' + (r.gateau_date_livraison || '') + '" style="width:100%;padding:8px 12px;border:1.5px solid #C8E6C9;border-radius:8px;font-size:13px;font-family:inherit;outline:none" />' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button id="save-gateau-modal" data-id="' + r.id + '" style="flex:1;padding:12px;background:#2E7D32;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit">✅ Enregistrer</button>' +
+          '<button id="close-gateau-modal-2" style="padding:12px 18px;background:#F1F8E9;color:#2E7D32;border:1px solid #C8E6C9;border-radius:10px;cursor:pointer;font-size:13px;font-family:inherit">Annuler</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   // ─── VUE CALENDRIER ──────────────────────────────────────────────────────────
 
   function buildCalView() {
@@ -461,27 +498,27 @@ contact@abracadaparc.fr`;
       const dateVisite = new Date(r.date + 'T12:00');
       const diffJ = Math.round((dateVisite - new Date(today() + 'T12:00')) / 86400000);
       const urgColor = diffJ <= 7 ? '#C62828' : diffJ <= 10 ? '#E65100' : '#2E7D32';
-      return `
-<tr style="border-bottom:1px solid #F5F5F5;">
-  <td style="padding:8px 10px;font-size:12px;font-weight:700;">${fmtDate(r.date)}</td>
-  <td style="padding:8px 10px;font-size:12px;">${esc(r.prenom_enfant || r.nom_contact || '—')}</td>
-  <td style="padding:8px 10px;font-size:12px;">${esc(r.gateau_type || '—')}</td>
-  <td style="padding:8px 10px;font-size:12px;">${esc(r.gateau_inscription || '—')}</td>
-  <td style="padding:8px 10px;font-size:11px;color:#C62828;">${esc(r.gateau_allergies || '✅ aucune')}</td>
-  <td style="padding:8px 10px;"><span style="font-weight:800;color:${urgColor};">J-${diffJ}</span></td>
-  <td style="padding:8px 10px;">
-    <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${r.gateau_commande ? '#E8F5E9' : '#FFF3E0'};color:${r.gateau_commande ? '#1B5E20' : '#E65100'};font-weight:700;">
-      ${r.gateau_commande === 'livre' ? '🎂 Livré ✓' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander'}
-    </span>
-  </td>
-  <td style="padding:8px 10px;">
-    <div style="display:flex;gap:4px;">
-      ${!r.gateau_commande ? `<button data-gateau-cmd="${r.id}" style="padding:4px 10px;background:#E65100;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">📞 Commander</button>` : ''}
-      ${r.gateau_commande && r.gateau_commande !== 'livre' ? `<button data-gateau-livre="${r.id}" style="padding:4px 10px;background:#1B5E20;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">🎂 Livré</button>` : ''}
-      ${r.gateau_commande === 'livre' ? '<span style="color:#1B5E20;font-size:12px;font-weight:700;">✓ Réceptionné</span>' : ''}
-    </div>
-  </td>
-</tr>`;
+            var allergiesTxt = r.gateau_allergies && r.gateau_allergies !== 'aucune' ? r.gateau_allergies : '✅ aucune';
+      var allergieColor = r.gateau_allergies && r.gateau_allergies !== 'aucune' && r.gateau_allergies !== '' ? '#C62828' : '#2E7D32';
+      var statutLabel = r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander';
+      var statutBg = r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
+      var statutColor = r.gateau_commande === 'livre' ? '#1B5E20' : r.gateau_commande === 'prevu' ? '#1565C0' : r.gateau_commande ? '#E65100' : '#C62828';
+      return '<tr style="border-bottom:1px solid #F5F5F5;">' +
+        '<td style="padding:8px 10px;font-size:12px;font-weight:700;">' + fmtDate(r.date) + '</td>' +
+        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.prenom_enfant || r.nom_contact || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.gateau_type || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.gateau_inscription || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;font-weight:700;color:' + allergieColor + ';">' + esc(allergiesTxt) + '</td>' +
+        '<td style="padding:8px 10px;"><span style="font-weight:800;color:' + urgColor + ';">J-' + diffJ + '</span></td>' +
+        '<td style="padding:8px 10px;">' +
+          '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+            '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:' + statutBg + ';color:' + statutColor + ';">' + statutLabel + '</span>' +
+            (r.gateau_date_livraison ? '<span style="font-size:10px;color:#9E9E9E;">📅 ' + fmtDate(r.gateau_date_livraison) + '</span>' : '') +
+            '<button data-gateau-edit="' + r.id + '" style="padding:3px 10px;background:#F1F8E9;color:#2E7D32;border:1px solid #C8E6C9;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
+          '</div>' +
+        '</td>' +
+      '</tr>'
+    ;
     }).join('')}
     </tbody>
   </table>`}
@@ -947,17 +984,34 @@ contact@abracadaparc.fr`;
     if (calToday) calToday.addEventListener('click', () => {
       state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); render();
     });
-    // Gâteau boutons
-    el.querySelectorAll('[data-gateau-cmd]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.gateauCmd;
-        if (state.reservations[id]) { state.reservations[id].gateau_commande = true; saveAll(); render(); }
-      });
-    });
-    el.querySelectorAll('[data-gateau-livre]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.gateauLivre;
-        if (state.reservations[id]) { state.reservations[id].gateau_commande = 'livre'; saveAll(); render(); }
+    // Gâteau edit
+    el.querySelectorAll('[data-gateau-edit]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.gateauEdit;
+        var r = state.reservations[id];
+        if (!r) return;
+        var existing = document.getElementById('gateau-modal');
+        if (existing) existing.remove();
+        var div = document.createElement('div');
+        div.innerHTML = buildGateauEditModal(r);
+        document.getElementById('res-root').appendChild(div.firstChild);
+        var closeModal = function() { var m = document.getElementById('gateau-modal'); if(m) m.remove(); };
+        document.getElementById('close-gateau-modal').addEventListener('click', closeModal);
+        document.getElementById('close-gateau-modal-2').addEventListener('click', closeModal);
+        document.getElementById('save-gateau-modal').addEventListener('click', function() {
+          var rid = this.dataset.id;
+          if (!state.reservations[rid]) return;
+          var allergies = document.getElementById('gm-allergies').value.trim();
+          var statut = document.getElementById('gm-statut').value;
+          var dateLiv = document.getElementById('gm-date').value;
+          state.reservations[rid].gateau_allergies = allergies || 'aucune';
+          state.reservations[rid].gateau_commande = statut || false;
+          state.reservations[rid].gateau_date_livraison = dateLiv;
+          state.reservations[rid].updated_at = new Date().toISOString();
+          saveAll();
+          closeModal();
+          render();
+        });
       });
     });
 
