@@ -293,6 +293,40 @@ contact@abracadaparc.fr`;
 </div>`;
   }
 
+  // ─── MODAL HISTORIQUE ────────────────────────────────────────────────────────
+  function buildHistoryModal(r) {
+    var nom = esc(r.prenom_enfant || r.organisation || r.nom_contact || 'Réservation');
+    var history = r.history || [];
+    var rows = history.length === 0
+      ? '<div style="text-align:center;padding:30px;color:#9E9E9E;font-size:13px;">Aucune modification enregistrée</div>'
+      : history.map(function(h) {
+          var changes = (h.changes || []).map(function(c) {
+            return '<div style="font-size:12px;color:#424242;padding:2px 0;">• ' + esc(c) + '</div>';
+          }).join('');
+          var alertBg = h.alert ? '#FFF8E1' : '#F9F9F9';
+          var alertBorder = h.alert ? '#FFD54F' : '#EEEEEE';
+          var date = h.ts ? new Date(h.ts).toLocaleString('fr-FR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+          return '<div style="background:' + alertBg + ';border:1px solid ' + alertBorder + ';border-radius:8px;padding:10px 14px;margin-bottom:8px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+              '<span style="font-size:12px;font-weight:700;color:#2E7D32;">' + esc(h.by || 'Admin') + '</span>' +
+              '<span style="font-size:11px;color:#9E9E9E;">' + date + '</span>' +
+            '</div>' +
+            changes +
+          '</div>';
+        }).join('');
+
+    return '<div id="history-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">' +
+      '<div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:80vh;overflow-y:auto">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<div style="font-size:15px;font-weight:800;color:#1B5E20">📋 Historique</div>' +
+          '<button id="close-history-modal" style="background:none;border:none;font-size:24px;cursor:pointer;color:#9E9E9E">×</button>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#9E9E9E;margin-bottom:16px;">' + nom + ' · ' + (r.date || '—') + '</div>' +
+        '<div>' + rows + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   // ─── VUE LISTE ────────────────────────────────────────────────────────────────
 
   function buildListeView() {
@@ -379,10 +413,11 @@ contact@abracadaparc.fr`;
         ${acompte > 0 ? `<div style="font-size:10px;color:#9E9E9E;">Acompte : ${acompte.toLocaleString('fr')} €</div>` : ''}
         ${solde > 0 ? `<div style="font-size:11px;font-weight:700;color:#C62828;">Solde : ${solde.toLocaleString('fr')} €</div>` : `<div style="font-size:10px;color:#2E7D32;">✅ Réglé</div>`}
       </div>` : ''}
-      <div style="display:flex;gap:4px;">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
         ${r.statut !== '6' ? `
         <button data-advance="${r.id}" style="padding:4px 8px;background:#E8F5E9;color:#2E7D32;border:1px solid #C8E6C9;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;">Avancer →</button>` : ''}
         <button data-edit="${r.id}" style="padding:4px 8px;background:#F5F5F5;color:#424242;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">✏️</button>
+        <button data-history="${r.id}" style="padding:4px 8px;background:#E3F2FD;color:#1565C0;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">📋 ${r.history && r.history.length > 0 ? r.history.length : ''}</button>
         <button data-delete="${r.id}" style="padding:4px 8px;background:#FFEBEE;color:#C62828;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">🗑</button>
       </div>
     </div>
@@ -889,6 +924,24 @@ contact@abracadaparc.fr`;
       const mtype = e.target.closest('[data-memo-type]');
       if (mtype) { state.memoData.type_event = mtype.dataset.memoType; render(); return; }
 
+      // History modal
+      const histBtn = e.target.closest('[data-history]');
+      if (histBtn) {
+        var histId = histBtn.dataset.history;
+        var histResa = state.reservations[histId];
+        if (!histResa) return;
+        var existingHist = document.getElementById('history-modal');
+        if (existingHist) existingHist.remove();
+        var histDiv = document.createElement('div');
+        histDiv.innerHTML = buildHistoryModal(histResa);
+        document.getElementById('res-root').appendChild(histDiv.firstChild);
+        var closeHist = function() { var m = document.getElementById('history-modal'); if(m) m.remove(); };
+        var closeBtn = document.getElementById('close-history-modal');
+        if (closeBtn) closeBtn.addEventListener('click', closeHist);
+        document.getElementById('history-modal').addEventListener('click', function(ev) { if(ev.target.id==='history-modal') closeHist(); });
+        return;
+      }
+
       // Advance statut
       const adv = e.target.closest('[data-advance]');
       if (adv) {
@@ -1072,6 +1125,69 @@ contact@abracadaparc.fr`;
     } else {
       r.created_by = "Admin";
     }
+    // Traçabilité + Historique
+    var prevResa = state.reservations[r.id] ? JSON.parse(JSON.stringify(state.reservations[r.id])) : null;
+    r.modified_by = state.currentUser || 'Admin';
+    r.modified_at = new Date().toISOString();
+    if (!r.created_by) r.created_by = r.modified_by;
+
+    // Construire l'entrée d'historique
+    var histEntry = {
+      ts: r.modified_at,
+      by: r.modified_by,
+      changes: []
+    };
+    if (prevResa) {
+      // Détecter changements statut pipeline
+      if (prevResa.statut !== r.statut) {
+        var stLabels = {'1':'Demande reçue','2':'Devis envoyé','3':'Devis signé','4':'Confirmé BC reçu','5':'Visite Facturation','6':'Chorus Pro'};
+        histEntry.changes.push('Pipeline: ' + (stLabels[prevResa.statut]||prevResa.statut) + ' → ' + (stLabels[r.statut]||r.statut));
+        histEntry.alert = true;
+      }
+      // Détecter changements financiers
+      if (prevResa.montant_total !== r.montant_total) {
+        histEntry.changes.push('Total: ' + prevResa.montant_total + '€ → ' + r.montant_total + '€');
+        histEntry.alert = true;
+      }
+      if (prevResa.acompte_paye !== r.acompte_paye) {
+        histEntry.changes.push('Acompte: ' + prevResa.acompte_paye + '€ → ' + r.acompte_paye + '€');
+        histEntry.alert = true;
+      }
+      // Autres changements
+      if (prevResa.gateau_commande !== r.gateau_commande) histEntry.changes.push('Gâteau statut: ' + (prevResa.gateau_commande||'À commander') + ' → ' + (r.gateau_commande||'À commander'));
+      if ((prevResa.gateau_allergies||'') !== (r.gateau_allergies||'')) histEntry.changes.push('Allergies: "' + (prevResa.gateau_allergies||'aucune') + '" → "' + (r.gateau_allergies||'aucune') + '"');
+    } else {
+      histEntry.changes.push('Réservation créée');
+    }
+
+    // Sauvegarder dans l'historique Firebase
+    if (histEntry.changes.length > 0) {
+      r.history = prevResa && prevResa.history ? prevResa.history : [];
+      r.history.unshift(histEntry); // plus récent en premier
+      if (r.history.length > 50) r.history = r.history.slice(0, 50); // max 50 entrées
+
+      // Envoyer email si changement statut ou financier
+      if (histEntry.alert) {
+        var nomResa = r.prenom_enfant || r.organisation || r.nom_contact || 'Réservation';
+        var emailBody = 'Modification détectée dans AbracadaParc RH\n\n';
+        emailBody += 'Réservation : ' + nomResa + (r.ref ? ' (' + r.ref + ')' : '') + '\n';
+        emailBody += 'Date visite : ' + (r.date || '—') + '\n';
+        emailBody += 'Modifié par : ' + r.modified_by + '\n';
+        emailBody += 'Le : ' + new Date(r.modified_at).toLocaleString('fr-FR') + '\n\n';
+        emailBody += 'Changements :\n';
+        histEntry.changes.forEach(function(c) { emailBody += '  • ' + c + '\n'; });
+        emailBody += '\nAccéder à l\'outil : https://abracadaparc.github.io/-rh/';
+        try {
+          save('alert_email_queue', {
+            to: 'contact@abracadaparc.fr',
+            subject: '🔔 AbracadaParc — Modification réservation : ' + nomResa,
+            body: emailBody,
+            ts: r.modified_at
+          });
+        } catch(e) {}
+      }
+    }
+
     state.reservations[r.id] = r;
     state.showForm = false;
     state.walkin = false;
@@ -2941,140 +3057,47 @@ Document confidentiel — usage RH uniquement`;
 
 
 // ═══════════════════════════════════════════════════════════
-// MES RESAS TAB — Vue salarié (lecture seule, sans données financières)
+// RESERVATIONS TAB EQUIPE — Vue salarié avec Firebase sync
+// Même vue que admin — données temps réel Firebase
 // ═══════════════════════════════════════════════════════════
 
-function MesResasTab({ emp, reservations }) {
-  const todayDate = new Date().toISOString().slice(0,10);
-  const tomorrowDate = new Date(Date.now()+86400000).toISOString().slice(0,10);
-  const [filtre, setFiltre] = React.useState("today");
-
-  const all = Object.values(reservations || {});
-  const filtered = all.filter(r => {
-    if (filtre === "today")    return r.date === todayDate;
-    if (filtre === "tomorrow") return r.date === tomorrowDate;
-    if (filtre === "week") {
-      const d = new Date(todayDate); const end = new Date(d.getTime()+7*86400000);
-      return r.date >= todayDate && r.date <= end.toISOString().slice(0,10);
-    }
-    return r.date >= todayDate;
-  }).sort((a,b)=>(a.date+a.heure_debut).localeCompare(b.date+b.heure_debut));
-
-  const segColors = {
-    anniversaire:"#AD1457", scolaire:"#1565C0", alsh:"#2E7D32",
-    privatisation:"#6A1B9A", groupe:"#E65100", association:"#00695C", entreprise:"#37474F"
-  };
-  const segLabels = {
-    anniversaire:"🎂 Anniversaire", scolaire:"🏫 Scolaire", alsh:"🏕️ ALSH/CDL",
-    privatisation:"🏡 Privatisation", groupe:"👨‍👩‍👧 Groupe", association:"🌟 Association", entreprise:"🏢 Entreprise"
-  };
-
-  return (
-    <div>
-      <div style={{...S.card, marginBottom:14, background:"#E3F2FD", border:"1px solid #90CAF9"}}>
-        <div style={{fontSize:12, color:"#1565C0", lineHeight:1.7}}>
-          📋 <strong>Réservations</strong> — Vue équipe (informations opérationnelles uniquement)<br/>
-          Pour toute question ou modification, contacter Vanessa.
-        </div>
-      </div>
-
-      {/* Filtres */}
-      <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
-        {[["today","Aujourd'hui"],["tomorrow","Demain"],["week","7 prochains jours"],["all","Tout voir"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setFiltre(k)} style={{...S.btn, padding:"6px 14px", fontSize:12,
-            background: filtre===k?"#2E7D32":"#F1F8E9",
-            color: filtre===k?"#fff":"#2E7D32",
-            border: filtre===k?"none":"1px solid #C8E6C9"}}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div style={{...S.card, textAlign:"center", padding:40, color:"#9E9E9E"}}>
-          <div style={{fontSize:28, marginBottom:8}}>📋</div>
-          <div>Aucune réservation {filtre==="today"?"aujourd'hui":filtre==="tomorrow"?"demain":"sur cette période"}</div>
-        </div>
-      ) : (
-        <div style={{display:"flex", flexDirection:"column", gap:10}}>
-          {filtered.map(r => {
-            const color = segColors[r.segment] || "#757575";
-            const label = segLabels[r.segment] || r.segment;
-            const nom = r.prenom_enfant || r.organisation || r.nom_contact || "—";
-            const dateStr = r.date ? new Date(r.date+"T12:00").toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long"}) : "—";
-            const gateau = r.gateau_nacima && !r.gateau_commande;
-            return (
-              <div key={r.id} style={{...S.card, borderLeft:`4px solid ${color}`, padding:"14px 16px"}}>
-                <div style={{display:"flex", alignItems:"flex-start", gap:12, flexWrap:"wrap"}}>
-                  <div style={{flex:1}}>
-                    {/* Badge + date */}
-                    <div style={{display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:6}}>
-                      <span style={{padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:color+"18", color}}>{label}</span>
-                      {gateau && <span style={{padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:700, background:"#FBE9E7", color:"#BF360C"}}>🎂 Gâteau à prévoir</span>}
-                      {r.option_animateur && <span style={{padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:700, background:"#F3E5F5", color:"#6A1B9A"}}>🎭 Animateur</span>}
-                    </div>
-                    {/* Infos principales */}
-                    <div style={{fontSize:14, fontWeight:800, color:"#212121", marginBottom:4}}>{nom}</div>
-                    <div style={{fontSize:12, color:"#616161", marginBottom:4}}>
-                      📅 {dateStr} · {r.heure_debut||"—"} → {r.heure_fin||"—"}
-                      {r.formule_id && r.formule_id !== "mesure" && <span style={{marginLeft:8, fontSize:11, background:"#F1F8E9", color:"#2E7D32", padding:"1px 8px", borderRadius:8, fontWeight:600}}>{r.formule_id}</span>}
-                    </div>
-                    {/* Effectif */}
-                    {(r.effectif_enfants || r.effectif_adultes) && (
-                      <div style={{fontSize:12, color:"#424242", marginBottom:4}}>
-                        👥 {r.effectif_enfants||0} enfant{r.effectif_enfants>1?"s":""} {r.effectif_adultes>0?`· ${r.effectif_adultes} adulte${r.effectif_adultes>1?"s":""}`:""} 
-                      </div>
-                    )}
-                    {/* Gâteau opérationnel */}
-                    {r.gateau_nacima && (
-                      <div style={{fontSize:11, color: r.gateau_commande?"#1B5E20":"#BF360C", background: r.gateau_commande?"#E8F5E9":"#FBE9E7", padding:"4px 10px", borderRadius:8, display:"inline-block", marginTop:4}}>
-                        🎂 {r.gateau_type||"Gâteau"} {r.gateau_inscription?`· "${r.gateau_inscription}"`:""}
-                        {r.gateau_allergies && r.gateau_allergies!=="aucune" && <span style={{color:"#C62828", fontWeight:700}}> · ⚠️ Allergies: {r.gateau_allergies}</span>}
-                        {r.gateau_commande ? " ✅ Commandé" : " ⏳ À prévoir"}
-                      </div>
-                    )}
-                    {/* Contact opérationnel (tel uniquement) */}
-                    {r.tel && (
-                      <div style={{fontSize:11, color:"#9E9E9E", marginTop:6}}>
-                        📞 <a href={`tel:${r.tel}`} style={{color:"#1565C0"}}>{r.tel}</a>
-                      </div>
-                    )}
-                    {/* Notes */}
-                    {r.notes && <div style={{fontSize:11, color:"#757575", marginTop:4, fontStyle:"italic"}}>💬 {r.notes.slice(0,120)}</div>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+function ReservationsTabEmp({ empId, empNom }) {
+  React.useEffect(() => {
+    if (typeof window.ReservationsTab === "undefined") return;
+    // Create a dedicated container if needed
+    const container = document.getElementById("tab-reservations-emp");
+    if (!container) return;
+    // Temporarily redirect v5 render target
+    const orig = document.getElementById("tab-reservations");
+    if (orig) orig.id = "_tab-res-hidden";
+    container.id = "tab-reservations";
+    window.ReservationsTab.state.currentUser = empNom;
+    window.ReservationsTab.render();
+    return () => {
+      container.id = "tab-reservations-emp";
+      const hidden = document.getElementById("_tab-res-hidden");
+      if (hidden) hidden.id = "tab-reservations";
+    };
+  });
+  return <div id="tab-reservations-emp" style={{minHeight:200}}/>;
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // RESERVATIONS WRAPPER — mounts vanilla JS v5 component
 // ═══════════════════════════════════════════════════════════
 
 function ReservationsTabWrapper() {
-  const containerRef = React.useRef(null);
-
   React.useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.id = 'tab-reservations';
-    if (typeof window.ReservationsTab !== 'undefined') {
+    if (typeof window.ReservationsTab !== "undefined") {
+      window.ReservationsTab.state.currentUser = "Admin";
       window.ReservationsTab.init(true);
     }
     return () => {
-      // cleanup: stop Firebase listeners on unmount
-      try {
-        const el = document.getElementById('tab-reservations');
-        if (el) el.innerHTML = '';
-      } catch(e) {}
+      try { const el = document.getElementById("tab-reservations"); if (el) el.innerHTML = ""; } catch(e) {}
     };
   }, []);
-
-  return <div ref={containerRef} id="tab-reservations" style={{minHeight:200}}/>;
+  return <div id="tab-reservations" style={{minHeight:200}}/>;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5341,7 +5364,7 @@ function App() {
         <div style={{padding:"16px",maxWidth:900,margin:"0 auto"}}>
           {empTab==="mon_planning"&&<MonPlanningTab emp={emp} shifts={shifts} setShifts={setShifts}/>}
           {empTab==="pointage"   &&<PointageTab emp={emp} shifts={shifts} setShifts={setShifts}/>}
-          {empTab==="mes_resas"  &&<MesResasTab emp={emp} reservations={resasData}/>}
+          {empTab==="mes_resas"  &&<ReservationsTabEmp empId={emp.id} empNom={emp.prenom||emp.nom}/>}
           {empTab==="equipe"     &&<PlanningEquipeTab team={team} shifts={shifts} setShifts={()=>{}} readonly={true}/>}
         </div>
       </div>
