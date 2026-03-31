@@ -83,6 +83,7 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
     formData: {},
     memoData: {},
     alertsShown: false,
+    isAdmin: true,         // false = vue équipe (calendrier uniquement, CA masqué)
   };
 
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
@@ -255,9 +256,10 @@ contact@abracadaparc.fr`;
     <div style="flex:1;">
       <div style="font-size:13px;font-weight:800;color:#BF360C;margin-bottom:6px;">Commandes gâteaux à passer — ${NACIMA_TEL}</div>
       ${alertes.map(a => `
-      <div style="font-size:12px;color:${a.urgent ? '#C62828' : '#E65100'};margin-bottom:2px;">
-        ${a.urgent ? '🔴' : '🟡'} <strong>${a.r.prenom_enfant || a.r.nom_contact || 'Réservation'}</strong> · ${fmtDate(a.r.date)} · J-${a.diffJ}
-        · ${a.r.gateau_type || 'gâteau'} ${a.r.gateau_inscription ? `"${esc(a.r.gateau_inscription)}"` : ''}
+      <div style="font-size:12px;color:${a.urgent ? '#C62828' : '#E65100'};margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+        <span style="flex:1;">${a.urgent ? '🔴' : '🟡'} <strong>${a.r.prenom_enfant || a.r.nom_contact || 'Réservation'}</strong> · ${fmtDate(a.r.date)} · J-${a.diffJ}
+        · ${a.r.gateau_type || 'gâteau'} ${a.r.gateau_inscription ? `"${esc(a.r.gateau_inscription)}"` : ''}</span>
+        <button data-gateau-done="${a.r.id}" style="background:#2E7D32;color:#fff;border:none;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;">✅ Commandé</button>
       </div>`).join('')}
     </div>
     <a href="tel:${NACIMA_TEL.replace(/ /g,'')}" style="background:#C62828;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;flex-shrink:0;cursor:pointer;">
@@ -267,18 +269,20 @@ contact@abracadaparc.fr`;
 
   ${/* ONGLETS DE VUE */`
   <div style="display:flex;gap:0;border-bottom:2px solid #E8F5E9;margin-bottom:16px;overflow-x:auto;">
-    ${[
+    ${(state.isAdmin ? [
       ['liste','📋 Liste'],
       ['calendrier','📅 Calendrier'],
       ['gateaux','🎂 Gâteaux'],
       ['memos',`📝 Mémos${memos.length ? ` <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">${memos.length}</span>` : ''}`],
-    ].map(([v, l]) => `
+    ] : [
+      ['calendrier','📅 Calendrier'],
+    ]).map(([v, l]) => `
     <button data-view="${v}" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:${state.view===v?700:400};color:${state.view===v?'#2E7D32':'#9E9E9E'};border-bottom:${state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent'};margin-bottom:-2px;">${l}</button>
     `).join('')}
     <div style="flex:1;"></div>
-    <button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>
-    <button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>
-    <button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>
+    ${state.isAdmin ? `<button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>` : ''}
+    ${state.isAdmin ? `<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>` : ''}
+    ${state.isAdmin ? `<button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>` : ''}
   </div>`}
 
   ${/* CONTENU SELON VUE */
@@ -365,14 +369,21 @@ contact@abracadaparc.fr`;
       return s + Math.max(0, t - a);
     }, 0);
     const walkins = all.filter(r => r.walkin).length;
+    const confirmes = all.filter(r => r.statut === '4' || r.statut === '5' || r.statut === '6').length;
+    // Tuiles admin (CA masqué pour équipe)
+    const tuiles = state.isAdmin ? [
+      ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
+      ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
+      ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
+      ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
+    ] : [
+      ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
+      ['Confirmées', confirmes, '#1565C0', '#E3F2FD'],
+      ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
+    ];
     return `
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;">
-  ${[
-    ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
-    ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
-    ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
-    ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
-  ].map(([l, v, c, bg]) => `
+  ${tuiles.map(([l, v, c, bg]) => `
   <div style="background:${bg};border-radius:10px;padding:10px 12px;text-align:center;">
     <div style="font-size:18px;font-weight:800;color:${c};">${v}</div>
     <div style="font-size:10px;color:${c};opacity:0.8;margin-top:2px;">${l}</div>
@@ -407,7 +418,7 @@ contact@abracadaparc.fr`;
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
       <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${st.bg};color:${st.color};">${st.label}</span>
-      ${total > 0 ? `
+      ${total > 0 && state.isAdmin ? `
       <div style="text-align:right;">
         <div style="font-size:13px;font-weight:800;color:#1B5E20;">${total.toLocaleString('fr')} €</div>
         ${acompte > 0 ? `<div style="font-size:10px;color:#9E9E9E;">Acompte : ${acompte.toLocaleString('fr')} €</div>` : ''}
@@ -461,7 +472,7 @@ contact@abracadaparc.fr`;
     if (r.notes) lignesInfos += '💬 ' + esc(r.notes.slice(0, 150)) + '<br/>';
     lignesInfos += '</div>';
 
-    if (total > 0) {
+    if (total > 0 && state.isAdmin) {
       var soldeColor = solde > 0 ? '#C62828' : '#1B5E20';
       lignesInfos += '<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px;">';
       lignesInfos += '💶 Total : <strong>' + total.toLocaleString('fr') + ' €</strong>';
@@ -574,6 +585,17 @@ contact@abracadaparc.fr`;
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
   <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
+  
+  <!-- Légende segments -->
+  <div style="margin-top:14px;padding:10px 14px;background:#F9FBF9;border:1px solid #E8F5E9;border-radius:10px;">
+    <div style="font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Légende</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      ${SEGMENTS.map(s => `<span style="font-size:11px;background:${s.color}18;color:${s.color};border-radius:20px;padding:3px 10px;font-weight:600;">${s.label}</span>`).join('')}
+    </div>
+    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;">
+      ${STATUTS.map(s => `<span style="font-size:10px;background:${s.bg};color:${s.color};border-radius:20px;padding:2px 8px;font-weight:600;border:1px solid ${s.color}33;">${s.label}</span>`).join('')}
+    </div>
+  </div>
 </div>`;
   }
 
@@ -993,6 +1015,18 @@ contact@abracadaparc.fr`;
 
       const t = e.target.closest('[data-view]');
       if (t) { state.view = t.dataset.view; render(); return; }
+
+      // ✅ Bouton "Commandé" sur alerte gâteau
+      const gateau_done = e.target.closest('[data-gateau-done]');
+      if (gateau_done) {
+        const gid = gateau_done.dataset.gateau_done || gateau_done.dataset.gateauDone || gateau_done.getAttribute('data-gateau-done');
+        if (gid && state.reservations[gid]) {
+          state.reservations[gid].gateau_commande = 'commande';
+          save('reservations', state.reservations);
+          render();
+        }
+        return;
+      }
 
       if (e.target.closest('#btn-new-res')) {
         state.showForm = true; state.editId = null; state.walkin = false;
@@ -3170,11 +3204,12 @@ Document confidentiel — usage RH uniquement`;
 function ReservationsTabEmp({ empId, empNom }) {
   React.useEffect(() => {
     if (typeof window.ReservationsTab === "undefined") return;
-    // Wait for the div to be in DOM then init v5 with Firebase
     const tryInit = () => {
       const el = document.getElementById("tab-reservations");
       if (el) {
         window.ReservationsTab.state.currentUser = empNom || "Équipe";
+        window.ReservationsTab.state.isAdmin = false;   // masque CA/Soldes
+        window.ReservationsTab.state.view = 'calendrier'; // vue calendrier par défaut
         window.ReservationsTab.init(true);
       } else {
         setTimeout(tryInit, 100);
