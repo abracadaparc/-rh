@@ -4009,6 +4009,18 @@ function LoginScreen({team,onAdmin,onEmployee}) {
   );
 }
 
+  // ─── RESERVATIONS WRAPPER ────────────────────────────────
+function ReservationsTabWrapper() {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (ref.current && typeof ReservationsTab !== 'undefined') {
+      ref.current.id = 'tab-reservations';
+      ReservationsTab.init(true);
+    }
+  }, []);
+  return <div ref={ref} id="tab-reservations"></div>;
+}
+
 // ═══════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════
@@ -4103,6 +4115,7 @@ function App() {
     {id:"calendrier",    icon:"🗓", label:"Calendrier"},
     {id:"equipe",        icon:"👥",label:"Équipe"},
     {id:"parametres",    icon:"⚙️", label:"Paramètres"},
+    {id:"reservations",  icon:"🎂", label:"Réservations"},
   ];
   const now=new Date();
   const dateFR=now.toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
@@ -4152,6 +4165,7 @@ function App() {
         {tab==="calendrier"    &&<CalendrierTab dayLevels={dayLevels} setDayLevels={setDayLevels}/>}
         {tab==="equipe"        &&<EquipeTab team={team} setTeam={setTeam}/>}
         {tab==="parametres"    &&<ParametresTab onChangePwd={async()=>{}} team={team}/>}
+        {tab==="reservations"  &&<ReservationsTabWrapper/>}
       </div>
     </div>
   );
