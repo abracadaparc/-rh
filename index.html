@@ -552,11 +552,11 @@ contact@abracadaparc.fr`;
   <div style="font-size:11px;font-weight:${isToday?800:400};color:${isToday?'#2E7D32':'#757575'};margin-bottom:3px;">${d}</div>
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
-    (function(resa) {
+    return (function(resa) {
         var nom = esc(resa.prenom_enfant || resa.nom_contact || resa.organisation || '?');
         var heure = resa.heure_debut ? ' · ' + resa.heure_debut : '';
         return '<div data-cal-resa="' + resa.id + '" style="font-size:9px;background:' + seg.color + '22;color:' + seg.color + ';border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;">' + nom + heure + '</div>';
-      })(r);
+      })(r)
   }).join('')}
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
@@ -954,6 +954,43 @@ contact@abracadaparc.fr`;
     if (!el) return;
 
     el.addEventListener('click', function (e) {
+      // Clic sur réservation dans le calendrier
+      var calResa = e.target.closest('[data-cal-resa]');
+      if (calResa) {
+        var calId = calResa.dataset.calResa;
+        var calR = state.reservations[calId];
+        if (!calR) return;
+        var existingDet = document.getElementById('resa-detail-modal');
+        if (existingDet) existingDet.remove();
+        var detDiv = document.createElement('div');
+        detDiv.innerHTML = buildResaDetailModal(calR);
+        document.getElementById('res-root').appendChild(detDiv.firstChild);
+        var closeDetModal = function() { var m = document.getElementById('resa-detail-modal'); if(m) m.remove(); };
+        var closeDet = document.getElementById('close-resa-detail');
+        if (closeDet) closeDet.addEventListener('click', closeDetModal);
+        var detModal = document.getElementById('resa-detail-modal');
+        if (detModal) detModal.addEventListener('click', function(ev) { if(ev.target.id==='resa-detail-modal') closeDetModal(); });
+        var detEdit = document.getElementById('detail-edit-btn');
+        if (detEdit) detEdit.addEventListener('click', function() {
+          closeDetModal();
+          state.editId = calId; state.walkin = false; state.showForm = true; state.formData = Object.assign({}, calR);
+          render();
+        });
+        var detHist = document.getElementById('detail-hist-btn');
+        if (detHist) detHist.addEventListener('click', function() {
+          closeDetModal();
+          var hDiv = document.createElement('div');
+          hDiv.innerHTML = buildHistoryModal(calR);
+          document.getElementById('res-root').appendChild(hDiv.firstChild);
+          var closeH = function() { var m = document.getElementById('history-modal'); if(m) m.remove(); };
+          var closeHBtn = document.getElementById('close-history-modal');
+          if (closeHBtn) closeHBtn.addEventListener('click', closeH);
+          var hModal = document.getElementById('history-modal');
+          if (hModal) hModal.addEventListener('click', function(ev) { if(ev.target.id==='history-modal') closeH(); });
+        });
+        return;
+      }
+
       const t = e.target.closest('[data-view]');
       if (t) { state.view = t.dataset.view; render(); return; }
 
@@ -1106,43 +1143,6 @@ contact@abracadaparc.fr`;
     if (calToday) calToday.addEventListener('click', () => {
       state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); render();
     });
-    // Clic sur réservation dans le calendrier
-    el.querySelectorAll('[data-cal-resa]').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var id = btn.dataset.calResa;
-        var r = state.reservations[id];
-        if (!r) return;
-        var existing = document.getElementById('resa-detail-modal');
-        if (existing) existing.remove();
-        var div = document.createElement('div');
-        div.innerHTML = buildResaDetailModal(r);
-        document.getElementById('res-root').appendChild(div.firstChild);
-        var closeModal = function() { var m = document.getElementById('resa-detail-modal'); if(m) m.remove(); };
-        document.getElementById('close-resa-detail').addEventListener('click', closeModal);
-        document.getElementById('resa-detail-modal').addEventListener('click', function(ev) { if(ev.target.id === 'resa-detail-modal') closeModal(); });
-        // Bouton modifier depuis la modal
-        var editBtn = document.getElementById('detail-edit-btn');
-        if (editBtn) editBtn.addEventListener('click', function() {
-          closeModal();
-          state.editId = id; state.walkin = false; state.showForm = true; state.formData = Object.assign({}, r);
-          render();
-        });
-        // Bouton historique depuis la modal
-        var histBtn = document.getElementById('detail-hist-btn');
-        if (histBtn) histBtn.addEventListener('click', function() {
-          closeModal();
-          var histDiv = document.createElement('div');
-          histDiv.innerHTML = buildHistoryModal(r);
-          document.getElementById('res-root').appendChild(histDiv.firstChild);
-          var closeHist = function() { var m = document.getElementById('history-modal'); if(m) m.remove(); };
-          var closeHistBtn = document.getElementById('close-history-modal');
-          if (closeHistBtn) closeHistBtn.addEventListener('click', closeHist);
-          document.getElementById('history-modal').addEventListener('click', function(ev) { if(ev.target.id==='history-modal') closeHist(); });
-        });
-      });
-    });
-
     // Gâteau edit
     el.querySelectorAll('[data-gateau-edit]').forEach(function(btn) {
       btn.addEventListener('click', function() {
