@@ -3170,22 +3170,19 @@ Document confidentiel — usage RH uniquement`;
 function ReservationsTabEmp({ empId, empNom }) {
   React.useEffect(() => {
     if (typeof window.ReservationsTab === "undefined") return;
-    // Create a dedicated container if needed
-    const container = document.getElementById("tab-reservations-emp");
-    if (!container) return;
-    // Temporarily redirect v5 render target
-    const orig = document.getElementById("tab-reservations");
-    if (orig) orig.id = "_tab-res-hidden";
-    container.id = "tab-reservations";
-    window.ReservationsTab.state.currentUser = empNom;
-    window.ReservationsTab.render();
-    return () => {
-      container.id = "tab-reservations-emp";
-      const hidden = document.getElementById("_tab-res-hidden");
-      if (hidden) hidden.id = "tab-reservations";
+    // Wait for the div to be in DOM then init v5 with Firebase
+    const tryInit = () => {
+      const el = document.getElementById("tab-reservations");
+      if (el) {
+        window.ReservationsTab.state.currentUser = empNom || "Équipe";
+        window.ReservationsTab.init(true);
+      } else {
+        setTimeout(tryInit, 100);
+      }
     };
-  });
-  return <div id="tab-reservations-emp" style={{minHeight:200}}/>;
+    tryInit();
+  }, [empId]);
+  return <div id="tab-reservations" style={{minHeight:200}}/>;
 }
 
 
@@ -3195,10 +3192,16 @@ function ReservationsTabEmp({ empId, empNom }) {
 
 function ReservationsTabWrapper() {
   React.useEffect(() => {
-    if (typeof window.ReservationsTab !== "undefined") {
-      window.ReservationsTab.state.currentUser = "Admin";
-      window.ReservationsTab.init(true);
-    }
+    const tryInit = () => {
+      const el = document.getElementById("tab-reservations");
+      if (el && typeof window.ReservationsTab !== "undefined") {
+        window.ReservationsTab.state.currentUser = "Admin";
+        window.ReservationsTab.init(true);
+      } else {
+        setTimeout(tryInit, 100);
+      }
+    };
+    tryInit();
     return () => {
       try { const el = document.getElementById("tab-reservations"); if (el) el.innerHTML = ""; } catch(e) {}
     };
