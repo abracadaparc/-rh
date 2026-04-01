@@ -72,18 +72,18 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
     reservations: {},
     memos: {},
     gateaux: {},
-    view: 'liste',         // liste | calendrier | gateaux | memos
+    view: 'liste',
     segmentFilter: 'tous',
     statutFilter: 'tous',
     showForm: false,
     editId: null,
-    walkin: false,         // ⚡ mode sur place
+    walkin: false,
     showMemoForm: false,
     editMemoId: null,
     formData: {},
     memoData: {},
     alertsShown: false,
-    isAdmin: true,         // false = vue équipe (calendrier uniquement, CA masqué)
+    isAdmin: true,
   };
 
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
@@ -259,7 +259,7 @@ contact@abracadaparc.fr`;
       <div style="font-size:12px;color:${a.urgent ? '#C62828' : '#E65100'};margin-bottom:4px;display:flex;align-items:center;gap:8px;">
         <span style="flex:1;">${a.urgent ? '🔴' : '🟡'} <strong>${a.r.prenom_enfant || a.r.nom_contact || 'Réservation'}</strong> · ${fmtDate(a.r.date)} · J-${a.diffJ}
         · ${a.r.gateau_type || 'gâteau'} ${a.r.gateau_inscription ? `"${esc(a.r.gateau_inscription)}"` : ''}</span>
-        <button data-gateau-done="${a.r.id}" style="background:#2E7D32;color:#fff;border:none;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;">✅ Commandé</button>
+        <button data-gateau-done="${a.r.id}" style="background:#2E7D32;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">✅ Commandé</button>
       </div>`).join('')}
     </div>
     <a href="tel:${NACIMA_TEL.replace(/ /g,'')}" style="background:#C62828;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;flex-shrink:0;cursor:pointer;">
@@ -269,20 +269,18 @@ contact@abracadaparc.fr`;
 
   ${/* ONGLETS DE VUE */`
   <div style="display:flex;gap:0;border-bottom:2px solid #E8F5E9;margin-bottom:16px;overflow-x:auto;">
-    ${(state.isAdmin ? [
+    ${[
       ['liste','📋 Liste'],
       ['calendrier','📅 Calendrier'],
       ['gateaux','🎂 Gâteaux'],
       ['memos',`📝 Mémos${memos.length ? ` <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">${memos.length}</span>` : ''}`],
-    ] : [
-      ['calendrier','📅 Calendrier'],
-    ]).map(([v, l]) => `
+    ].map(([v, l]) => `
     <button data-view="${v}" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:${state.view===v?700:400};color:${state.view===v?'#2E7D32':'#9E9E9E'};border-bottom:${state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent'};margin-bottom:-2px;">${l}</button>
     `).join('')}
     <div style="flex:1;"></div>
-    ${state.isAdmin ? `<button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>` : ''}
-    ${state.isAdmin ? `<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>` : ''}
-    ${state.isAdmin ? `<button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>` : ''}
+    <button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>
+    <button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>
+    <button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>
   </div>`}
 
   ${/* CONTENU SELON VUE */
@@ -369,8 +367,7 @@ contact@abracadaparc.fr`;
       return s + Math.max(0, t - a);
     }, 0);
     const walkins = all.filter(r => r.walkin).length;
-    const confirmes = all.filter(r => r.statut === '4' || r.statut === '5' || r.statut === '6').length;
-    // Tuiles admin (CA masqué pour équipe)
+    const confirmes = all.filter(r => ['4','5','6'].includes(r.statut)).length;
     const tuiles = state.isAdmin ? [
       ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
       ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
@@ -418,7 +415,7 @@ contact@abracadaparc.fr`;
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
       <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${st.bg};color:${st.color};">${st.label}</span>
-      ${total > 0 && state.isAdmin ? `
+      ${total > 0 ? `
       <div style="text-align:right;">
         <div style="font-size:13px;font-weight:800;color:#1B5E20;">${total.toLocaleString('fr')} €</div>
         ${acompte > 0 ? `<div style="font-size:10px;color:#9E9E9E;">Acompte : ${acompte.toLocaleString('fr')} €</div>` : ''}
@@ -472,7 +469,7 @@ contact@abracadaparc.fr`;
     if (r.notes) lignesInfos += '💬 ' + esc(r.notes.slice(0, 150)) + '<br/>';
     lignesInfos += '</div>';
 
-    if (total > 0 && state.isAdmin) {
+    if (total > 0) {
       var soldeColor = solde > 0 ? '#C62828' : '#1B5E20';
       lignesInfos += '<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px;">';
       lignesInfos += '💶 Total : <strong>' + total.toLocaleString('fr') + ' €</strong>';
@@ -585,15 +582,13 @@ contact@abracadaparc.fr`;
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
   <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
-  
-  <!-- Légende segments -->
   <div style="margin-top:14px;padding:10px 14px;background:#F9FBF9;border:1px solid #E8F5E9;border-radius:10px;">
     <div style="font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Légende</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;">
-      ${SEGMENTS.map(s => `<span style="font-size:11px;background:${s.color}18;color:${s.color};border-radius:20px;padding:3px 10px;font-weight:600;">${s.label}</span>`).join('')}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+      ${SEGMENTS.map(s=>`<span style="font-size:11px;background:${s.color}18;color:${s.color};border-radius:20px;padding:2px 10px;font-weight:600;">${s.label}</span>`).join('')}
     </div>
-    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;">
-      ${STATUTS.map(s => `<span style="font-size:10px;background:${s.bg};color:${s.color};border-radius:20px;padding:2px 8px;font-weight:600;border:1px solid ${s.color}33;">${s.label}</span>`).join('')}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      ${STATUTS.map(s=>`<span style="font-size:10px;background:${s.bg};color:${s.color};border-radius:20px;padding:2px 8px;font-weight:600;border:1px solid ${s.color}44;">${s.label}</span>`).join('')}
     </div>
   </div>
 </div>`;
@@ -1016,10 +1011,10 @@ contact@abracadaparc.fr`;
       const t = e.target.closest('[data-view]');
       if (t) { state.view = t.dataset.view; render(); return; }
 
-      // ✅ Bouton "Commandé" sur alerte gâteau
-      const gateau_done = e.target.closest('[data-gateau-done]');
-      if (gateau_done) {
-        const gid = gateau_done.dataset.gateau_done || gateau_done.dataset.gateauDone || gateau_done.getAttribute('data-gateau-done');
+      // Bouton ✅ Commandé sur alerte gâteau
+      const gateau_done_btn = e.target.closest('[data-gateau-done]');
+      if (gateau_done_btn) {
+        const gid = gateau_done_btn.getAttribute('data-gateau-done');
         if (gid && state.reservations[gid]) {
           state.reservations[gid].gateau_commande = 'commande';
           save('reservations', state.reservations);
@@ -1375,31 +1370,17 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
-    // Vider le localStorage pour toujours charger depuis Firebase
-    try { localStorage.removeItem('abr_reservations'); } catch(e) {}
-    state.reservations = {};
+    state.reservations = load('reservations', {});
     state.memos = load('memos', {});
 
-    listen('reservations', data => {
-      if (data) {
-        state.reservations = data;
-        try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
-        render();
-      }
-    });
+    listen('reservations', data => { if (data) { state.reservations = data; render(); } });
     listen('memos', data => { if (data) { state.memos = data; render(); } });
 
     if (autoRender) {
+      // Attendre que le DOM soit prêt
       const tryRender = () => {
         const el = document.getElementById('tab-reservations');
-        if (el) {
-          // Afficher un loader pendant que Firebase charge
-          el.innerHTML = '<div style="text-align:center;padding:40px;color:#2E7D32;font-size:14px;">🌿 Chargement des réservations…</div>';
-          // Firebase répond en général en moins d'1 seconde
-          setTimeout(() => render(), 1500);
-        } else {
-          setTimeout(tryRender, 100);
-        }
+        if (el) { render(); } else { setTimeout(tryRender, 100); }
       };
       tryRender();
     }
@@ -1487,10 +1468,10 @@ const TEAM_INIT = [
   {
     id:"t2", nom:"AYTHANN", prenom:"", color:"#00695C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50,
-    disponibilite:"Avr–Mai : WE seulement · Juin–Juil : complet · Août : S1–S2 · Sept–Nov : WE (à confirmer)",
+    debut:"2026-04-04", fin:"2026-08-31", heures_mois:104, taux:12.50,
+    disponibilite:"Avr–Mai : WE seulement · Juin–Juil : complet · Août : S1–S2",
     ecole_periodes:[],
-    poste:"Polyvalent", actif:true, note:"Confirmer dispos sept+ 3 sem. à l'avance.",
+    poste:"Polyvalent", actif:true, note:"Contrat jusqu'au 31/08/2026.",
     ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"",
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
   },
@@ -3222,8 +3203,8 @@ function ReservationsTabEmp({ empId, empNom }) {
       const el = document.getElementById("tab-reservations");
       if (el) {
         window.ReservationsTab.state.currentUser = empNom || "Équipe";
-        window.ReservationsTab.state.isAdmin = false;   // masque CA/Soldes
-        window.ReservationsTab.state.view = 'calendrier'; // vue calendrier par défaut
+        window.ReservationsTab.state.isAdmin = false;
+        window.ReservationsTab.state.view = 'calendrier';
         window.ReservationsTab.init(true);
       } else {
         setTimeout(tryInit, 100);
@@ -4840,15 +4821,17 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
   const ptg = (() => { try { return sh?.pointage ? JSON.parse(sh.pointage) : null; } catch { return null; } })();
 
   const savePointage = (data) => {
-    const calcH = (deb, fin, pauseMin=30) => {
+    const calcH = (deb, fin, pauseMin=0) => {
       if (!deb||!fin) return 0;
       const [ah,am]=deb.split(":").map(Number),[dh,dm]=fin.split(":").map(Number);
       return Math.max(0, Math.round(((dh*60+dm)-(ah*60+am)-pauseMin)/60*100)/100);
     };
+    // Règle pause : décompter uniquement si pause réelle > 30 min
     const pauseMin = data.pause_debut&&data.pause_fin ? (() => {
       const [ph,pm]=data.pause_debut.split(":").map(Number),[fh,fm]=data.pause_fin.split(":").map(Number);
-      return fh*60+fm-(ph*60+pm);
-    })() : 30;
+      const duree = fh*60+fm-(ph*60+pm);
+      return duree > 30 ? duree : 0; // < 30 min = pas de décompte
+    })() : 0; // Pas de pause déclarée = pas de décompte
     const h = data.arrivee&&data.depart ? calcH(data.arrivee,data.depart,pauseMin) : (sh?.h||0);
     const updated = {
       ...(sh||{type:"travail",deb:"",fin:"",h:0,note:""}),
@@ -4925,7 +4908,7 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
       )}
       {!isOuvert&&status==="non_pointe"&&(
         <div style={{...S.card,marginBottom:12,background:"#FFF8E1",border:"1px solid #FFD54F",padding:"10px 14px"}}>
-          <div style={{fontSize:12,color:"#E65100"}}>⚠️ Le parc est fermé aujourd'hui</div>
+          <div style={{fontSize:12,color:"#E65100"}}>⚠️ Journée non prévue au planning — pointage possible en cas de présence exceptionnelle (pluie, fermeture anticipée…)</div>
         </div>
       )}
 
@@ -4962,7 +4945,15 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
         {ptg?.depart&&ptg?.arrivee&&(
           <div style={{marginTop:10,padding:"8px 12px",background:"#E8F5E9",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontWeight:800,color:"#1B5E20",fontSize:16}}>
-              {(()=>{const [ah,am]=ptg.arrivee.split(":").map(Number),[dh,dm]=ptg.depart.split(":").map(Number);const pmin=ptg.pause_debut&&ptg.pause_fin?((()=>{const[ph,pm]=ptg.pause_debut.split(":").map(Number),[fh,fm]=ptg.pause_fin.split(":").map(Number);return fh*60+fm-(ph*60+pm);})()):30;return Math.max(0,Math.round(((dh*60+dm)-(ah*60+am)-pmin)/60*100)/100).toFixed(2);})()} h effectives
+              {(()=>{
+                const [ah,am]=ptg.arrivee.split(":").map(Number),[dh,dm]=ptg.depart.split(":").map(Number);
+                const pmin=ptg.pause_debut&&ptg.pause_fin?(()=>{
+                  const[ph,pm]=ptg.pause_debut.split(":").map(Number),[fh,fm]=ptg.pause_fin.split(":").map(Number);
+                  const duree=fh*60+fm-(ph*60+pm);
+                  return duree>30?duree:0; // Décompte uniquement si pause > 30 min
+                })():0;
+                return Math.max(0,Math.round(((dh*60+dm)-(ah*60+am)-pmin)/60*100)/100).toFixed(2);
+              })()} h effectives
             </span>
             {ptg?.signature&&<span style={{fontSize:10,color:"#9E9E9E"}}>🔏 Signé</span>}
           </div>
@@ -5221,7 +5212,7 @@ function ValidationPaieTab({team, shifts, setShifts}) {
       const actual_h = (() => {
         if (!actual_deb||!actual_fin) return null;
         const [ah,am]=actual_deb.split(":").map(Number),[dh,dm]=actual_fin.split(":").map(Number);
-        const pmin=ptg?.pause_debut&&ptg?.pause_fin?((()=>{const[ph,pm]=ptg.pause_debut.split(":").map(Number),[fh,fm]=ptg.pause_fin.split(":").map(Number);return fh*60+fm-(ph*60+pm);})()):30;
+        const pmin=ptg?.pause_debut&&ptg?.pause_fin?((()=>{const[ph,pm]=ptg.pause_debut.split(":").map(Number),[fh,fm]=ptg.pause_fin.split(":").map(Number);const d=fh*60+fm-(ph*60+pm);return d>30?d:0;})()):0;
         return Math.max(0,Math.round(((dh*60+dm)-(ah*60+am)-pmin)/60*100)/100);
       })();
       const validation=sh.validation||"pending";
@@ -5371,9 +5362,10 @@ function LoginScreen({team,onAdmin,onEmployee}) {
     const handleChangePin=async()=>{
       if(!newPin||newPin!==newPin2){setPinMsg("Les codes ne correspondent pas");return;}
       if(newPin.length<4){setPinMsg("Minimum 4 chiffres");return;}
-      await setEmpPin(selEmp.id,newPin);
+      await setEmpPin(selEmp.id,newPin);  // setEmpPin = fonction globale SHA-256
       setPinMsg("✅ Code PIN mis à jour !");
       setNewPin(""); setNewPin2(""); setChangingPin(false);
+      setTimeout(()=>{setPinMsg("");setChangingPin(false);},2000);
     };
 
     if(selEmp) return (
