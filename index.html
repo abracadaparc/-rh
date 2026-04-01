@@ -3966,7 +3966,7 @@ function exportPaie(team, shifts, year, month) {
       else if (sh.type==="malade") maladeJ++;
       else if (sh.type==="retard") retardH+=sh.hRetard||0;
     }
-    const brut = Math.round(travailH * emp.taux * 100)/100;
+    const brutLisse = Math.round(emp.heures_mois * emp.taux * 100)/100; // Salaire lissé = fixe chaque mois
     const {acquis,pris,restants} = calcCP(emp,shifts,season);
     const ddn = emp.ddn ? new Date(emp.ddn).toLocaleDateString("fr-FR") : "—";
     const inContract = emp.debut <= `${year}-${String(month).padStart(2,"0")}-01` && emp.fin >= `${year}-${String(month).padStart(2,"0")}-${String(days).padStart(2,"0")}`;
@@ -3977,24 +3977,25 @@ function exportPaie(team, shifts, year, month) {
       <td>${ddn}</td>
       <td>${emp.contrat}</td>
       <td style="text-align:center">${emp.taux.toFixed(2)} €</td>
-      <td style="text-align:center">${emp.heures_mois}h</td>
-      <td style="text-align:center;font-weight:bold;color:#1B5E20">${travailH.toFixed(2)}h</td>
+      <td style="text-align:center">${emp.heures_mois}h lissées</td>
+      <td style="text-align:center;color:#555">${travailH.toFixed(2)}h réelles</td>
       <td style="text-align:center">${travailJ}j</td>
       <td style="text-align:center;color:${congesJ>0?"#E65100":"#ccc"}">${congesJ}j</td>
       <td style="text-align:center;color:${maladeJ>0?"#6A1B9A":"#ccc"}">${maladeJ}j</td>
       <td style="text-align:center;color:${absentJ>0?"#B71C1C":"#ccc"}">${absentJ}j</td>
       <td style="text-align:center;color:${retardH>0?"#BF360C":"#ccc"}">${retardH>0?retardH+"h":"—"}</td>
-      <td style="text-align:right;font-weight:bold;color:#1B5E20">${brut.toFixed(2)} €</td>
+      <td style="text-align:right;font-weight:bold;color:#1B5E20;background:#f0faf0">${brutLisse.toFixed(2)} € <span style="font-size:8px;color:#888">(lissé)</span></td>
       <td style="text-align:center">${restants}j CP</td>
       <td>${emp.iban||"<span style='color:orange'>IBAN manquant</span>"}</td>
       <td style="font-size:9px;color:#888">${status}</td>
     </tr>`;
   }).join("");
 
-  const totalBrut = activeTeam.reduce((s,emp)=>{
-    let h=0;for(let i=1;i<=days;i++){const ds=`${year}-${String(month).padStart(2,"0")}-${String(i).padStart(2,"0")}`;const sh=shifts[`${emp.id}_${ds}`];if(sh?.type==="travail")h+=sh.h||0;}
-    return s+h*emp.taux;
-  },0);
+  const totalBrut = activeTeam.filter(e=>{
+    // Seulement les salariés en contrat ce mois
+    const ds1=`${year}-${String(month).padStart(2,"0")}-01`;
+    return e.debut <= ds1 && e.fin >= ds1;
+  }).reduce((s,emp)=>s+emp.heures_mois*emp.taux, 0);
 
   const htmlP = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Export Paie ${MOIS_NOMS[month]} ${year}</title>
@@ -5293,20 +5294,40 @@ function ValidationPaieTab({team, shifts, setShifts}) {
         </table>
       </div>
       {rows.length>0&&(
-        <div style={{...S.card,marginTop:14,background:"#E8F5E9",border:"1px solid #A5D6A7",display:"flex",gap:20,flexWrap:"wrap",alignItems:"center",padding:"12px 16px"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"#1B5E20"}}>📊 Récap {MOIS_LONG[month]}</span>
+        <div style={{...S.card,marginTop:14,background:"#E8F5E9",border:"1px solid #A5D6A7",padding:"12px 16px"}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#1B5E20",marginBottom:10}}>📊 Récap {MOIS_LONG[month]} — Salaire mensuel lissé (contrat modulable IDCC 1790)</div>
+          <div style={{fontSize:11,color:"#558B2F",marginBottom:12,lineHeight:1.7,background:"#F1F8E9",padding:"8px 12px",borderRadius:8}}>
+            ℹ️ <strong>Lissage IDCC 1790 :</strong> chaque salarié perçoit le <strong>même montant chaque mois</strong>, quelle que soit l'activité réelle.
+            Calcul : total heures saison ÷ nb mois de contrat × taux horaire = salaire mensuel fixe.
+          </div>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start"}}>
           {activeTeam.map(emp=>{
             const empRows=rows.filter(r=>r.emp.id===emp.id);
-            const h=empRows.reduce((s,r)=>s+(r.validated_h||r.planned_h),0);
-            const brut=Math.round(h*emp.taux*100)/100;
-            return empRows.length>0?(
-              <div key={emp.id} style={{textAlign:"center"}}>
-                <div style={{fontSize:14,fontWeight:800,color:"#1B5E20"}}>{h.toFixed(1)}h</div>
-                <div style={{fontSize:10,color:"#558B2F"}}>{emp.prenom||emp.nom}</div>
-                <div style={{fontSize:10,color:"#9E9E9E"}}>{brut.toFixed(2)}€ brut</div>
+            if(empRows.length===0) return null;
+            // Heures réelles ce mois (pour info)
+            const hReelles=empRows.reduce((s,r)=>s+(r.validated_h||r.planned_h),0);
+            // Salaire lissé = heures_mois contractuelles × taux (identique chaque mois)
+            const brutLisse=Math.round(emp.heures_mois*emp.taux*100)/100;
+            // Nb mois contrat
+            const debutD=new Date(emp.debut+"T12:00"), finD=new Date(emp.fin+"T12:00");
+            const nbMois=Math.round((finD-debutD)/(1000*60*60*24*30.5)*10)/10;
+            return (
+              <div key={emp.id} style={{textAlign:"center",padding:"10px 14px",background:"#fff",borderRadius:10,border:"1px solid #C8E6C9",minWidth:120}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#1B5E20"}}>{brutLisse.toFixed(2)} €</div>
+                <div style={{fontSize:11,fontWeight:700,color:"#558B2F",marginTop:2}}>{emp.prenom||emp.nom}</div>
+                <div style={{fontSize:10,color:"#9E9E9E",marginTop:3}}>{emp.heures_mois}h/mois lissées</div>
+                <div style={{fontSize:10,color:"#9E9E9E"}}>{emp.taux.toFixed(2)} €/h · {nbMois}mois</div>
+                <div style={{fontSize:10,color:"#BDBDBD",marginTop:3,borderTop:"1px solid #E8F5E9",paddingTop:3}}>
+                  Réel ce mois : {hReelles.toFixed(1)}h
+                </div>
               </div>
-            ):null;
+            );
           })}
+          </div>
+          <div style={{marginTop:10,fontSize:11,color:"#E65100",fontWeight:600}}>
+            ⚠️ Le montant à virer chaque mois est le <strong>salaire lissé</strong> — pas les heures réelles × taux.
+            Les heures réelles servent uniquement au suivi et à la régularisation en fin de contrat.
+          </div>
         </div>
       )}
     </div>
