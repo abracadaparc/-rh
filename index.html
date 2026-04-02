@@ -137,12 +137,9 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
   function calcTotal(r) {
-    // Priorité absolue : lire montant_total depuis Firebase si présent
-    if (parseFloat(r.montant_total) > 0) return parseFloat(r.montant_total);
-    // Fallback : recalcul uniquement si montant_total absent
-    if (r.segment !== 'anniversaire') return 0;
+    if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
     const f = getFormule(r.formule_id);
-    if (!f || f.prix === 0) return 0;
+    if (!f || f.prix === 0) return parseFloat(r.montant_total) || 0;
     const base = f.prix;
     const supEnf = Math.max(0, (parseInt(r.effectif_enfants) || 0) - f.base) * 26;
     const adultes = (parseInt(r.effectif_adultes) || 0) * 10;
@@ -364,7 +361,7 @@ contact@abracadaparc.fr`;
     const all = Object.values(state.reservations);
     const ca = all.reduce((s, r) => s + calcTotal(r), 0);
     const soldes = all.filter(r => r.statut !== '6').reduce((s, r) => {
-      const t = calcTotal(r); const a = parseFloat(r.acompte_paye) || parseFloat(r.acompte) || 0;
+      const t = calcTotal(r); const a = parseFloat(r.acompte_paye) || 0;
       return s + Math.max(0, t - a);
     }, 0);
     const walkins = all.filter(r => r.walkin).length;
@@ -387,7 +384,7 @@ contact@abracadaparc.fr`;
     const st = getStatut(r.statut || '1');
     const seg = getSegment(r.segment);
     const total = calcTotal(r);
-    const acompte = parseFloat(r.acompte_paye) || parseFloat(r.acompte) || 0;
+    const acompte = parseFloat(r.acompte_paye) || 0;
     const solde = Math.max(0, total - acompte);
     return `
 <div style="background:#fff;border:1px solid #E8F5E9;border-radius:12px;padding:14px 16px;border-left:4px solid ${seg.color};">
@@ -407,6 +404,13 @@ contact@abracadaparc.fr`;
         ${r.formule_id ? `· ${getFormule(r.formule_id)?.label || ''}` : ''}
       </div>
       ${r.notes ? `<div style="font-size:11px;color:#9E9E9E;margin-top:4px;font-style:italic;">💬 ${esc(r.notes.slice(0,80))}${r.notes.length>80?'…':''}</div>` : ''}
+      ${r.segment === 'anniversaire' ? `
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">
+        ${r.gateau_type ? `<span style="font-size:11px;background:#FBE9E7;color:#BF360C;padding:2px 8px;border-radius:20px;font-weight:600;">🎂 ${esc(r.gateau_type)}</span>` : ''}
+        ${r.gateau_supp_label ? `<span style="font-size:11px;background:#FFF3E0;color:#E65100;padding:2px 8px;border-radius:20px;font-weight:600;">+ ${esc(r.gateau_supp_label)}</span>` : ''}
+        ${r.option_animateur ? `<span style="font-size:11px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:20px;font-weight:600;">🎭 Animateur</span>` : `<span style="font-size:11px;background:#F5F5F5;color:#9E9E9E;padding:2px 8px;border-radius:20px;">Sans animateur</span>`}
+        ${r.age_enfant ? `<span style="font-size:11px;background:#F3E5F5;color:#6A1B9A;padding:2px 8px;border-radius:20px;font-weight:600;">${esc(r.prenom_enfant||'')} · ${esc(r.age_enfant)}</span>` : ''}
+      </div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
       <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${st.bg};color:${st.color};">${st.label}</span>
@@ -435,7 +439,7 @@ contact@abracadaparc.fr`;
     var nom = esc(r.prenom_enfant || r.organisation || r.nom_contact || '—');
     var dateStr = r.date ? new Date(r.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '—';
     var total = calcTotal(r);
-    var solde = Math.max(0, total - (parseFloat(r.acompte_paye) || parseFloat(r.acompte) || 0));
+    var solde = Math.max(0, total - (parseFloat(r.acompte_paye) || 0));
     var modePay = {internet_cb:'CB en ligne',virement:'Virement',especes:'Espèces',cheque:'Chèque',cheque_vacances:'Chèques vacances',bon_commande:'Bon de commande',cb:'CB sur place',Carte:'Carte',Virement:'Virement'};
 
     var lignesInfos = '';
@@ -468,7 +472,7 @@ contact@abracadaparc.fr`;
       var soldeColor = solde > 0 ? '#C62828' : '#1B5E20';
       lignesInfos += '<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px;">';
       lignesInfos += '💶 Total : <strong>' + total.toLocaleString('fr') + ' €</strong>';
-      lignesInfos += ' · Acompte : ' + ((parseFloat(r.acompte_paye) || parseFloat(r.acompte) || 0)).toLocaleString('fr') + ' €';
+      lignesInfos += ' · Acompte : ' + ((parseFloat(r.acompte_paye) || 0)).toLocaleString('fr') + ' €';
       lignesInfos += ' · <span style="color:' + soldeColor + ';font-weight:700;">Solde : ' + solde.toLocaleString('fr') + ' €</span>';
       if (r.acompte_paye && modePay[r.mode_paiement]) lignesInfos += ' (' + modePay[r.mode_paiement] + ')';
       lignesInfos += '</div>';
@@ -771,7 +775,7 @@ contact@abracadaparc.fr`;
       </div>
       <div>
         <label style="display:block;font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;margin-bottom:3px;">Acompte payé (€)</label>
-        <input id="f-acompte" type="number" value="${d.acompte_paye||d.acompte||''}" placeholder="100" style="width:100%;padding:6px 8px;border:1.5px solid #C8E6C9;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box;outline:none;" />
+        <input id="f-acompte" type="number" value="${d.acompte_paye||''}" placeholder="100" style="width:100%;padding:6px 8px;border:1.5px solid #C8E6C9;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box;outline:none;" />
       </div>
       <div>
         <label style="display:block;font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;margin-bottom:3px;">Mode acompte</label>
