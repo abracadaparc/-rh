@@ -137,9 +137,12 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
   function calcTotal(r) {
-    if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
+    // Priorité absolue : montant_total stocké en Firebase
+    if (parseFloat(r.montant_total) > 0) return parseFloat(r.montant_total);
+    // Fallback calcul auto
+    if (r.segment !== 'anniversaire') return 0;
     const f = getFormule(r.formule_id);
-    if (!f || f.prix === 0) return parseFloat(r.montant_total) || 0;
+    if (!f || f.prix === 0) return 0;
     const base = f.prix;
     const supEnf = Math.max(0, (parseInt(r.effectif_enfants) || 0) - f.base) * 26;
     const adultes = (parseInt(r.effectif_adultes) || 0) * 10;
@@ -404,10 +407,8 @@ contact@abracadaparc.fr`;
         ${r.formule_id ? `· ${getFormule(r.formule_id)?.label || ''}` : ''}
       </div>
       ${r.notes ? `<div style="font-size:11px;color:#9E9E9E;margin-top:4px;font-style:italic;">💬 ${esc(r.notes.slice(0,80))}${r.notes.length>80?'…':''}</div>` : ''}
-      ${r.segment === 'anniversaire' ? `
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">
+      ${r.segment === 'anniversaire' ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">
         ${r.gateau_type ? `<span style="font-size:11px;background:#FBE9E7;color:#BF360C;padding:2px 8px;border-radius:20px;font-weight:600;">🎂 ${esc(r.gateau_type)}</span>` : ''}
-        ${r.gateau_supp_label ? `<span style="font-size:11px;background:#FFF3E0;color:#E65100;padding:2px 8px;border-radius:20px;font-weight:600;">+ ${esc(r.gateau_supp_label)}</span>` : ''}
         ${r.option_animateur ? `<span style="font-size:11px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:20px;font-weight:600;">🎭 Animateur</span>` : `<span style="font-size:11px;background:#F5F5F5;color:#9E9E9E;padding:2px 8px;border-radius:20px;">Sans animateur</span>`}
         ${r.age_enfant ? `<span style="font-size:11px;background:#F3E5F5;color:#6A1B9A;padding:2px 8px;border-radius:20px;font-weight:600;">${esc(r.prenom_enfant||'')} · ${esc(r.age_enfant)}</span>` : ''}
       </div>` : ''}
