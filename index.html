@@ -1459,6 +1459,7 @@ const TEAM_INIT = [
     id:"t1", nom:"MYRON", prenom:"", color:"#1565C0",
     type:"apprenti", contrat:"Contrat d'apprentissage",
     debut:"2026-04-01", fin:"2027-08-31", heures_mois:151.67, taux:6.13,
+    matricule_silae:"1001",
     disponibilite:"Disponible tous les jours par défaut. Marquer manuellement 'ÉCOLE' les jours de formation.",
     ecole_periodes:["18–22 mai","23 juin","17–21 août"],
     poste:"Polyvalent", actif:true, note:"51% SMIC = 929,75 €/mois brut. Charges patronales quasi nulles (exo apprentissage). Entrée: 01/09/2025. CP: 14.84acq / 23.00pris = -8.16 au 28/02/2026.",
@@ -1468,17 +1469,19 @@ const TEAM_INIT = [
   {
     id:"t2", nom:"AYTHANN", prenom:"", color:"#00695C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-04", fin:"2026-08-31", heures_mois:104, taux:12.50,
-    disponibilite:"Avr–Mai : WE seulement · Juin–Juil : complet · Août : S1–S2",
+    debut:"2026-04-04", fin:"2026-11-02", heures_mois:104, taux:12.02,
+    matricule_silae:"1002",
+    disponibilite:"Avr–Mai : WE seulement · Juin–Juil : complet · Août : S1–S2 · Sept–Nov : WE confirmés",
     ecole_periodes:[],
-    poste:"Polyvalent", actif:true, note:"Contrat jusqu'au 31/08/2026.",
+    poste:"Polyvalent", actif:true, note:"Contrat jusqu'au 02/11/2026.",
     ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"",
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
   },
   {
     id:"t3", nom:"ALYSSA", prenom:"", color:"#6A1B9A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-06-21", heures_mois:80, taux:12.50,
+    debut:"2026-04-01", fin:"2026-06-21", heures_mois:76, taux:12.02,
+    matricule_silae:"1003",
     disponibilite:"MER + WE seulement. Sam : départ à 16h30. 3 avril : dispo à partir de 14h. Jours fériés : à confirmer 3 sem. avant.",
     ecole_periodes:[],
     poste:"Polyvalente", actif:true, note:"Contrat court. Poser les CP avant le 21/06.",
@@ -1488,7 +1491,8 @@ const TEAM_INIT = [
   {
     id:"t4", nom:"JORIS", prenom:"", color:"#BF360C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
+    matricule_silae:"1004",
     disponibilite:"POEI en attente de confirmation. Si validé : formation 1–19 avril, CDD à partir du 20 avril. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:[],
     poste:"Polyvalent + Développement commercial", actif:true, note:"⏳ POEI en attente retour Joris. Si refus : CDD au 1er avril — à relancer rapidement. Mentionner tâches commerciales dans le contrat.",
@@ -1499,7 +1503,8 @@ const TEAM_INIT = [
   {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
+    matricule_silae:"1005",
     disponibilite:"POEI validé ✅ — Formation France Travail du 1er au 19 avril inclus. Disponible à partir du 20 avril. Toute la saison. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:["1–19 avril (POEI — hors entreprise)"],
     poste:"Polyvalente Journée", actif:true, note:"✅ POEI confirmé. CDD à signer avant le 1er avril avec date de démarrage au 20/04. Pas de bulletin AbracadaParc pendant la formation.",
@@ -1510,7 +1515,8 @@ const TEAM_INIT = [
   {
     id:"t6", nom:"NOUVEAU C", prenom:"", color:"#546E7A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.50,
+    debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.02,
+    matricule_silae:"1006",
     disponibilite:"Toute la saison. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:[],
     poste:"Polyvalent Fermeture", actif:true, note:"Nom à compléter après recrutement final.",
@@ -2039,7 +2045,7 @@ function CalendrierTab({ dayLevels, setDayLevels }) {
 function EquipeTab({ team, setTeam }) {
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
+  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.02, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
   const [form, setForm] = useState(blank);
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -2405,12 +2411,12 @@ function getEmpAvailability(emp, ds, dayType, isWE) {
     for (const [s,e] of ecoleIntervals) { if (ds >= s && ds <= e) return 0; }
     return 1; // dispo
   }
-  if (emp.id === "t2") { // AYTHANN – contrat jusqu'au 31/08/2026
-    if (ds > "2026-08-31") return 0; // Jamais après fin de contrat
-    if (m <= 5) return isWE ? 1 : 0;
-    if (m <= 7) return 1;
-    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // S1+S2
-    return 0;
+  if (emp.id === "t2") { // AYTHANN – contrat jusqu'au 02/11/2026
+    if (ds > "2026-11-02") return 0;
+    if (m <= 5) return isWE ? 1 : 0;   // Avr-Mai : WE uniquement
+    if (m <= 7) return 1;               // Juin-Juil : tous les jours
+    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // Août S1+S2
+    return isWE ? 1 : 0;               // Sept-Nov : WE uniquement
   }
   if (emp.id === "t3") { // ALYSSA – MER + WE only, until Jun 21
     if (ds > "2026-06-21") return 0;
@@ -5643,465 +5649,381 @@ function App() {
 
 
 // ═══════════════════════════════════════════════════════════
-// EXPORT PAIE PRO — format mySilae / cabinet comptable
-// 3 niveaux : Vue Mensuelle · Vue Semaine · Lissage Contrat
+// EXPORT PAIE PRO — format mySilae / IDCC 1790
+// Codes Silae : HN · HS25 · HS50 · MAI · CP · MAL · AB-INJ
+// HS 25% : 36-43h/sem · HS 50% : 44h+/sem · Limite : 42h → HS immédiates
 // ═══════════════════════════════════════════════════════════
 
-function ExportPaieProTab({team, shifts}) {
-  const [view, setView] = useState("mensuel"); // mensuel | semaine | lissage
-  const [month, setMonth] = useState(new Date().getMonth()+1);
-  const year = 2026;
-  const MOIS = ["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
-  const activeTeam = team.filter(e=>e.actif);
+const SMIC_2026 = 12.02;
+const HS_LIMITE_SEMAINE = 42;
 
-  // ── Calcul heures réelles par salarié par mois ──────────────────────────
-  function calcHeuresMois(emp, m, y) {
-    const days = new Date(y, m, 0).getDate();
-    let travailH=0, travailJ=0, congesJ=0, maladeJ=0, absentJ=0, ecoleJ=0;
-    for(let i=1;i<=days;i++){
-      const ds=`${y}-${String(m).padStart(2,"0")}-${String(i).padStart(2,"0")}`;
-      if(ds<emp.debut||ds>emp.fin) continue;
-      const sh=shifts[`${emp.id}_${ds}`];
-      if(!sh) continue;
-      if(sh.type==="travail"){travailH+=sh.h||0;travailJ++;}
-      else if(sh.type==="conges") congesJ++;
-      else if(sh.type==="malade") maladeJ++;
-      else if(sh.type==="absent"||sh.type==="absent_inj") absentJ++;
-      else if(sh.type==="ecole") ecoleJ++;
-    }
-    return {travailH, travailJ, congesJ, maladeJ, absentJ, ecoleJ};
+function calcHeureSemaine(emp, shifts, lundi) {
+  let h=0;
+  for(let i=0;i<7;i++){
+    const ds=fmtLocal(addDaysLocal(lundi,i));
+    if(ds<emp.debut||ds>emp.fin) continue;
+    const sh=shifts[`${emp.id}_${ds}`];
+    if(sh?.type==="travail") h+=sh.h||0;
+    if(sh?.type==="ecole")   h+=7;
   }
+  return Math.round(h*100)/100;
+}
 
-  // ── Calcul heures totales saison par salarié ─────────────────────────────
-  function calcHeuresSaison(emp) {
-    let total=0;
-    const d=new Date(emp.debut+"T12:00"), fin=new Date(emp.fin+"T12:00");
-    for(let cur=new Date(d); cur<=fin; cur.setDate(cur.getDate()+1)){
-      const ds=fmtLocal(cur);
-      const sh=shifts[`${emp.id}_${ds}`];
-      if(sh?.type==="travail") total+=sh.h||0;
-      if(sh?.type==="ecole") total+=7;
-    }
-    return Math.round(total*100)/100;
+function calcHSSemaine(hSemaine) {
+  if(hSemaine<=35) return {hs25:0,hs50:0,hsImm:0};
+  const hs25=Math.max(0,Math.min(hSemaine,43)-35);
+  const hs50=Math.max(0,hSemaine-43);
+  const hsImm=Math.max(0,hSemaine-HS_LIMITE_SEMAINE);
+  return {hs25,hs50,hsImm};
+}
+
+function getSemainesMois(year,month){
+  const firstDay=new Date(year,month-1,1,12);
+  const firstMon=getMondayOf(firstDay);
+  const semaines=[];
+  let cur=new Date(firstMon);
+  for(let i=0;i<6;i++){
+    const days=Array.from({length:7},(_,j)=>addDaysLocal(new Date(cur),j));
+    if(days.some(d=>d.getMonth()===month-1)) semaines.push(new Date(cur));
+    cur=addDaysLocal(new Date(cur),7);
   }
+  return semaines;
+}
 
-  // ── Nombre de mois de contrat ─────────────────────────────────────────────
-  function nbMoisContrat(emp) {
-    const d=new Date(emp.debut+"T12:00"), f=new Date(emp.fin+"T12:00");
-    return Math.round((f-d)/(1000*60*60*24*30.5)*10)/10;
+function calcMoisComplet(emp,shifts,m,y){
+  const days=new Date(y,m,0).getDate();
+  let travailH=0,travailJ=0,congesJ=0,maladeJ=0,absentJ=0,absentInjJ=0,ecoleJ=0,dimH=0,maiH=0;
+  let hs25Total=0,hs50Total=0,hsImmTotal=0;
+  getSemainesMois(y,m).forEach(lundi=>{
+    const hSem=calcHeureSemaine(emp,shifts,lundi);
+    const {hs25,hs50,hsImm}=calcHSSemaine(hSem);
+    hs25Total+=hs25;hs50Total+=hs50;hsImmTotal+=hsImm;
+  });
+  for(let i=1;i<=days;i++){
+    const ds=`${y}-${String(m).padStart(2,"0")}-${String(i).padStart(2,"0")}`;
+    if(ds<emp.debut||ds>emp.fin) continue;
+    const sh=shifts[`${emp.id}_${ds}`];
+    if(!sh) continue;
+    const dow=new Date(ds+"T12:00").getDay();
+    if(sh.type==="travail"){const h=sh.h||0;travailH+=h;travailJ++;if(dow===0)dimH+=h;if(ds==="2026-05-01")maiH+=h;}
+    else if(sh.type==="ecole"){travailH+=7;travailJ++;ecoleJ++;}
+    else if(sh.type==="conges") congesJ++;
+    else if(sh.type==="malade") maladeJ++;
+    else if(sh.type==="absent") absentJ++;
+    else if(sh.type==="absent_inj") absentInjJ++;
   }
+  const brutLisse=Math.round(emp.heures_mois*emp.taux*100)/100;
+  const majHS25=Math.round(Math.min(hsImmTotal,hs25Total)*emp.taux*0.25*100)/100;
+  const majHS50=Math.round(Math.max(0,hsImmTotal-hs25Total)*emp.taux*0.50*100)/100;
+  const majHS=Math.round((majHS25+majHS50)*100)/100;
+  const majMAI=Math.round(maiH*emp.taux*100)/100;
+  const totalVerser=Math.round((brutLisse+majHS+majMAI)*100)/100;
+  const chargesPat=emp.type==="apprenti"?0:Math.round(totalVerser*0.45*100)/100;
+  const ecart=Math.round((travailH-emp.heures_mois)*10)/10;
+  const statut=(Math.abs(ecart)>5||absentInjJ>0||hsImmTotal>0)?"⚠️ À vérifier":"✅ Validé";
+  return {travailH,travailJ,congesJ,maladeJ,absentJ,absentInjJ,ecoleJ,dimH,maiH,
+    hs25:Math.round(hs25Total*10)/10,hs50:Math.round(hs50Total*10)/10,hsImm:Math.round(hsImmTotal*10)/10,
+    majHS,majMAI,brutLisse,totalVerser,chargesPat,coutTotal:totalVerser+chargesPat,ecart,statut};
+}
 
-  // ── Heures lissées mensuelles = total saison / nb mois ────────────────────
-  function heuresLissees(emp) {
-    return emp.heures_mois; // défini dans le contrat — c'est la base lissée
-  }
+function ExportPaieProTab({team,shifts}){
+  const [view,setView]=useState("mensuel");
+  const [month,setMonth]=useState(Math.max(4,new Date().getMonth()+1));
+  const year=2026;
+  const MOIS=["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const activeTeam=team.filter(e=>e.actif);
+  const moisDispo=[4,5,6,7,8,9,10];
 
-  // ── Export CSV Silae ──────────────────────────────────────────────────────
-  function exportCSVSilae(m) {
-    const lines = [
-      "Code_Salarie;Nom;Prenom;Matricule;Mois;H_Contrat_Lissees;H_Reelles;H_Travaillees;J_Travailles;J_Conges;J_Maladie;J_Absent;J_Ecole;Brut_Lisse;Brut_Reel;HS_Ecart;IBAN"
-    ];
-    activeTeam.forEach(emp=>{
-      const {travailH,travailJ,congesJ,maladeJ,absentJ,ecoleJ}=calcHeuresMois(emp,m,year);
-      const brutLisse=Math.round(emp.heures_mois*emp.taux*100)/100;
-      const brutReel=Math.round(travailH*emp.taux*100)/100;
-      const ecart=Math.round((travailH-emp.heures_mois)*10)/10;
-      lines.push([
-        emp.id, emp.nom, emp.prenom||"", emp.id,
-        `${MOIS[m]} ${year}`,
-        emp.heures_mois, travailH.toFixed(2), travailH.toFixed(2),
-        travailJ, congesJ, maladeJ, absentJ, ecoleJ,
-        brutLisse.toFixed(2), brutReel.toFixed(2),
-        ecart, emp.iban||""
-      ].join(";"));
+  function inMonth(emp,m){return emp.debut<=`${year}-${String(m).padStart(2,"0")}-01`&&emp.fin>=`${year}-${String(m).padStart(2,"0")}-01`;}
+
+  function exportCSVSilae(m){
+    const ds1=`${year}-${String(m).padStart(2,"0")}-01`;
+    const dsN=`${year}-${String(m).padStart(2,"0")}-${String(new Date(year,m,0).getDate()).padStart(2,"0")}`;
+    const lines=["Matricule;Code_paie;Decompte;Date_debut;Date_fin;Commentaire"];
+    activeTeam.filter(e=>inMonth(e,m)).forEach(emp=>{
+      const r=calcMoisComplet(emp,shifts,m,year);
+      const mat=emp.matricule_silae||emp.id;
+      lines.push(`${mat};HN;${emp.heures_mois};${ds1};${dsN};Heures lissées contrat modulable IDCC 1790`);
+      if(r.hsImm>0&&r.hs25>0) lines.push(`${mat};HS25;${Math.min(r.hsImm,r.hs25).toFixed(2)};${ds1};${dsN};HS majorées 25% (semaines >42h, part 36-43h)`);
+      if(r.hsImm>0&&r.hs50>0) lines.push(`${mat};HS50;${Math.max(0,r.hsImm-r.hs25).toFixed(2)};${ds1};${dsN};HS majorées 50% (semaines >43h)`);
+      if(r.maiH>0) lines.push(`${mat};MAI;${r.maiH.toFixed(2)};2026-05-01;2026-05-01;1er mai travaillé - majoration 100% obligatoire`);
+      if(r.congesJ>0) lines.push(`${mat};CP;${r.congesJ};;;Congés payés posés ce mois`);
+      if(r.maladeJ>0) lines.push(`${mat};MAL;${r.maladeJ};${ds1};${dsN};Absence maladie - vérifier justificatif`);
+      if(r.absentInjJ>0) lines.push(`${mat};AB-INJ;${r.absentInjJ};${ds1};${dsN};Absence injustifiée - retenue à opérer`);
     });
     const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8;"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url; a.download=`AbracadaParc_Paie_${MOIS[m]}_${year}_Silae.csv`;
-    document.body.appendChild(a); a.click();
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
+    a.href=url;a.download=`AbracadaParc_Silae_${MOIS[m]}_${year}.csv`;
+    document.body.appendChild(a);a.click();
     setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
   }
 
+  function exportRecapHTML(m){
+    const now=new Date().toLocaleDateString("fr-FR");
+    const equipe=activeTeam.filter(e=>inMonth(e,m));
+    const totalV=equipe.reduce((s,e)=>s+calcMoisComplet(e,shifts,m,year).totalVerser,0);
+    const rows=equipe.map((emp,i)=>{
+      const r=calcMoisComplet(emp,shifts,m,year);
+      const bg=r.statut.startsWith("⚠️")?"#FFF3E0":i%2===0?"#fff":"#f9fbf9";
+      return `<tr style="background:${bg}">
+        <td>${emp.matricule_silae||emp.id}</td>
+        <td><b>${emp.prenom?emp.prenom+" ":""}</b>${emp.nom}</td>
+        <td>${MOIS[m]} ${year}</td>
+        <td>${emp.heures_mois}h</td>
+        <td>${r.travailH.toFixed(1)}h</td>
+        <td style="color:${Math.abs(r.ecart)>5?"#C62828":"#2E7D32"};font-weight:700">${r.ecart>0?"+":""}${r.ecart}h</td>
+        <td>${r.dimH>0?r.dimH.toFixed(1)+"h":"—"}</td>
+        <td>${r.maiH>0?r.maiH.toFixed(1)+"h":"—"}</td>
+        <td>${r.congesJ>0?r.congesJ+"j CP":""} ${r.maladeJ>0?r.maladeJ+"j MAL":""} ${r.absentInjJ>0?"⚠️"+r.absentInjJ+"j AB-INJ":""}</td>
+        <td><b>${r.brutLisse.toFixed(2)} €</b></td>
+        <td>${r.majHS>0?"+"+r.majHS.toFixed(2)+" €":"—"}</td>
+        <td>${r.majMAI>0?"+"+r.majMAI.toFixed(2)+" €":"—"}</td>
+        <td style="font-weight:800;color:#1B5E20">${r.totalVerser.toFixed(2)} €</td>
+        <td>${emp.type==="apprenti"?"~0 € (exo.)":r.chargesPat.toFixed(2)+" €"}</td>
+        <td>${r.coutTotal.toFixed(2)} €</td>
+        <td>${r.statut}</td>
+      </tr>`;
+    }).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Récap Paie ${MOIS[m]} ${year}</title>
+    <style>body{font-family:sans-serif;font-size:10px;margin:1cm}table{width:100%;border-collapse:collapse}
+    th{background:#1B5E20;color:#fff;padding:6px 7px;text-align:left;font-size:9px;white-space:nowrap}
+    td{border:1px solid #ddd;padding:5px 7px}h2{font-size:14px;color:#1B5E20;margin:0 0 4px}
+    .sub{font-size:9px;color:#888;margin-bottom:10px}.footer{margin-top:8px;font-size:8px;color:#888;line-height:1.8}
+    @media print{@page{size:A3 landscape;margin:1cm}}</style>
+    </head><body>
+    <h2>🌿 AbracadaParc — Récap Paie ${MOIS[m]} ${year}</h2>
+    <div class="sub">SIREN 979 489 929 · IDCC 1790 · Gérante : Vanessa Schweitzer · ${now}<br>
+    Lissage modulable · HS &gt;42h/sem payées imm. · HS25% 36-43h · HS50% 44h+ · 1er mai +100%</div>
+    <table><thead><tr>
+      <th>Matric.</th><th>Salarié·e</th><th>Mois</th><th>H lissées</th><th>H réelles</th><th>Écart</th>
+      <th>Dim.</th><th>1er mai</th><th>Absences</th><th>Brut lissé</th><th>Maj.HS</th><th>Maj.MAI</th>
+      <th>💶 Total virer</th><th>Charges pat.</th><th>Coût total</th><th>Statut</th>
+    </tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr style="background:#1B5E20;color:#fff;font-weight:700">
+      <td colspan="12" style="text-align:right;padding:8px">TOTAL MASSE SALARIALE À VIRER</td>
+      <td style="font-size:13px;padding:8px">${totalV.toFixed(2)} €</td><td colspan="3"/>
+    </tr></tfoot></table>
+    <div class="footer">Note IDCC 1790 : Salaire lissé = H contractuelles × taux, identique chaque mois.
+    HS immédiates si semaine &gt;42h. HS25% : 36-43h/sem. HS50% : 44h+/sem.
+    1er mai : +100% légal. Régularisation en fin de contrat si écart cumulé.</div>
+    <script>window.onload=function(){window.print();}<\/script></body></html>`;
+    const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";
+    document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  }
+
   // ── Vue Mensuelle ────────────────────────────────────────────────────────
-  function VueMensuelle() {
-    const mois = [4,5,6,7,8,9,10].filter(m=>{
-      return activeTeam.some(e=>e.debut<=`${year}-${String(m).padStart(2,"0")}-01`&&e.fin>=`${year}-${String(m).padStart(2,"0")}-01`);
+  const VueMensuelle=()=>{
+    const cols=["Salarié·e","H lissées","H réelles","Écart","HS>42h","HS25%","HS50%","Dim.","1er mai","CP","Mal.","Ab.inj","Brut lissé","Maj.HS","Maj.MAI","💶 À virer","Charges","Coût total","Statut"];
+    const equipe=activeTeam.filter(e=>inMonth(e,month));
+    const totalV=equipe.reduce((s,e)=>s+calcMoisComplet(e,shifts,month,year).totalVerser,0);
+    return (<div>
+      <div style={{...S.card,marginBottom:14,background:"#E8F5E9",border:"1px solid #A5D6A7",fontSize:12,color:"#2E7D32",lineHeight:1.8}}>
+        📋 <strong>mySilae IDCC 1790</strong> · À transmettre avant le <strong>5 du mois</strong><br/>
+        Salaire lissé fixe · HS &gt;42h payées imm. · HS25% 36-43h · HS50% 44h+ · 1er mai +100%
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14,alignItems:"center"}}>
+        {moisDispo.map(m=><button key={m} onClick={()=>setMonth(m)} style={{...S.btn,padding:"6px 12px",fontSize:11,background:month===m?"#2E7D32":"#F1F8E9",color:month===m?"#fff":"#2E7D32",border:month===m?"none":"1px solid #C8E6C9"}}>{MOIS[m]}</button>)}
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          <button onClick={()=>exportCSVSilae(month)} style={{...S.btn,background:"#1565C0",color:"#fff",border:"none",fontSize:11}}>⬇️ CSV Silae</button>
+          <button onClick={()=>exportRecapHTML(month)} style={{...S.btn,background:"#2E7D32",color:"#fff",border:"none",fontSize:11}}>🖨️ Récap PDF</button>
+        </div>
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead><tr style={{background:"#1B5E20",color:"#fff"}}>
+            {cols.map(h=><th key={h} style={{padding:"8px 7px",fontSize:9,fontWeight:700,whiteSpace:"nowrap",textAlign:"left"}}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {equipe.map((emp,i)=>{
+              const r=calcMoisComplet(emp,shifts,month,year);
+              const ec=Math.abs(r.ecart)>5?"#C62828":r.ecart!==0?"#E65100":"#2E7D32";
+              return <tr key={emp.id} style={{borderBottom:"1px solid #E8F5E9",background:r.statut.startsWith("⚠️")?"#FFF8E1":i%2===0?"#fff":"#F9FBF9"}}>
+                <td style={{padding:"7px 7px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:7,height:7,borderRadius:"50%",background:emp.color}}/><span style={{fontWeight:700}}>{emp.prenom||emp.nom}</span></div><div style={{fontSize:9,color:"#9E9E9E"}}>{emp.matricule_silae||emp.id}</div></td>
+                <td style={{padding:"7px 7px",color:"#2E7D32",fontWeight:700}}>{emp.heures_mois}h</td>
+                <td style={{padding:"7px 7px"}}>{r.travailH.toFixed(1)}h</td>
+                <td style={{padding:"7px 7px",fontWeight:700,color:ec}}>{r.ecart>0?"+":""}{r.ecart}h</td>
+                <td style={{padding:"7px 7px",color:r.hsImm>0?"#E65100":"#BDBDBD"}}>{r.hsImm>0?r.hsImm.toFixed(1)+"h":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.hs25>0?"#E65100":"#BDBDBD"}}>{r.hs25>0?r.hs25.toFixed(1)+"h":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.hs50>0?"#C62828":"#BDBDBD"}}>{r.hs50>0?r.hs50.toFixed(1)+"h":"—"}</td>
+                <td style={{padding:"7px 7px"}}>{r.dimH>0?r.dimH.toFixed(1)+"h":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.maiH>0?"#C62828":"#BDBDBD"}}>{r.maiH>0?r.maiH.toFixed(1)+"h":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.congesJ>0?"#E65100":"#BDBDBD"}}>{r.congesJ>0?r.congesJ+"j":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.maladeJ>0?"#6A1B9A":"#BDBDBD"}}>{r.maladeJ>0?r.maladeJ+"j":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.absentInjJ>0?"#C62828":"#BDBDBD"}}>{r.absentInjJ>0?"⚠️"+r.absentInjJ+"j":"—"}</td>
+                <td style={{padding:"7px 7px",background:"#F1F8E9",fontWeight:700,color:"#1B5E20"}}>{r.brutLisse.toFixed(2)} €</td>
+                <td style={{padding:"7px 7px",color:r.majHS>0?"#E65100":"#BDBDBD"}}>{r.majHS>0?"+"+r.majHS.toFixed(2)+"€":"—"}</td>
+                <td style={{padding:"7px 7px",color:r.majMAI>0?"#C62828":"#BDBDBD"}}>{r.majMAI>0?"+"+r.majMAI.toFixed(2)+"€":"—"}</td>
+                <td style={{padding:"7px 7px",background:"#E8F5E9",fontWeight:800,color:"#1B5E20",fontSize:13}}>{r.totalVerser.toFixed(2)} €</td>
+                <td style={{padding:"7px 7px",fontSize:10,color:"#757575"}}>{emp.type==="apprenti"?"~0 €":r.chargesPat.toFixed(2)+"€"}</td>
+                <td style={{padding:"7px 7px",fontWeight:700}}>{r.coutTotal.toFixed(2)} €</td>
+                <td style={{padding:"7px 7px",fontWeight:700,color:r.statut.startsWith("✅")?"#1B5E20":"#E65100"}}>{r.statut}</td>
+              </tr>;
+            })}
+          </tbody>
+          <tfoot><tr style={{background:"#1B5E20",color:"#fff",fontWeight:700}}>
+            <td colSpan={15} style={{padding:"9px 7px",fontSize:12}}>TOTAL — {MOIS[month]} {year}</td>
+            <td style={{padding:"9px 7px",fontSize:14}}>{totalV.toFixed(2)} €</td>
+            <td colSpan={3}/>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div style={{marginTop:10,padding:"9px 12px",background:"#FFF9C4",borderRadius:8,fontSize:11,color:"#F57F17"}}>
+        IDCC 1790 : HS25% = 36-43h/sem · HS50% = 44h+/sem · Limite modulation 42h → HS payées ce mois · 1er mai +100% · Dimanche : pas de majoration légale automatique
+      </div>
+    </div>);
+  };
+
+  // ── Checklist ────────────────────────────────────────────────────────────
+  const VueChecklist=()=>{
+    const equipe=activeTeam.filter(e=>inMonth(e,month));
+    const alertes=[];
+    equipe.forEach(emp=>{
+      const r=calcMoisComplet(emp,shifts,month,year);
+      const nom=emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom;
+      if(r.hsImm>0) alertes.push({t:"danger",m:`🚨 ${nom} : ${r.hsImm.toFixed(1)}h HS >42h/sem — à payer ce mois (+${r.majHS.toFixed(2)}€)`});
+      if(r.absentInjJ>0) alertes.push({t:"danger",m:`🚨 ${nom} : ${r.absentInjJ}j absence injustifiée — retenue à opérer`});
+      if(r.maladeJ>0) alertes.push({t:"warn",m:`⚠️ ${nom} : ${r.maladeJ}j maladie — vérifier justificatif`});
+      if(Math.abs(r.ecart)>10) alertes.push({t:"warn",m:`⚠️ ${nom} : écart ${r.ecart>0?"+":""}${r.ecart}h vs contrat`});
+      if(r.maiH>0) alertes.push({t:"info",m:`📋 ${nom} : ${r.maiH.toFixed(1)}h le 1er mai → +100% appliqué (+${r.majMAI.toFixed(2)}€)`});
+      if(month===6&&emp.id==="t3") alertes.push({t:"danger",m:`🚨 ALYSSA : fin contrat 21/06 — solde CP obligatoire avant terme`});
     });
-
-    return (
-      <div>
-        <div style={{...S.card,marginBottom:16,background:"#E8F5E9",border:"1px solid #A5D6A7",fontSize:12,color:"#2E7D32",lineHeight:1.8}}>
-          📋 <strong>Format mySilae</strong> — Ce tableau est le document à transmettre à votre cabinet avant le <strong>5 de chaque mois</strong>.<br/>
-          Le <strong>brut à virer</strong> est le salaire lissé (identique chaque mois). Les heures réelles servent au suivi et à la régularisation fin de contrat.
+    return (<div>
+      {alertes.length>0&&<div style={{marginBottom:14}}>{alertes.map((a,i)=>(
+        <div key={i} style={{padding:"9px 12px",borderRadius:8,marginBottom:5,background:a.t==="danger"?"#FFEBEE":a.t==="warn"?"#FFF8E1":"#E3F2FD",border:`1px solid ${a.t==="danger"?"#FFCDD2":a.t==="warn"?"#FFE082":"#90CAF9"}`}}>
+          <span style={{fontSize:12,color:a.t==="danger"?"#C62828":a.t==="warn"?"#E65100":"#1565C0",fontWeight:600}}>{a.m}</span>
         </div>
-
-        {/* Sélecteur mois */}
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
-          {mois.map(m=>(
-            <button key={m} onClick={()=>setMonth(m)} style={{...S.btn,padding:"6px 14px",fontSize:11,background:month===m?"#2E7D32":"#F1F8E9",color:month===m?"#fff":"#2E7D32",border:month===m?"none":"1px solid #C8E6C9"}}>
-              {MOIS[m]}
-            </button>
-          ))}
-          <button onClick={()=>exportCSVSilae(month)} style={{...S.btn,background:"#1565C0",color:"#fff",border:"none",fontSize:11,marginLeft:"auto"}}>
-            ⬇️ Export CSV Silae
-          </button>
-        </div>
-
-        {/* Tableau */}
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead>
-              <tr style={{background:"#1B5E20",color:"#fff"}}>
-                {["Salarié·e","Contrat","H lissées/mois","H réelles mois","Écart","J trav.","CP","Maladie","Absent","École","💶 Brut à virer","Brut réel","HS fin contrat","IBAN"].map(h=>(
-                  <th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {activeTeam.map((emp,i)=>{
-                const inMonth = emp.debut<=`${year}-${String(month).padStart(2,"0")}-01` && emp.fin>=`${year}-${String(month).padStart(2,"0")}-01`;
-                if(!inMonth) return null;
-                const {travailH,travailJ,congesJ,maladeJ,absentJ,ecoleJ}=calcHeuresMois(emp,month,year);
-                const brutLisse=Math.round(emp.heures_mois*emp.taux*100)/100;
-                const brutReel=Math.round(travailH*emp.taux*100)/100;
-                const ecart=Math.round((travailH-emp.heures_mois)*10)/10;
-                const ecartColor=Math.abs(ecart)<=2?"#9E9E9E":ecart>0?"#E65100":"#1565C0";
-                const totalSaison=calcHeuresSaison(emp);
-                const hsSaison=Math.round((totalSaison-emp.heures_mois*nbMoisContrat(emp))*10)/10;
-                return (
-                  <tr key={emp.id} style={{borderBottom:"1px solid #E8F5E9",background:i%2===0?"#fff":"#F9FBF9"}}>
-                    <td style={{padding:"8px 10px"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{width:8,height:8,borderRadius:"50%",background:emp.color}}/>
-                        <span style={{fontWeight:700}}>{emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom}</span>
-                      </div>
-                    </td>
-                    <td style={{padding:"8px 10px",fontSize:10,color:"#757575"}}>{emp.contrat.replace("CDD Saisonnier Modulable","CDD Mod.")}</td>
-                    <td style={{padding:"8px 10px",fontWeight:700,color:"#2E7D32"}}>{emp.heures_mois}h</td>
-                    <td style={{padding:"8px 10px",color:"#424242"}}>{travailH.toFixed(1)}h</td>
-                    <td style={{padding:"8px 10px",fontWeight:700,color:ecartColor}}>{ecart>0?"+":""}{ecart}h</td>
-                    <td style={{padding:"8px 10px",textAlign:"center"}}>{travailJ}j</td>
-                    <td style={{padding:"8px 10px",textAlign:"center",color:congesJ>0?"#E65100":"#BDBDBD"}}>{congesJ}j</td>
-                    <td style={{padding:"8px 10px",textAlign:"center",color:maladeJ>0?"#6A1B9A":"#BDBDBD"}}>{maladeJ}j</td>
-                    <td style={{padding:"8px 10px",textAlign:"center",color:absentJ>0?"#C62828":"#BDBDBD"}}>{absentJ>0?`⚠️ ${absentJ}j`:"-"}</td>
-                    <td style={{padding:"8px 10px",textAlign:"center",color:ecoleJ>0?"#1565C0":"#BDBDBD"}}>{ecoleJ}j</td>
-                    <td style={{padding:"8px 10px",background:"#E8F5E9"}}>
-                      <div style={{fontWeight:800,fontSize:14,color:"#1B5E20"}}>{brutLisse.toFixed(2)} €</div>
-                      <div style={{fontSize:9,color:"#9E9E9E"}}>= {emp.heures_mois}h × {emp.taux}€</div>
-                    </td>
-                    <td style={{padding:"8px 10px",color:"#757575",fontSize:11}}>{brutReel.toFixed(2)} €</td>
-                    <td style={{padding:"8px 10px"}}>
-                      <span style={{fontSize:11,fontWeight:700,color:Math.abs(hsSaison)>5?(hsSaison>0?"#E65100":"#1565C0"):"#9E9E9E"}}>
-                        {hsSaison>0?"+":""}{hsSaison}h
-                      </span>
-                    </td>
-                    <td style={{padding:"8px 10px",fontSize:10,color:emp.iban?"#424242":"#C62828"}}>{emp.iban||"⚠️ MANQUANT"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{background:"#1B5E20",color:"#fff",fontWeight:700}}>
-                <td colSpan={10} style={{padding:"10px 10px",fontSize:12}}>TOTAL MASSE SALARIALE — {MOIS[month]} {year}</td>
-                <td style={{padding:"10px 10px",fontSize:14}}>
-                  {activeTeam.filter(e=>e.debut<=`${year}-${String(month).padStart(2,"0")}-01`&&e.fin>=`${year}-${String(month).padStart(2,"0")}-01`)
-                    .reduce((s,e)=>s+e.heures_mois*e.taux,0).toFixed(2)} €
-                </td>
-                <td colSpan={3}/>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Note légale */}
-        <div style={{marginTop:14,padding:"10px 14px",background:"#FFF9C4",borderRadius:8,fontSize:11,color:"#F57F17",lineHeight:1.8}}>
-          📋 <strong>Note légale IDCC 1790 :</strong> Contrats modulables — le salaire mensuel est lissé sur toute la durée du contrat.
-          Les heures réelles peuvent varier sans impact sur le salaire mensuel.
-          Régularisation éventuelle en fin de contrat si écart total &gt; 0 (majoration HS) ou &lt; 0 (retenue possible selon accord).
-          Seul le <strong>1er mai</strong> donne lieu à une majoration de 100%.
-        </div>
-      </div>
-    );
-  }
-
-  // ── Vue Semaine par Semaine ───────────────────────────────────────────────
-  function VueSemaine() {
-    const [selMonth2, setSelMonth2] = useState(month);
-    const firstMon=getMondayOf(new Date(year,selMonth2-1,1,12));
-    const weeks=Array.from({length:6},(_,i)=>({
-      mon:addDaysLocal(firstMon,i*7),
-      days:Array.from({length:7},(_,j)=>addDaysLocal(firstMon,i*7+j))
-    })).filter(w=>w.days.some(d=>d.getMonth()===selMonth2-1));
-
-    function exportCSVSemaines() {
-      const lines=["Semaine;Salarié;Lu;Ma;Me;Je;Ve;Sa;Di;Total_H;Type_Semaine;Coût_Brut"];
-      weeks.forEach(({mon:wm,days})=>{
-        activeTeam.forEach(emp=>{
-          const cells=days.map(d=>{
-            const ds=fmtLocal(d);const sh=shifts[`${emp.id}_${ds}`];
-            if(ds<emp.debut||ds>emp.fin) return "-";
-            if(!sh) return "0";
-            if(sh.type==="travail") return (sh.h||0).toFixed(1)+"h";
-            return sh.type.slice(0,3).toUpperCase();
-          });
-          const weekH=days.reduce((s,d)=>{
-            const ds=fmtLocal(d);const sh=shifts[`${emp.id}_${ds}`];
-            if(ds<emp.debut||ds>emp.fin) return s;
-            return s+(sh?.type==="travail"?(sh.h||0):0);
-          },0);
-          const cout=Math.round(weekH*emp.taux*100)/100;
-          lines.push([`${fmtLocal(wm)} au ${fmtLocal(addDaysLocal(wm,6))}`,`${emp.prenom||""} ${emp.nom}`,...cells,weekH.toFixed(1),"",cout.toFixed(2)].join(";"));
-        });
-      });
-      const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8;"});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");
-      a.href=url; a.download=`AbracadaParc_Semaines_${MOIS[selMonth2]}_${year}.csv`;
-      document.body.appendChild(a);a.click();
-      setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
-    }
-
-    return (
-      <div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-          {[4,5,6,7,8,9,10].map(m=>(
-            <button key={m} onClick={()=>setSelMonth2(m)} style={{...S.btn,padding:"6px 12px",fontSize:11,background:selMonth2===m?"#2E7D32":"#F1F8E9",color:selMonth2===m?"#fff":"#2E7D32",border:selMonth2===m?"none":"1px solid #C8E6C9"}}>{MOIS[m].slice(0,4)}.</button>
-          ))}
-          <button onClick={exportCSVSemaines} style={{...S.btn,background:"#1565C0",color:"#fff",border:"none",fontSize:11,marginLeft:"auto"}}>⬇️ CSV semaines</button>
-        </div>
-
-        {weeks.map(({mon:wm,days},wi)=>{
-          const dateRange=`${wm.toLocaleDateString("fr-FR",{day:"2-digit",month:"short"})} → ${addDaysLocal(wm,6).toLocaleDateString("fr-FR",{day:"2-digit",month:"short"})}`;
-          const totalJour=days.map(d=>{
-            const ds=fmtLocal(d);
-            return activeTeam.reduce((s,emp)=>{
-              if(ds<emp.debut||ds>emp.fin) return s;
-              const sh=shifts[`${emp.id}_${ds}`];
-              return s+(sh?.type==="travail"?(sh.h||0):0);
-            },0);
-          });
-          return (
-            <div key={wi} style={{...S.card,marginBottom:10,padding:"10px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <span style={{fontSize:13,fontWeight:700,color:"#2E7D32"}}>Semaine {wi+1} — {dateRange}</span>
-                <span style={{fontSize:12,fontWeight:700,color:"#1B5E20"}}>{totalJour.reduce((s,h)=>s+h,0).toFixed(1)}h équipe</span>
-              </div>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                  <thead>
-                    <tr style={{background:"#F1F8E9"}}>
-                      <th style={{padding:"5px 8px",textAlign:"left",color:"#558B2F",fontWeight:700}}>Salarié·e</th>
-                      {days.map((d,di)=>{
-                        const dow=d.getDay();const isWE=dow===0||dow===6;
-                        const ds=fmtLocal(d); const inMonth=d.getMonth()===selMonth2-1;
-                        return <th key={di} style={{padding:"5px 6px",textAlign:"center",color:isWE?"#BF360C":"#558B2F",fontWeight:700,opacity:inMonth?1:0.3}}>
-                          {["Di","Lu","Ma","Me","Je","Ve","Sa"][dow]}<br/><span style={{fontSize:9,fontWeight:400}}>{d.getDate()}</span>
-                        </th>;
-                      })}
-                      <th style={{padding:"5px 8px",textAlign:"center",color:"#1B5E20",fontWeight:700}}>Total</th>
-                      <th style={{padding:"5px 8px",textAlign:"center",color:"#1B5E20",fontWeight:700}}>Coût brut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeTeam.map(emp=>{
-                      const weekH=days.reduce((s,d)=>{
-                        const ds=fmtLocal(d);const sh=shifts[`${emp.id}_${ds}`];
-                        if(ds<emp.debut||ds>emp.fin) return s;
-                        return s+(sh?.type==="travail"?(sh.h||0):0);
-                      },0);
-                      const coutSemaine=Math.round(weekH*(emp.heures_mois*emp.taux/emp.heures_mois)*100)/100; // coût lissé
-                      return (
-                        <tr key={emp.id} style={{borderBottom:"1px solid #F5F5F5"}}>
-                          <td style={{padding:"5px 8px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:5}}>
-                              <span style={{width:7,height:7,borderRadius:"50%",background:emp.color}}/>
-                              <span style={{fontWeight:600}}>{emp.prenom?emp.prenom.split(" ")[0]:emp.nom}</span>
-                            </div>
-                          </td>
-                          {days.map((d,di)=>{
-                            const ds=fmtLocal(d);const sh=shifts[`${emp.id}_${ds}`];
-                            const hors=ds<emp.debut||ds>emp.fin;
-                            const inMonth=d.getMonth()===selMonth2-1;
-                            const dow=d.getDay();const isWE=dow===0||dow===6;
-                            const st=sh?STATUTS[sh.type]:null;
-                            return <td key={di} style={{padding:"4px 4px",textAlign:"center",opacity:inMonth?1:0.25,background:isWE?"#FFF8F8":"transparent"}}>
-                              {hors?<span style={{color:"#E0E0E0",fontSize:9}}>—</span>:sh?(
-                                <div>
-                                  <div style={{fontSize:9,fontWeight:700,color:st.color}}>{sh.type==="travail"?`${(sh.h||0).toFixed(1)}h`:st.label.slice(0,1)}</div>
-                                  {sh.type==="travail"&&sh.deb&&<div style={{fontSize:8,color:"#9E9E9E"}}>{sh.deb}</div>}
-                                </div>
-                              ):<span style={{color:"#BDBDBD",fontSize:9}}>—</span>}
-                            </td>;
-                          })}
-                          <td style={{padding:"5px 8px",textAlign:"center",fontWeight:800,color:"#1B5E20"}}>{weekH.toFixed(1)}h</td>
-                          <td style={{padding:"5px 8px",textAlign:"center",color:"#757575",fontSize:11}}>{Math.round(weekH*emp.taux*100)/100} €</td>
-                        </tr>
-                      );
-                    })}
-                    <tr style={{background:"#E8F5E9",fontWeight:700}}>
-                      <td style={{padding:"5px 8px",color:"#1B5E20"}}>TOTAL/JOUR</td>
-                      {totalJour.map((h,i)=><td key={i} style={{padding:"5px 4px",textAlign:"center",color:h>0?"#1B5E20":"#BDBDBD",fontSize:11}}>{h>0?h.toFixed(1)+"h":"—"}</td>)}
-                      <td style={{padding:"5px 8px",textAlign:"center",fontWeight:800,color:"#1B5E20"}}>{totalJour.reduce((s,h)=>s+h,0).toFixed(1)}h</td>
-                      <td/>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // ── Vue Lissage Contrat Complet ───────────────────────────────────────────
-  function VueLissage() {
-    function exportCSVLissage() {
-      const lines=["Salarié;Contrat;Debut;Fin;Nb_Mois;H_Contrat_Mois;H_Reelles_Saison;H_Attendues_Saison;Ecart_HS;Taux;Brut_Mensuel_Lisse;Total_Brut_Saison;Note_Regularisation"];
-      activeTeam.forEach(emp=>{
-        const totalH=calcHeuresSaison(emp);
-        const nbM=nbMoisContrat(emp);
-        const hAttendu=Math.round(emp.heures_mois*nbM*10)/10;
-        const ecart=Math.round((totalH-hAttendu)*10)/10;
-        const brutMois=Math.round(emp.heures_mois*emp.taux*100)/100;
-        const totalBrut=Math.round(brutMois*nbM*100)/100;
-        const note=ecart>2?"HS à majorer selon accord collectif":ecart<-2?"Déficit à analyser":"Conforme";
-        lines.push([emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom,emp.contrat,emp.debut,emp.fin,nbM,emp.heures_mois,totalH,hAttendu,ecart,emp.taux,brutMois,totalBrut,note].join(";"));
-      });
-      const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8;"});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");
-      a.href=url;a.download=`AbracadaParc_Lissage_Saison_${year}.csv`;
-      document.body.appendChild(a);a.click();
-      setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
-    }
-
-    return (
-      <div>
-        <div style={{...S.card,marginBottom:16,background:"#E3F2FD",border:"1px solid #90CAF9",fontSize:12,color:"#1565C0",lineHeight:1.8}}>
-          📊 <strong>Bilan de lissage saison complète</strong> — Vue de clôture pour votre cabinet.<br/>
-          Montre l'écart entre heures réelles et heures attendues sur toute la durée du contrat.<br/>
-          Un écart positif = heures supplémentaires à régulariser en fin de contrat.
-        </div>
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-          <button onClick={exportCSVLissage} style={{...S.btn,background:"#1565C0",color:"#fff",border:"none"}}>⬇️ Export CSV Lissage Sage/Silae</button>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {activeTeam.map(emp=>{
-            const totalH=calcHeuresSaison(emp);
-            const nbM=nbMoisContrat(emp);
-            const hAttendu=Math.round(emp.heures_mois*nbM*10)/10;
-            const ecart=Math.round((totalH-hAttendu)*10)/10;
-            const brutMois=Math.round(emp.heures_mois*emp.taux*100)/100;
-            const totalBrut=Math.round(brutMois*nbM*100)/100;
-            const ecartColor=Math.abs(ecart)<=2?"#2E7D32":ecart>0?"#E65100":"#1565C0";
-            const ecartBg=Math.abs(ecart)<=2?"#E8F5E9":ecart>0?"#FFF3E0":"#E3F2FD";
-            // Mois bar chart
-            const moisData=[4,5,6,7,8,9,10].map(m=>{
-              const inC=emp.debut<=`${year}-${String(m).padStart(2,"0")}-01`&&emp.fin>=`${year}-${String(m).padStart(2,"0")}-01`;
-              if(!inC) return null;
-              const {travailH}=calcHeuresMois(emp,m,year);
-              return {m, h:travailH};
-            }).filter(Boolean);
-            const maxH=Math.max(...moisData.map(d=>d.h), emp.heures_mois);
-            return (
-              <div key={emp.id} style={{...S.card,padding:"16px 18px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
-                  <div style={{width:38,height:38,borderRadius:"50%",background:emp.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:16}}>{(emp.prenom||emp.nom).charAt(0)}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:14,fontWeight:800,color:"#212121"}}>{emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom}</div>
-                    <div style={{fontSize:11,color:"#9E9E9E"}}>{emp.contrat} · {emp.debut} → {emp.fin} · {nbM} mois</div>
-                  </div>
-                  <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:13,fontWeight:800,color:"#1B5E20"}}>{brutMois.toFixed(0)} €</div>
-                      <div style={{fontSize:9,color:"#9E9E9E"}}>brut mensuel fixe</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:13,fontWeight:800,color:"#2E7D32"}}>{totalBrut.toFixed(0)} €</div>
-                      <div style={{fontSize:9,color:"#9E9E9E"}}>total brut saison</div>
-                    </div>
-                    <div style={{textAlign:"center",padding:"8px 12px",background:ecartBg,borderRadius:10}}>
-                      <div style={{fontSize:14,fontWeight:800,color:ecartColor}}>{ecart>0?"+":""}{ecart}h</div>
-                      <div style={{fontSize:9,color:ecartColor}}>{Math.abs(ecart)<=2?"✅ Conforme":ecart>0?"⚠️ HS à régul.":"ℹ️ Sous contrat"}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Graphique barres mois */}
-                <div style={{display:"flex",gap:6,alignItems:"flex-end",height:60,marginBottom:6}}>
-                  {moisData.map(({m,h})=>{
-                    const pct=maxH>0?h/maxH*100:0;
-                    const basePct=maxH>0?emp.heures_mois/maxH*100:0;
-                    const overBase=h>emp.heures_mois;
-                    return (
-                      <div key={m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                        <div style={{fontSize:8,color:"#9E9E9E",fontWeight:700}}>{h.toFixed(0)}h</div>
-                        <div style={{width:"100%",position:"relative",height:40}}>
-                          {/* Ligne base */}
-                          <div style={{position:"absolute",bottom:`${basePct*40/100}px`,left:0,right:0,height:1,background:"#C8E6C9",zIndex:2}}/>
-                          {/* Barre */}
-                          <div style={{position:"absolute",bottom:0,left:2,right:2,height:`${pct*40/100}px`,background:overBase?"#E65100":"#2E7D32",borderRadius:"3px 3px 0 0",minHeight:2}}/>
-                        </div>
-                        <div style={{fontSize:8,color:"#9E9E9E"}}>{MOIS[m].slice(0,3)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{fontSize:10,color:"#9E9E9E"}}>
-                  Ligne verte = base lissée {emp.heures_mois}h/mois · Barres oranges = dépassement (heures sup potentielles)
-                </div>
-
-                {/* Tableau récap */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginTop:12}}>
-                  {[
-                    ["H contrat lissées/mois", emp.heures_mois+"h", "#2E7D32"],
-                    ["H réelles saison", totalH+"h", "#1565C0"],
-                    ["H attendues saison", hAttendu+"h", "#757575"],
-                    ["Écart total", `${ecart>0?"+":""}${ecart}h`, ecartColor],
-                  ].map(([l,v,c])=>(
-                    <div key={l} style={{padding:"8px 10px",background:"#F9F9F9",borderRadius:8,textAlign:"center"}}>
-                      <div style={{fontSize:14,fontWeight:800,color:c}}>{v}</div>
-                      <div style={{fontSize:9,color:"#9E9E9E",marginTop:2}}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div style={{...S.card,marginBottom:16,background:"#1B5E20",padding:"16px 20px"}}>
-        <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:4}}>💶 Export Paie Pro — Format mySilae / IDCC 1790</div>
-        <div style={{fontSize:12,color:"#A5D6A7",lineHeight:1.7}}>
-          Lissage salarial conforme IDCC 1790 · 3 niveaux d'export · Exports CSV Silae/Sage prêts à l'emploi
-        </div>
-      </div>
-
-      {/* Onglets */}
-      <div style={{display:"flex",borderRadius:10,overflow:"hidden",border:"1px solid #C8E6C9",marginBottom:18,width:"fit-content"}}>
+      ))}</div>}
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#1B5E20",marginBottom:10}}>✅ Checklist avant transmission — {MOIS[month]} {year}</div>
         {[
-          ["mensuel","📋 Vue Mensuelle"],
-          ["semaine","📅 Semaine par Semaine"],
-          ["lissage","📊 Lissage Contrat Complet"],
-        ].map(([k,l])=>(
-          <button key={k} onClick={()=>setView(k)} style={{padding:"9px 18px",border:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",background:view===k?"#2E7D32":"#fff",color:view===k?"#fff":"#558B2F",fontWeight:view===k?700:400,borderRight:"1px solid #C8E6C9"}}>
-            {l}
-          </button>
+          [equipe.every(e=>calcMoisComplet(e,shifts,month,year).statut.startsWith("✅")), "Toutes les heures validées"],
+          [equipe.every(e=>calcMoisComplet(e,shifts,month,year).hsImm===0), "Aucune semaine >42h non traitée"],
+          [month!==5||equipe.some(e=>calcMoisComplet(e,shifts,month,year).maiH>0), "1er mai : heures vérifiées (si applicable)"],
+          [equipe.every(e=>calcMoisComplet(e,shifts,month,year).absentInjJ===0), "Aucune absence injustifiée"],
+          [month!==6||true, "CP ALYSSA soldés avant le 21/06"],
+          [equipe.every(e=>e.iban), "IBAN renseigné pour chaque salarié"],
+          [true, "Confirmation écrite : semaines définitives et validées"],
+        ].map(([ok,label],i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid #F5F5F5"}}>
+            <span style={{fontSize:15,width:22}}>{ok?"✅":"❌"}</span>
+            <span style={{fontSize:12,color:ok?"#424242":"#C62828",fontWeight:ok?400:600}}>{label}</span>
+          </div>
         ))}
       </div>
+      {equipe.map(emp=>{
+        const r=calcMoisComplet(emp,shifts,month,year);
+        return <div key={emp.id} style={{...S.card,marginBottom:8,padding:"11px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:emp.color}}/>
+              <span style={{fontWeight:700,fontSize:13}}>{emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom}</span>
+              <span style={{fontSize:10,color:"#9E9E9E"}}>{emp.heures_mois}h lissées · {emp.taux}€/h</span>
+            </div>
+            <span style={{fontSize:12,fontWeight:700,color:r.statut.startsWith("✅")?"#1B5E20":"#E65100"}}>{r.statut}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:6}}>
+            {[["H réelles",r.travailH.toFixed(1)+"h","#424242"],["Écart",`${r.ecart>0?"+":""}${r.ecart}h`,Math.abs(r.ecart)>5?"#C62828":"#2E7D32"],["HS imm.",r.hsImm>0?r.hsImm.toFixed(1)+"h":"—",r.hsImm>0?"#E65100":"#BDBDBD"],["💶 À virer",r.totalVerser.toFixed(2)+"€","#1B5E20"]].map(([l,v,c])=>(
+              <div key={l} style={{padding:"5px 8px",background:"#F9F9F9",borderRadius:6,textAlign:"center"}}>
+                <div style={{fontSize:13,fontWeight:700,color:c}}>{v}</div>
+                <div style={{fontSize:9,color:"#9E9E9E"}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>;
+      })}
+    </div>);
+  };
 
-      {view==="mensuel" && <VueMensuelle/>}
-      {view==="semaine" && <VueSemaine/>}
-      {view==="lissage" && <VueLissage/>}
+  // ── Lissage Saison ───────────────────────────────────────────────────────
+  const VueLissage=()=>{
+    function calcSaison(emp){
+      let h=0;
+      const d=new Date(emp.debut+"T12:00"),fin=new Date(emp.fin+"T12:00");
+      for(let cur=new Date(d);cur<=fin;cur.setDate(cur.getDate()+1)){
+        const ds=fmtLocal(cur);const sh=shifts[`${emp.id}_${ds}`];
+        if(sh?.type==="travail")h+=sh.h||0;if(sh?.type==="ecole")h+=7;
+      }
+      return Math.round(h*100)/100;
+    }
+    function nbMois(emp){const d=new Date(emp.debut+"T12:00"),f=new Date(emp.fin+"T12:00");return Math.round((f-d)/(1000*60*60*24*30.5)*10)/10;}
+    function exportCSV(){
+      const lines=["Matricule;Nom;Contrat;Debut;Fin;Nb_Mois;H_Lissees;H_Reelles;H_Attendues;Ecart;Taux;Brut_Mensuel;Total_Brut;Regularisation"];
+      activeTeam.forEach(emp=>{
+        const totalH=calcSaison(emp);const nbM=nbMois(emp);
+        const hAtt=Math.round(emp.heures_mois*nbM*10)/10;const ec=Math.round((totalH-hAtt)*10)/10;
+        const brutM=Math.round(emp.heures_mois*emp.taux*100)/100;
+        lines.push([emp.matricule_silae||emp.id,emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom,emp.contrat,emp.debut,emp.fin,nbM,emp.heures_mois,totalH,hAtt,ec,emp.taux,brutM,Math.round(brutM*nbM*100)/100,ec>2?"HS à majorer":ec<-2?"Déficit à analyser":"Conforme"].join(";"));
+      });
+      const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8;"});
+      const url=URL.createObjectURL(blob);const a=document.createElement("a");
+      a.href=url;a.download=`AbracadaParc_Lissage_Saison_${year}.csv`;document.body.appendChild(a);a.click();
+      setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+    }
+    return (<div>
+      <div style={{...S.card,marginBottom:14,background:"#E3F2FD",border:"1px solid #90CAF9",fontSize:12,color:"#1565C0",lineHeight:1.8}}>
+        📊 <strong>Bilan lissage saison</strong> — Vue clôture contrat. Écart cumulé heures réelles vs attendues.
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <button onClick={exportCSV} style={{...S.btn,background:"#1565C0",color:"#fff",border:"none"}}>⬇️ CSV Lissage Silae/Sage</button>
+      </div>
+      {activeTeam.map(emp=>{
+        const totalH=calcSaison(emp);const nbM=nbMois(emp);
+        const hAtt=Math.round(emp.heures_mois*nbM*10)/10;const ec=Math.round((totalH-hAtt)*10)/10;
+        const brutM=Math.round(emp.heures_mois*emp.taux*100)/100;
+        const ecC=Math.abs(ec)<=2?"#2E7D32":ec>0?"#E65100":"#1565C0";
+        const mData=[4,5,6,7,8,9,10].map(m=>{
+          const ok=emp.debut<=`${year}-${String(m).padStart(2,"0")}-01`&&emp.fin>=`${year}-${String(m).padStart(2,"0")}-01`;
+          if(!ok)return null;return{m,h:calcMoisComplet(emp,shifts,m,year).travailH};
+        }).filter(Boolean);
+        const maxH=Math.max(...mData.map(d=>d.h),emp.heures_mois,1);
+        return <div key={emp.id} style={{...S.card,marginBottom:10,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+            <div style={{width:34,height:34,borderRadius:"50%",background:emp.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800}}>{(emp.prenom||emp.nom).charAt(0)}</div>
+            <div style={{flex:1}}><div style={{fontWeight:800,fontSize:13}}>{emp.prenom?`${emp.prenom} ${emp.nom}`:emp.nom}</div><div style={{fontSize:10,color:"#9E9E9E"}}>{emp.contrat} · {emp.debut} → {emp.fin} · {nbM}mois · {emp.heures_mois}h/mois · {emp.taux}€/h</div></div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {[["Brut/mois",brutM.toFixed(0)+"€","#1B5E20"],["Total saison",Math.round(brutM*nbM)+"€","#2E7D32"],["Écart",`${ec>0?"+":""}${ec}h`,ecC]].map(([l,v,c])=>(
+                <div key={l} style={{textAlign:"center",padding:"5px 10px",background:"#F9F9F9",borderRadius:8}}><div style={{fontWeight:800,color:c}}>{v}</div><div style={{fontSize:9,color:"#9E9E9E"}}>{l}</div></div>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:3,alignItems:"flex-end",height:44}}>
+            {mData.map(({m,h})=>{
+              const pct=h/maxH*100;const base=emp.heures_mois/maxH*100;const over=h>emp.heures_mois;
+              return <div key={m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                <div style={{fontSize:7,color:"#9E9E9E"}}>{h.toFixed(0)}</div>
+                <div style={{width:"100%",position:"relative",height:30}}>
+                  <div style={{position:"absolute",bottom:`${base*30/100}px`,left:0,right:0,height:1,background:"#A5D6A7"}}/>
+                  <div style={{position:"absolute",bottom:0,left:1,right:1,height:`${Math.max(pct*30/100,2)}px`,background:over?"#E65100":"#2E7D32",borderRadius:"2px 2px 0 0"}}/>
+                </div>
+                <div style={{fontSize:7,color:"#9E9E9E"}}>{["","","","","Avr","Mai","Juin","Juil","Août","Sep","Oct"][m]}</div>
+              </div>;
+            })}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginTop:8}}>
+            {[["H lissées/mois",emp.heures_mois+"h","#2E7D32"],["H réelles saison",totalH+"h","#1565C0"],["H attendues",hAtt+"h","#757575"],["Écart total",`${ec>0?"+":""}${ec}h`,ecC]].map(([l,v,c])=>(
+              <div key={l} style={{padding:"6px 8px",background:"#F9F9F9",borderRadius:6,textAlign:"center"}}><div style={{fontSize:13,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:9,color:"#9E9E9E"}}>{l}</div></div>
+            ))}
+          </div>
+        </div>;
+      })}
+    </div>);
+  };
+
+  return (<div>
+    <div style={{...S.card,marginBottom:14,background:"#1B5E20",padding:"12px 16px"}}>
+      <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:2}}>💶 Export Paie Pro — IDCC 1790 · mySilae</div>
+      <div style={{fontSize:11,color:"#A5D6A7"}}>Lissage modulable · HS 25%/50% · Codes Silae · CSV cabinet · Checklist mensuelle</div>
     </div>
-  );
+    <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:"1px solid #C8E6C9",marginBottom:16,width:"fit-content"}}>
+      {[["mensuel","📋 Vue Mensuelle"],["checklist","✅ Checklist"],["lissage","📊 Lissage Saison"]].map(([k,l])=>(
+        <button key={k} onClick={()=>setView(k)} style={{padding:"8px 16px",border:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",background:view===k?"#2E7D32":"#fff",color:view===k?"#fff":"#558B2F",fontWeight:view===k?700:400,borderRight:"1px solid #C8E6C9"}}>{l}</button>
+      ))}
+    </div>
+    {view==="mensuel"   && <VueMensuelle/>}
+    {view==="checklist" && <VueChecklist/>}
+    {view==="lissage"   && <VueLissage/>}
+  </div>);
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
