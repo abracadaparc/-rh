@@ -372,8 +372,10 @@ contact@abracadaparc.fr`;
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;">
   ${[
     ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
-    ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
-    ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
+    ...(state.currentUser === 'Admin' ? [
+      ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
+      ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
+    ] : []),
     ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
   ].map(([l, v, c, bg]) => `
   <div style="background:${bg};border-radius:10px;padding:10px 12px;text-align:center;">
@@ -415,7 +417,7 @@ contact@abracadaparc.fr`;
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
       <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${st.bg};color:${st.color};">${st.label}</span>
-      ${total > 0 ? `
+      ${(total > 0 && state.currentUser === 'Admin') ? `
       <div style="text-align:right;">
         <div style="font-size:13px;font-weight:800;color:#1B5E20;">${total.toLocaleString('fr')} €</div>
         ${acompte > 0 ? `<div style="font-size:10px;color:#9E9E9E;">Acompte : ${acompte.toLocaleString('fr')} €</div>` : ''}
