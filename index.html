@@ -227,7 +227,9 @@ contact@abracadaparc.fr`;
     const alertes = [];
     const todayStr = today();
     Object.values(state.reservations).forEach(r => {
-      if (!r.gateau_nacima || !r.date) return;
+      if ((!r.gateau_nacima && !r.gateau_type) || !r.date) return;
+      // Pas d'alerte Nacima pour les gâteaux famille (droit d'apport)
+      if (!r.gateau_nacima && r.gateau_type && r.gateau_type.includes('famille')) return;
       const dateVisite = new Date(r.date + 'T12:00');
       const diffJ = Math.round((dateVisite - new Date(todayStr + 'T12:00')) / 86400000);
       if (diffJ <= 10 && diffJ >= 0) {
@@ -591,7 +593,7 @@ contact@abracadaparc.fr`;
 
   function buildGateauxView() {
     const list = Object.values(state.reservations)
-      .filter(r => r.gateau_nacima && r.date >= today())
+      .    filter(r => (r.gateau_nacima || r.gateau_type) && r.date >= today())
       .sort((a, b) => a.date.localeCompare(b.date));
     return `
 <div>
@@ -614,8 +616,9 @@ contact@abracadaparc.fr`;
       const urgColor = diffJ <= 7 ? '#C62828' : diffJ <= 10 ? '#E65100' : '#2E7D32';
             var allergiesTxt = r.gateau_allergies && r.gateau_allergies !== 'aucune' ? r.gateau_allergies : '✅ aucune';
       var allergieColor = r.gateau_allergies && r.gateau_allergies !== 'aucune' && r.gateau_allergies !== '' ? '#C62828' : '#2E7D32';
-      var statutLabel = r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander';
-      var statutBg = r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
+      var isDroitApport = !r.gateau_nacima && r.gateau_type && r.gateau_type.includes('famille');
+      var statutLabel = isDroitApport ? '👨‍👩‍👧 Famille apporte (+10€)' : r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander — Nacima';
+      var statutBg = isDroitApport ? '#F3E5F5' : r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
       var statutColor = r.gateau_commande === 'livre' ? '#1B5E20' : r.gateau_commande === 'prevu' ? '#1565C0' : r.gateau_commande ? '#E65100' : '#C62828';
       return '<tr style="border-bottom:1px solid #F5F5F5;">' +
         '<td style="padding:8px 10px;font-size:12px;font-weight:700;">' + fmtDate(r.date) + '</td>' +
