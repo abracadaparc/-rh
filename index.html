@@ -1360,13 +1360,25 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
-    // NE PAS charger depuis localStorage au démarrage
-    // Firebase est la source de vérité — on attend le listener avant d'afficher
-    state.reservations = {};
-    state.memos = {};
+    // Charger localStorage pour affichage immédiat (évite l'écran vide)
+    state.reservations = load('reservations', {});
+    state.memos = load('memos', {});
 
-    listen('reservations', data => { if (data) { state.reservations = data; localStorage.setItem('abr_reservations', JSON.stringify(data)); render(); } });
-    listen('memos', data => { if (data) { state.memos = data; localStorage.setItem('abr_memos', JSON.stringify(data)); render(); } });
+    // Firebase écrase dès qu'il répond — source de vérité finale
+    listen('reservations', data => {
+      if (data && typeof data === 'object') {
+        state.reservations = data;
+        try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
+        render();
+      }
+    });
+    listen('memos', data => {
+      if (data && typeof data === 'object') {
+        state.memos = data;
+        try { localStorage.setItem('abr_memos', JSON.stringify(data)); } catch(e) {}
+        render();
+      }
+    });
 
     if (autoRender) {
       // Attendre que le DOM soit prêt
@@ -3195,9 +3207,7 @@ function ReservationsTabEmp({ empId, empNom }) {
       const el = document.getElementById("tab-reservations");
       if (el) {
         window.ReservationsTab.state.currentUser = empNom || "Équipe";
-        // Firebase = source de vérité : vider localStorage avant init
-        localStorage.removeItem('abr_reservations');
-        localStorage.removeItem('abr_memos');
+        // Firebase mettra à jour automatiquement via le listener
         window.ReservationsTab.init(true);
       } else {
         setTimeout(tryInit, 100);
