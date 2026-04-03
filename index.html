@@ -849,8 +849,10 @@ contact@abracadaparc.fr`;
     <div>
       <label style="display:block;font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;margin-bottom:3px;">Gâteau Nacima</label>
       <select id="f-gateau" style="width:100%;padding:6px 8px;border:1.5px solid #C8E6C9;border-radius:6px;font-size:12px;font-family:inherit;outline:none;">
-        <option value="0" ${!d.gateau_nacima?'selected':''}>Famille apporte</option>
-        <option value="1" ${d.gateau_nacima?'selected':''}>Commande Nacima</option>
+        <option value="nacima_choco" ${(d.gateau_nacima && d.gateau_type !== 'Tarte aux pommes')?'selected':''}>🎂 Moelleux chocolat — Nacima</option>
+        <option value="nacima_tarte" ${d.gateau_type === 'Tarte aux pommes'?'selected':''}>🍏 Tarte aux pommes — Nacima</option>
+        <option value="droit_apport" ${(d.gateau_type && d.gateau_type.includes('famille') || d.gateau_type === 'droit_apport')?'selected':''}>👨‍👩‍👧 Droit d'apport (+10€) — famille apporte</option>
+        <option value="sans" ${(!d.gateau_nacima && !d.gateau_type)?'selected':''}>❌ Sans gâteau</option>
       </select>
     </div>
     <div>
@@ -1223,8 +1225,12 @@ contact@abracadaparc.fr`;
       r.age_enfant = get('f-age');
       r.effectif_enfants = get('f-enf');
       r.formule_id = d.formule_id || '';
-      r.gateau_nacima = document.getElementById('f-gateau')?.value === '1';
-      r.gateau_type = get('f-gateau-type');
+      const gateauVal = document.getElementById('f-gateau')?.value || 'sans';
+      r.gateau_nacima = (gateauVal === 'nacima_choco' || gateauVal === 'nacima_tarte');
+      r.gateau_type = gateauVal === 'nacima_choco' ? 'Moelleux chocolat'
+                    : gateauVal === 'nacima_tarte' ? 'Tarte aux pommes'
+                    : gateauVal === 'droit_apport' ? 'Votre gâteau (famille)'
+                    : '';
       r.gateau_inscription = get('f-gateau-insc');
       r.gateau_allergies = get('f-allergies');
     } else {
@@ -1351,11 +1357,13 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
-    state.reservations = load('reservations', {});
-    state.memos = load('memos', {});
+    // NE PAS charger depuis localStorage au démarrage
+    // Firebase est la source de vérité — on attend le listener avant d'afficher
+    state.reservations = {};
+    state.memos = {};
 
-    listen('reservations', data => { if (data) { state.reservations = data; render(); } });
-    listen('memos', data => { if (data) { state.memos = data; render(); } });
+    listen('reservations', data => { if (data) { state.reservations = data; localStorage.setItem('abr_reservations', JSON.stringify(data)); render(); } });
+    listen('memos', data => { if (data) { state.memos = data; localStorage.setItem('abr_memos', JSON.stringify(data)); render(); } });
 
     if (autoRender) {
       // Attendre que le DOM soit prêt
@@ -3180,11 +3188,13 @@ Document confidentiel — usage RH uniquement`;
 function ReservationsTabEmp({ empId, empNom }) {
   React.useEffect(() => {
     if (typeof window.ReservationsTab === "undefined") return;
-    // Wait for the div to be in DOM then init v5 with Firebase
     const tryInit = () => {
       const el = document.getElementById("tab-reservations");
       if (el) {
         window.ReservationsTab.state.currentUser = empNom || "Équipe";
+        // Firebase = source de vérité : vider localStorage avant init
+        localStorage.removeItem('abr_reservations');
+        localStorage.removeItem('abr_memos');
         window.ReservationsTab.init(true);
       } else {
         setTimeout(tryInit, 100);
@@ -4030,10 +4040,10 @@ function ResetPinsSection({team}) {
               <div style={{fontSize:11,color:hasCustomPin?"#2E7D32":"#9E9E9E"}}>{hasCustomPin?"🔒 PIN personnalisé":"⚪ PIN par défaut (1234)"}</div>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <input type="password" placeholder="Nouveau PIN" inputMode="numeric" maxLength={8}
+              <input type="text" placeholder="Nouveau PIN (chiffres)" inputMode="numeric" maxLength={8}
                 value={newPins[emp.id]||""}
                 onChange={e=>setNewPins(p=>({...p,[emp.id]:e.target.value}))}
-                style={{...S.inp,width:120,textAlign:"center",padding:"5px 8px"}}/>
+                style={{...S.inp,width:140,textAlign:"center",padding:"5px 8px"}}/>
               <button onClick={()=>setPin(emp.id,newPins[emp.id]||"")} style={{...S.btn,...S.btnG,padding:"5px 12px",fontSize:12}}>Définir</button>
               {hasCustomPin&&<button onClick={async()=>{await resetEmpPin(emp.id);setDone(`✅ PIN de ${emp.prenom||emp.nom} remis à 1234`);}} style={{...S.btn,...S.btnD,padding:"5px 10px",fontSize:11}}>Reset→1234</button>}
             </div>
@@ -4098,8 +4108,14 @@ function ParametresTab({onChangePwd,team}) {
         {pwdMsg&&<div style={{fontSize:12,color:pwdMsg.startsWith("✅")?"#1B5E20":"#C62828",marginBottom:10,fontWeight:600}}>{pwdMsg}</div>}
         <button onClick={handleChangePwd} style={{...S.btn,...S.btnG}}>Mettre à jour</button>
         <div style={{marginTop:10,fontSize:11,color:"#9E9E9E"}}>
-          Mot de passe stocké chiffré (SHA-256). Par défaut : <code>Abracadaparc2026</code>
+          Mot de passe stocké chiffré (SHA-256). Défaut : <code>Abracadaparc2026</code>
         </div>
+        <div style={{marginTop:10,padding:"10px 14px",background:"#FFF8E1",borderRadius:8,fontSize:12,color:"#E65100"}}>
+          ⚠️ Si votre mot de passe ne fonctionne plus, cliquez ci-dessous pour revenir au mot de passe par défaut.
+        </div>
+        <button onClick={async()=>{await changePwd("Abracadaparc2026");setPwdMsg("✅ Mot de passe remis à Abracadaparc2026");}} style={{...S.btn,background:"#FFF3E0",color:"#E65100",border:"1px solid #FFD54F",marginTop:8}}>
+          🔄 Réinitialiser → Abracadaparc2026
+        </button>
       </div>
 
       {/* RÉINITIALISATION PIN SALARIÉS */}
