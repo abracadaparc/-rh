@@ -88,8 +88,23 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
 
   function save(path, data) {
-    try { if (typeof fbSave === 'function') fbSave(path, JSON.stringify(data)); } catch (e) {}
+    // Toujours mettre à jour localStorage
     try { localStorage.setItem('abr_' + path, JSON.stringify(data)); } catch (e) {}
+
+    // Pour les réservations : PUT individuel par fiche (jamais SET global)
+    // Évite d'écraser toutes les réservations si state est incomplet
+    if (path === 'reservations' && typeof data === 'object' && data !== null) {
+      try {
+        if (typeof fbSave === 'function') {
+          Object.entries(data).forEach(function([id, fiche]) {
+            if (id && fiche) fbSave('reservations/' + id, JSON.stringify(fiche));
+          });
+        }
+      } catch (e) {}
+    } else {
+      // Pour memos et autres : SET global OK
+      try { if (typeof fbSave === 'function') fbSave(path, JSON.stringify(data)); } catch (e) {}
+    }
   }
 
   function load(path, fallback) {
@@ -1367,8 +1382,10 @@ contact@abracadaparc.fr`;
     // Firebase écrase dès qu'il répond — source de vérité finale
     listen('reservations', data => {
       if (data && typeof data === 'object') {
-        state.reservations = data;
-        try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
+        // Merger avec localStorage existant — Firebase prime sur les conflits
+        const local = load('reservations', {});
+        state.reservations = Object.assign({}, local, data);
+        try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch(e) {}
         render();
       }
     });
