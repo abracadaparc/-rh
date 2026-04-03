@@ -88,23 +88,8 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
 
   function save(path, data) {
-    // Toujours mettre à jour localStorage
+    try { if (typeof fbSave === 'function') fbSave(path, JSON.stringify(data)); } catch (e) {}
     try { localStorage.setItem('abr_' + path, JSON.stringify(data)); } catch (e) {}
-
-    // Pour les réservations : PUT individuel par fiche (jamais SET global)
-    // Évite d'écraser toutes les réservations si state est incomplet
-    if (path === 'reservations' && typeof data === 'object' && data !== null) {
-      try {
-        if (typeof fbSave === 'function') {
-          Object.entries(data).forEach(function([id, fiche]) {
-            if (id && fiche) fbSave('reservations/' + id, JSON.stringify(fiche));
-          });
-        }
-      } catch (e) {}
-    } else {
-      // Pour memos et autres : SET global OK
-      try { if (typeof fbSave === 'function') fbSave(path, JSON.stringify(data)); } catch (e) {}
-    }
   }
 
   function load(path, fallback) {
@@ -152,12 +137,9 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
   function calcTotal(r) {
-    // Priorité absolue : montant_total stocké en Firebase
-    if (parseFloat(r.montant_total) > 0) return parseFloat(r.montant_total);
-    // Fallback calcul auto
-    if (r.segment !== 'anniversaire') return 0;
+    if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
     const f = getFormule(r.formule_id);
-    if (!f || f.prix === 0) return 0;
+    if (!f || f.prix === 0) return parseFloat(r.montant_total) || 0;
     const base = f.prix;
     const supEnf = Math.max(0, (parseInt(r.effectif_enfants) || 0) - f.base) * 26;
     const adultes = (parseInt(r.effectif_adultes) || 0) * 10;
@@ -242,9 +224,7 @@ contact@abracadaparc.fr`;
     const alertes = [];
     const todayStr = today();
     Object.values(state.reservations).forEach(r => {
-      if ((!r.gateau_nacima && !r.gateau_type) || !r.date) return;
-      // Pas d'alerte Nacima pour les gâteaux famille (droit d'apport)
-      if (!r.gateau_nacima && r.gateau_type && r.gateau_type.includes('famille')) return;
+      if (!r.gateau_nacima || !r.date) return;
       const dateVisite = new Date(r.date + 'T12:00');
       const diffJ = Math.round((dateVisite - new Date(todayStr + 'T12:00')) / 86400000);
       if (diffJ <= 10 && diffJ >= 0) {
@@ -389,10 +369,8 @@ contact@abracadaparc.fr`;
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;">
   ${[
     ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
-    ...(state.currentUser === 'Admin' ? [
-      ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
-      ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
-    ] : []),
+    ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
+    ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
     ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
   ].map(([l, v, c, bg]) => `
   <div style="background:${bg};border-radius:10px;padding:10px 12px;text-align:center;">
@@ -426,15 +404,10 @@ contact@abracadaparc.fr`;
         ${r.formule_id ? `· ${getFormule(r.formule_id)?.label || ''}` : ''}
       </div>
       ${r.notes ? `<div style="font-size:11px;color:#9E9E9E;margin-top:4px;font-style:italic;">💬 ${esc(r.notes.slice(0,80))}${r.notes.length>80?'…':''}</div>` : ''}
-      ${r.segment === 'anniversaire' ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">
-        ${r.gateau_type ? `<span style="font-size:11px;background:#FBE9E7;color:#BF360C;padding:2px 8px;border-radius:20px;font-weight:600;">🎂 ${esc(r.gateau_type)}</span>` : ''}
-        ${r.option_animateur ? `<span style="font-size:11px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:20px;font-weight:600;">🎭 Animateur</span>` : `<span style="font-size:11px;background:#F5F5F5;color:#9E9E9E;padding:2px 8px;border-radius:20px;">Sans animateur</span>`}
-        ${r.age_enfant ? `<span style="font-size:11px;background:#F3E5F5;color:#6A1B9A;padding:2px 8px;border-radius:20px;font-weight:600;">${esc(r.prenom_enfant||'')} · ${esc(r.age_enfant)}</span>` : ''}
-      </div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
       <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${st.bg};color:${st.color};">${st.label}</span>
-      ${(total > 0 && state.currentUser === 'Admin') ? `
+      ${total > 0 ? `
       <div style="text-align:right;">
         <div style="font-size:13px;font-weight:800;color:#1B5E20;">${total.toLocaleString('fr')} €</div>
         ${acompte > 0 ? `<div style="font-size:10px;color:#9E9E9E;">Acompte : ${acompte.toLocaleString('fr')} €</div>` : ''}
@@ -608,7 +581,7 @@ contact@abracadaparc.fr`;
 
   function buildGateauxView() {
     const list = Object.values(state.reservations)
-      .    filter(r => (r.gateau_nacima || r.gateau_type) && r.date >= today())
+      .filter(r => r.gateau_nacima && r.date >= today())
       .sort((a, b) => a.date.localeCompare(b.date));
     return `
 <div>
@@ -631,9 +604,8 @@ contact@abracadaparc.fr`;
       const urgColor = diffJ <= 7 ? '#C62828' : diffJ <= 10 ? '#E65100' : '#2E7D32';
             var allergiesTxt = r.gateau_allergies && r.gateau_allergies !== 'aucune' ? r.gateau_allergies : '✅ aucune';
       var allergieColor = r.gateau_allergies && r.gateau_allergies !== 'aucune' && r.gateau_allergies !== '' ? '#C62828' : '#2E7D32';
-      var isDroitApport = !r.gateau_nacima && r.gateau_type && r.gateau_type.includes('famille');
-      var statutLabel = isDroitApport ? '👨‍👩‍👧 Famille apporte (+10€)' : r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander — Nacima';
-      var statutBg = isDroitApport ? '#F3E5F5' : r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
+      var statutLabel = r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander';
+      var statutBg = r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
       var statutColor = r.gateau_commande === 'livre' ? '#1B5E20' : r.gateau_commande === 'prevu' ? '#1565C0' : r.gateau_commande ? '#E65100' : '#C62828';
       return '<tr style="border-bottom:1px solid #F5F5F5;">' +
         '<td style="padding:8px 10px;font-size:12px;font-weight:700;">' + fmtDate(r.date) + '</td>' +
@@ -867,10 +839,8 @@ contact@abracadaparc.fr`;
     <div>
       <label style="display:block;font-size:10px;font-weight:700;color:#558B2F;text-transform:uppercase;margin-bottom:3px;">Gâteau Nacima</label>
       <select id="f-gateau" style="width:100%;padding:6px 8px;border:1.5px solid #C8E6C9;border-radius:6px;font-size:12px;font-family:inherit;outline:none;">
-        <option value="nacima_choco" ${(d.gateau_nacima && d.gateau_type !== 'Tarte aux pommes')?'selected':''}>🎂 Moelleux chocolat — Nacima</option>
-        <option value="nacima_tarte" ${d.gateau_type === 'Tarte aux pommes'?'selected':''}>🍏 Tarte aux pommes — Nacima</option>
-        <option value="droit_apport" ${(d.gateau_type && d.gateau_type.includes('famille') || d.gateau_type === 'droit_apport')?'selected':''}>👨‍👩‍👧 Droit d'apport (+10€) — famille apporte</option>
-        <option value="sans" ${(!d.gateau_nacima && !d.gateau_type)?'selected':''}>❌ Sans gâteau</option>
+        <option value="0" ${!d.gateau_nacima?'selected':''}>Famille apporte</option>
+        <option value="1" ${d.gateau_nacima?'selected':''}>Commande Nacima</option>
       </select>
     </div>
     <div>
@@ -1243,12 +1213,8 @@ contact@abracadaparc.fr`;
       r.age_enfant = get('f-age');
       r.effectif_enfants = get('f-enf');
       r.formule_id = d.formule_id || '';
-      const gateauVal = document.getElementById('f-gateau')?.value || 'sans';
-      r.gateau_nacima = (gateauVal === 'nacima_choco' || gateauVal === 'nacima_tarte');
-      r.gateau_type = gateauVal === 'nacima_choco' ? 'Moelleux chocolat'
-                    : gateauVal === 'nacima_tarte' ? 'Tarte aux pommes'
-                    : gateauVal === 'droit_apport' ? 'Votre gâteau (famille)'
-                    : '';
+      r.gateau_nacima = document.getElementById('f-gateau')?.value === '1';
+      r.gateau_type = get('f-gateau-type');
       r.gateau_inscription = get('f-gateau-insc');
       r.gateau_allergies = get('f-allergies');
     } else {
@@ -1328,7 +1294,15 @@ contact@abracadaparc.fr`;
       }
     }
 
-    state.reservations[r.id] = r;
+    // ── BUG FIX : merger avec l'existant pour préserver tous les champs Firebase ──
+    // Sans ce merge, les champs non présents dans le formulaire (gateau_commande,
+    // gateau_date_livraison, option_animateur, formule_label, ref_commande, solde, etc.)
+    // sont écrasés et perdus à chaque sauvegarde.
+    var existing = state.reservations[r.id] || {};
+    var merged = Object.assign({}, existing, r);
+    state.reservations[r.id] = merged;
+    // ── FIN BUG FIX ──
+
     state.showForm = false;
     state.walkin = false;
     saveAll();
@@ -1375,22 +1349,21 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
-    // Charger localStorage pour affichage immédiat (évite l'écran vide)
+    // ── RÈGLE CRITIQUE : localStorage EN PREMIER (affichage immédiat)
+    // puis Firebase écrase via listener. Ne jamais vider localStorage au démarrage.
     state.reservations = load('reservations', {});
     state.memos = load('memos', {});
 
-    // Firebase écrase dès qu'il répond — source de vérité finale
     listen('reservations', data => {
-      if (data && typeof data === 'object') {
-        // Merger avec localStorage existant — Firebase prime sur les conflits
-        const local = load('reservations', {});
-        state.reservations = Object.assign({}, local, data);
-        try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch(e) {}
+      if (data) {
+        state.reservations = data;
+        // Mettre à jour localStorage pour le prochain chargement (même clé que save())
+        try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
         render();
       }
     });
     listen('memos', data => {
-      if (data && typeof data === 'object') {
+      if (data) {
         state.memos = data;
         try { localStorage.setItem('abr_memos', JSON.stringify(data)); } catch(e) {}
         render();
@@ -3220,11 +3193,11 @@ Document confidentiel — usage RH uniquement`;
 function ReservationsTabEmp({ empId, empNom }) {
   React.useEffect(() => {
     if (typeof window.ReservationsTab === "undefined") return;
+    // Wait for the div to be in DOM then init v5 with Firebase
     const tryInit = () => {
       const el = document.getElementById("tab-reservations");
       if (el) {
         window.ReservationsTab.state.currentUser = empNom || "Équipe";
-        // Firebase mettra à jour automatiquement via le listener
         window.ReservationsTab.init(true);
       } else {
         setTimeout(tryInit, 100);
@@ -4070,10 +4043,10 @@ function ResetPinsSection({team}) {
               <div style={{fontSize:11,color:hasCustomPin?"#2E7D32":"#9E9E9E"}}>{hasCustomPin?"🔒 PIN personnalisé":"⚪ PIN par défaut (1234)"}</div>
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <input type="text" placeholder="Nouveau PIN (chiffres)" inputMode="numeric" maxLength={8}
+              <input type="password" placeholder="Nouveau PIN" inputMode="numeric" maxLength={8}
                 value={newPins[emp.id]||""}
                 onChange={e=>setNewPins(p=>({...p,[emp.id]:e.target.value}))}
-                style={{...S.inp,width:140,textAlign:"center",padding:"5px 8px"}}/>
+                style={{...S.inp,width:120,textAlign:"center",padding:"5px 8px"}}/>
               <button onClick={()=>setPin(emp.id,newPins[emp.id]||"")} style={{...S.btn,...S.btnG,padding:"5px 12px",fontSize:12}}>Définir</button>
               {hasCustomPin&&<button onClick={async()=>{await resetEmpPin(emp.id);setDone(`✅ PIN de ${emp.prenom||emp.nom} remis à 1234`);}} style={{...S.btn,...S.btnD,padding:"5px 10px",fontSize:11}}>Reset→1234</button>}
             </div>
@@ -4138,14 +4111,8 @@ function ParametresTab({onChangePwd,team}) {
         {pwdMsg&&<div style={{fontSize:12,color:pwdMsg.startsWith("✅")?"#1B5E20":"#C62828",marginBottom:10,fontWeight:600}}>{pwdMsg}</div>}
         <button onClick={handleChangePwd} style={{...S.btn,...S.btnG}}>Mettre à jour</button>
         <div style={{marginTop:10,fontSize:11,color:"#9E9E9E"}}>
-          Mot de passe stocké chiffré (SHA-256). Défaut : <code>Abracadaparc2026</code>
+          Mot de passe stocké chiffré (SHA-256). Par défaut : <code>Abracadaparc2026</code>
         </div>
-        <div style={{marginTop:10,padding:"10px 14px",background:"#FFF8E1",borderRadius:8,fontSize:12,color:"#E65100"}}>
-          ⚠️ Si votre mot de passe ne fonctionne plus, cliquez ci-dessous pour revenir au mot de passe par défaut.
-        </div>
-        <button onClick={async()=>{await changePwd("Abracadaparc2026");setPwdMsg("✅ Mot de passe remis à Abracadaparc2026");}} style={{...S.btn,background:"#FFF3E0",color:"#E65100",border:"1px solid #FFD54F",marginTop:8}}>
-          🔄 Réinitialiser → Abracadaparc2026
-        </button>
       </div>
 
       {/* RÉINITIALISATION PIN SALARIÉS */}
