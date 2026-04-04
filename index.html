@@ -239,6 +239,10 @@ contact@abracadaparc.fr`;
   function render() {
     const el = document.getElementById('tab-reservations');
     if (!el) return;
+    // Si un employé se retrouve sur l'onglet Liste (non autorisé), rediriger
+    if (state.currentUser !== 'Admin' && (state.view === 'liste' || state.view === 'memos')) {
+      state.view = 'calendrier';
+    }
     el.innerHTML = buildHTML();
     bindEvents();
   }
@@ -265,20 +269,27 @@ contact@abracadaparc.fr`;
     </a>
   </div>` : ''}
 
-  ${/* ONGLETS DE VUE */`
+  ${/* ONGLETS — Liste et Mémos masqués pour les employés */`
   <div style="display:flex;gap:0;border-bottom:2px solid #E8F5E9;margin-bottom:16px;overflow-x:auto;">
-    ${[
-      ['liste','📋 Liste'],
-      ['calendrier','📅 Calendrier'],
-      ['gateaux','🎂 Gâteaux'],
-      ['memos',`📝 Mémos${memos.length ? ` <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">${memos.length}</span>` : ''}`],
-    ].map(([v, l]) => `
-    <button data-view="${v}" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:${state.view===v?700:400};color:${state.view===v?'#2E7D32':'#9E9E9E'};border-bottom:${state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent'};margin-bottom:-2px;">${l}</button>
-    `).join('')}
+    ${(state.currentUser === 'Admin' ? [
+      ['liste',      '📋 Liste'],
+      ['calendrier', '📅 Calendrier'],
+      ['gateaux',    '🎂 Gâteaux'],
+      ['memos',      '📝 Mémos' + (memos.length ? ' <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">' + memos.length + '</span>' : '')],
+    ] : [
+      ['calendrier', '📅 Calendrier'],
+      ['gateaux',    '🎂 Gâteaux'],
+    ]).map(([v, l]) =>
+      '<button data-view="' + v + '" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:' + (state.view===v?700:400) + ';color:' + (state.view===v?'#2E7D32':'#9E9E9E') + ';border-bottom:' + (state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent') + ';margin-bottom:-2px;">' + l + '</button>'
+    ).join('')}
     <div style="flex:1;"></div>
-    <button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>
-    <button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>
-    <button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>
+    ${state.currentUser === 'Admin' ? (
+      '<button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>' +
+      '<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>' +
+      '<button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>'
+    ) : (
+      '<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>'
+    )}
   </div>`}
 
   ${/* CONTENU SELON VUE */
@@ -3260,7 +3271,22 @@ function getFbDb() {
 function fbSave(path, data) {
   const db = getFbDb();
   if (!db) return;
-  try { db.ref("abracadaparc/"+path).set(data); } catch {}
+  try {
+    // Pour les réservations : écriture fiche par fiche (update/merge)
+    // pour ne JAMAIS écraser les fiches Firebase non présentes dans l'état local.
+    if (path === 'reservations') {
+      try {
+        var parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        if (parsed && typeof parsed === 'object') {
+          // update() = merge partiel : écrit uniquement les clés fournies
+          db.ref("abracadaparc/reservations").update(parsed);
+          return;
+        }
+      } catch(e) {}
+    }
+    // Pour les autres paths (memos etc.) : set normal
+    db.ref("abracadaparc/"+path).set(data);
+  } catch {}
 }
 
 function fbListen(path, cb) {
