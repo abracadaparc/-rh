@@ -168,7 +168,13 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   }
 
   function sortedReservations() {
-    return Object.values(state.reservations).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const seen = new Set();
+    return Object.values(state.reservations).filter(r => {
+      if (!r || typeof r !== 'object' || !r.id) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   }
 
   function filteredReservations() {
@@ -388,7 +394,15 @@ contact@abracadaparc.fr`;
   }
 
   function buildStats() {
-    const all = Object.values(state.reservations);
+    // Dédupliquer : garder uniquement les fiches avec un id valide
+    // Élimine les doublons Firebase (clés auto vs clés ID) et les strings parasites
+    const seen = new Set();
+    const all = Object.values(state.reservations).filter(r => {
+      if (!r || typeof r !== 'object' || !r.id) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
     // CA uniquement sur les dossiers confirmés S4, S5, S6 (pas les demandes en attente)
     const confirmes = all.filter(r => parseInt(r.statut || '1') >= 4);
     const ca = confirmes.reduce((s, r) => s + calcTotal(r), 0);
@@ -572,13 +586,13 @@ contact@abracadaparc.fr`;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const nomsMois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    // Dédupliquer par ID pour éviter les doublons dans le calendrier
-    const seen = {};
+    // Dédupliquer : fiches valides uniquement, S1-S2 masqués
+    const seenCal = new Set();
     const byDay = {};
     Object.values(state.reservations).forEach(r => {
-      if (!r.id || seen[r.id]) return;
-      seen[r.id] = true;
-      // Masquer les demandes en attente S1-S2 du calendrier (pas encore confirmées)
+      if (!r || typeof r !== 'object' || !r.id) return;
+      if (seenCal.has(r.id)) return;
+      seenCal.add(r.id);
       if (r.statut === '1' || r.statut === '2') return;
       if (r.date) { if (!byDay[r.date]) byDay[r.date] = []; byDay[r.date].push(r); }
     });
