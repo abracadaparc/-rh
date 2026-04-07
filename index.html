@@ -577,11 +577,13 @@ contact@abracadaparc.fr`;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const nomsMois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    // Déduplique + masque S1-S2 (demandes non confirmées)
+    // Calendrier : anniversaires toujours affichés (statut 1 = réservé)
+    // Groupes/scolaires : masquer S1-S2 (demande non confirmée)
     var byDay = {};
     getReservations().forEach(function(r) {
       if (!r.date) return;
-      if (r.statut === '1' || r.statut === '2') return;
+      var isAnniv = r.segment === 'anniversaire' || (r.id && r.id.indexOf('CMD') === 0);
+      if (!isAnniv && (r.statut === '1' || r.statut === '2')) return;
       if (!byDay[r.date]) byDay[r.date] = [];
       byDay[r.date].push(r);
     });
