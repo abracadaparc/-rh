@@ -620,7 +620,29 @@ contact@abracadaparc.fr`;
     ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map(j => `<div style="text-align:center;font-size:10px;font-weight:700;color:#9E9E9E;">${j}</div>`).join('')}
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
-  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
+  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) confirmée(s) · S1-S2 groupes masqués</div>
+  ${(function(){
+    var html = '<div style="margin-top:14px;background:#F9FBE7;border:1px solid #E8F5E9;border-radius:10px;padding:12px 16px;">';
+    html += '<div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Légende — Types de visites</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">';
+    SEGMENTS.forEach(function(s){
+      html += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#424242;">'
+            + '<div style="width:12px;height:12px;border-radius:3px;flex-shrink:0;background:' + s.color + ';"></div>'
+            + s.label + '</div>';
+    });
+    html += '</div>';
+    html += '<div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:6px;padding-top:8px;border-top:1px solid #E8F5E9;">Statuts pipeline</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    STATUTS.forEach(function(s){
+      html += '<div style="display:flex;align-items:center;gap:4px;font-size:10px;">'
+            + '<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:' + s.color + ';"></div>'
+            + '<span style="color:#424242;">' + s.label + '</span></div>';
+    });
+    html += '</div>';
+    html += '<div style="margin-top:6px;font-size:10px;color:#9E9E9E;">⚪ S1-S2 groupes non confirmés masqués · 🎂 Anniversaires toujours visibles</div>';
+    html += '</div>';
+    return html;
+  })()}
 </div>`;
   }
 
