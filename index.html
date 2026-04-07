@@ -142,14 +142,36 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ── SOURCE UNIQUE DE VÉRITÉ — toujours utiliser cette fonction ──────────────
   // Déduplique, filtre les entrées corrompues, trie par date
   function getReservations() {
+    // Source unique : entries() pour avoir clé ET valeur
+    // On ne garde que les fiches dont la clé Firebase = r.id (pas les doublons auto)
     var seen = new Set();
-    return Object.values(state.reservations).filter(function(r) {
-      if (!r || typeof r !== 'object') return false;
-      if (!r.id || typeof r.id !== 'string') return false;
-      if (seen.has(r.id)) return false;
+    var result = [];
+    var entries = Object.entries(state.reservations);
+    // Passer d'abord les fiches avec clé = id (les vraies)
+    entries.forEach(function(e) {
+      var key = e[0]; var r = e[1];
+      if (!r || typeof r !== 'object') return;
+      if (!r.id || typeof r.id !== 'string') return;
+      // Clé valide = CMD, DEV, GRP, NEW_
+      var validKey = r.id.match(/^(CMD|DEV|GRP|NEW_)/);
+      if (!validKey) return;
+      if (key !== r.id) return; // ignorer si clé Firebase != id fiche
+      if (seen.has(r.id)) return;
       seen.add(r.id);
-      return true;
+      result.push(r);
     });
+    // Ajouter les fiches qui n'ont pas de clé correspondante (DEV_ temporaires)
+    entries.forEach(function(e) {
+      var key = e[0]; var r = e[1];
+      if (!r || typeof r !== 'object') return;
+      if (!r.id || typeof r.id !== 'string') return;
+      if (seen.has(r.id)) return; // déjà ajouté
+      var validId = r.id.match(/^(CMD|DEV|GRP|NEW_)/);
+      if (!validId) return;
+      seen.add(r.id);
+      result.push(r);
+    });
+    return result;
   }
 
   function calcTotal(r) {
