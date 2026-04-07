@@ -36,10 +36,9 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 
   const FORMULES = [
-    { id: 'magique',      label: "Abracada'Niv Magique",       prix: 160, prix_matin: 160, prix_apm: 160, base: 8, adultes_inclus: 2, desc: "8 enfants + 2 adultes inclus" },
-    { id: 'fantastique',  label: "Abracada'Niv Fantastique",   prix: 176, prix_matin: 176, prix_apm: 208, base: 8, adultes_inclus: 2, desc: "Matin 176€ · Après-midi 208€" },
-    { id: 'garden_party', label: "Anniversaire Garden Party",  prix: 420, prix_matin: 420, prix_apm: 420, base: 8, adultes_inclus: 6, desc: "8 enfants + 6 adultes inclus · enfant supp 35€" },
-    { id: 'gourmand',    label: "Abracada'Niv Gourmand",     prix: 232, base: 10, adultes_inclus: 2, desc: "Fantastique + repas inclus" },
+    { id: 'magique',     label: "Abracada'Niv Magique",      prix: 160, base: 8,  desc: "Entrées + décoration + bonbons" },
+    { id: 'fantastique', label: "Abracada'Niv Fantastique",  prix: 176, base: 8,  desc: "Magique + gâteau Nacima inclus" },
+    { id: 'gourmand',    label: "Abracada'Niv Gourmand",     prix: 232, base: 10, desc: "Fantastique + repas inclus" },
     { id: 'classique',   label: "Abracada'Niv Classique",    prix: 250, base: 10, desc: "Formule complète standard" },
     { id: 'garden',      label: "Garden Party",              prix: 350, base: 15, desc: "Espace extérieur privatisé" },
     { id: 'night',       label: "Abracada'Night",            prix: 490, base: 20, desc: "Soirée privatisation complète" },
@@ -89,8 +88,6 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
 
   function save(path, data) {
-    // Passer l'objet directement à fbSave (pas une string)
-    // fbSave gère lui-même la sérialisation selon le path
     try { if (typeof fbSave === 'function') fbSave(path, data); } catch (e) {}
     try { localStorage.setItem('abr_' + path, JSON.stringify(data)); } catch (e) {}
   }
@@ -139,82 +136,20 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getSegment(id) { return SEGMENTS.find(s => s.id === id) || SEGMENTS[0]; }
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
-  // ── SOURCE UNIQUE DE VÉRITÉ — toujours utiliser cette fonction ──────────────
-  // Déduplique, filtre les entrées corrompues, trie par date
-  function getReservations() {
-    // Source unique : entries() pour avoir clé ET valeur
-    // On ne garde que les fiches dont la clé Firebase = r.id (pas les doublons auto)
-    var seen = new Set();
-    var result = [];
-    var entries = Object.entries(state.reservations);
-    // Passer d'abord les fiches avec clé = id (les vraies)
-    entries.forEach(function(e) {
-      var key = e[0]; var r = e[1];
-      if (!r || typeof r !== 'object') return;
-      if (!r.id || typeof r.id !== 'string') return;
-      // Clé valide = CMD, DEV, GRP, NEW_
-      var validKey = r.id.match(/^(CMD|DEV|GRP|NEW_)/);
-      if (!validKey) return;
-      if (key !== r.id) return; // ignorer si clé Firebase != id fiche
-      if (seen.has(r.id)) return;
-      seen.add(r.id);
-      result.push(r);
-    });
-    // Ajouter les fiches qui n'ont pas de clé correspondante (DEV_ temporaires)
-    entries.forEach(function(e) {
-      var key = e[0]; var r = e[1];
-      if (!r || typeof r !== 'object') return;
-      if (!r.id || typeof r.id !== 'string') return;
-      if (seen.has(r.id)) return; // déjà ajouté
-      var validId = r.id.match(/^(CMD|DEV|GRP|NEW_)/);
-      if (!validId) return;
-      seen.add(r.id);
-      result.push(r);
-    });
-    return result;
-  }
-
   function calcTotal(r) {
-    // Pour les groupes : toujours lire montant_total Firebase
     if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
-
-    // Pour les anniversaires : si montant_total est saisi manuellement → le respecter
-    // (permet à Vanessa de corriger le total sans que calcTotal l'écrase)
-    if (r.montant_total && parseFloat(r.montant_total) > 0) {
-      return parseFloat(r.montant_total);
-    }
-
-    // Sinon : calcul automatique depuis la formule
     const f = getFormule(r.formule_id);
-    if (!f || f.prix === 0) return 0;
-    // Fantastique : prix différent selon horaire (matin 176€ / après-midi 208€)
-    const isApm = !r.heure_debut || r.heure_debut >= '13:00';
-    const base = isApm ? (f.prix_apm || f.prix) : (f.prix_matin || f.prix);
-    const nbEnf = parseInt(r.effectif_enfants) || 0;
-    const nbAdu = parseInt(r.effectif_adultes) || 0;
-    // Prix supp enfant : 35€ pour garden_party, 26€ pour les autres formules
-    const prixEnfSupp = r.formule_id === 'garden_party' ? 35 : 26;
-    const supEnf = Math.max(0, nbEnf - (f.base || 8)) * prixEnfSupp;
-    const supAdu = Math.max(0, nbAdu - (f.adultes_inclus || 2)) * 10;
-    // Animateur : lire le tarif exact si disponible, sinon 100€ par défaut
-    const animateur = r.option_animateur ? (parseFloat(r.option_animateur_tarif) || 100) : 0;
-    // Gâteau Nacima principal
+    if (!f || f.prix === 0) return parseFloat(r.montant_total) || 0;
+    const base = f.prix;
+    const supEnf = Math.max(0, (parseInt(r.effectif_enfants) || 0) - f.base) * 26;
+    const adultes = (parseInt(r.effectif_adultes) || 0) * 10;
+    const animateur = r.option_animateur ? 100 : 0;
     const gateau = r.gateau_nacima ? (parseFloat(r.gateau_prix) || 25.90) : 0;
-    // Droit d'apport gâteau famille
-    const droitGateau = (!r.gateau_nacima && r.gateau_type && r.gateau_type.indexOf('+10') >= 0) ? 10 : 0;
-    // Gâteau supplémentaire (ex : 2ème anniversaire)
-    const gateauSupp = r.gateau_supp ? (parseFloat(r.gateau_supp_prix) || 25.90) : 0;
-    return base + supEnf + supAdu + animateur + gateau + droitGateau + gateauSupp;
+    return base + supEnf + adultes + animateur + gateau;
   }
 
   function sortedReservations() {
-    const seen = new Set();
-    return getReservations().filter(r => {
-      if (!r || typeof r !== 'object' || !r.id) return false;
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    return Object.values(state.reservations).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   }
 
   function filteredReservations() {
@@ -288,7 +223,7 @@ contact@abracadaparc.fr`;
   function getGateauxAlertes() {
     const alertes = [];
     const todayStr = today();
-    getReservations().forEach(r => {
+    Object.values(state.reservations).forEach(r => {
       if (!r.gateau_nacima || !r.date) return;
       const dateVisite = new Date(r.date + 'T12:00');
       const diffJ = Math.round((dateVisite - new Date(todayStr + 'T12:00')) / 86400000);
@@ -304,7 +239,6 @@ contact@abracadaparc.fr`;
   function render() {
     const el = document.getElementById('tab-reservations');
     if (!el) return;
-    // Si un employé se retrouve sur l'onglet Liste (non autorisé), rediriger
     if (state.currentUser !== 'Admin' && (state.view === 'liste' || state.view === 'memos')) {
       state.view = 'calendrier';
     }
@@ -334,27 +268,20 @@ contact@abracadaparc.fr`;
     </a>
   </div>` : ''}
 
-  ${/* ONGLETS — Liste et Mémos masqués pour les employés */`
+  ${/* ONGLETS DE VUE */`
   <div style="display:flex;gap:0;border-bottom:2px solid #E8F5E9;margin-bottom:16px;overflow-x:auto;">
-    ${(state.currentUser === 'Admin' ? [
-      ['liste',      '📋 Liste'],
-      ['calendrier', '📅 Calendrier'],
-      ['gateaux',    '🎂 Gâteaux'],
-      ['memos',      '📝 Mémos' + (memos.length ? ' <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">' + memos.length + '</span>' : '')],
-    ] : [
-      ['calendrier', '📅 Calendrier'],
-      ['gateaux',    '🎂 Gâteaux'],
-    ]).map(([v, l]) =>
-      '<button data-view="' + v + '" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:' + (state.view===v?700:400) + ';color:' + (state.view===v?'#2E7D32':'#9E9E9E') + ';border-bottom:' + (state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent') + ';margin-bottom:-2px;">' + l + '</button>'
-    ).join('')}
+    ${[
+      ['liste','📋 Liste'],
+      ['calendrier','📅 Calendrier'],
+      ['gateaux','🎂 Gâteaux'],
+      ['memos',`📝 Mémos${memos.length ? ` <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">${memos.length}</span>` : ''}`],
+    ].map(([v, l]) => `
+    <button data-view="${v}" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:${state.view===v?700:400};color:${state.view===v?'#2E7D32':'#9E9E9E'};border-bottom:${state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent'};margin-bottom:-2px;">${l}</button>
+    `).join('')}
     <div style="flex:1;"></div>
-    ${state.currentUser === 'Admin' ? (
-      '<button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>' +
-      '<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>' +
-      '<button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>'
-    ) : (
-      '<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>'
-    )}
+    <button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>
+    <button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>
+    <button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>
   </div>`}
 
   ${/* CONTENU SELON VUE */
@@ -434,37 +361,37 @@ contact@abracadaparc.fr`;
   }
 
   function buildStats() {
-    var all = getReservations();
-    var ca = all.reduce(function(s, r) { return s + calcTotal(r); }, 0);
-    var caConfirme = all.filter(function(r) { return parseInt(r.statut || '1') >= 4; })
-                       .reduce(function(s, r) { return s + calcTotal(r); }, 0);
-    var soldes = all.filter(function(r) { return r.statut !== '6'; })
-                    .reduce(function(s, r) {
-                      var t = calcTotal(r); var a = parseFloat(r.acompte_paye) || 0;
-                      return s + Math.max(0, t - a);
+    var seen = new Set();
+    var all = Object.values(state.reservations).filter(function(r) {
+      if (!r || typeof r !== 'object' || !r.id) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id); return true;
+    });
+    var ca = all.reduce(function(s,r){ return s+calcTotal(r); }, 0);
+    var caConf = all.filter(function(r){ return parseInt(r.statut||'1')>=4; })
+                    .reduce(function(s,r){ return s+calcTotal(r); }, 0);
+    var soldes = all.filter(function(r){ return r.statut!=='6'; })
+                    .reduce(function(s,r){
+                      var t=calcTotal(r), a=parseFloat(r.acompte_paye)||0;
+                      return s+Math.max(0,t-a);
                     }, 0);
-    var walkins = all.filter(function(r) { return r.walkin; }).length;
-
+    var walkins = all.filter(function(r){ return r.walkin; }).length;
     var kpis = [
-      { label: 'Total réservations', value: all.length,                             color: '#2E7D32', bg: '#E8F5E9' },
-      { label: 'CA total',           value: ca.toLocaleString('fr') + ' €',         color: '#1565C0', bg: '#E3F2FD' },
-      { label: 'Soldes dus',         value: soldes.toLocaleString('fr') + ' €',     color: soldes > 0 ? '#C62828' : '#2E7D32', bg: soldes > 0 ? '#FFEBEE' : '#E8F5E9' },
-      { label: 'Walk-ins sur place', value: walkins,                                 color: '#E65100', bg: '#FFF3E0' },
+      {l:'Total réservations', v:all.length,                            c:'#2E7D32', bg:'#E8F5E9'},
+      {l:'CA total',           v:ca.toLocaleString('fr')+' €',         c:'#1565C0', bg:'#E3F2FD'},
+      {l:'Soldes dus',         v:soldes.toLocaleString('fr')+' €',     c:soldes>0?'#C62828':'#2E7D32', bg:soldes>0?'#FFEBEE':'#E8F5E9'},
+      {l:'Walk-ins sur place', v:walkins,                               c:'#E65100', bg:'#FFF3E0'},
     ];
-
-    var cards = kpis.map(function(k) {
-      return '<div style="background:' + k.bg + ';border-radius:10px;padding:10px 12px;text-align:center;">' +
-             '<div style="font-size:18px;font-weight:800;color:' + k.color + ';">' + k.value + '</div>' +
-             '<div style="font-size:10px;color:' + k.color + ';opacity:0.8;margin-top:2px;">' + k.label + '</div>' +
-             '</div>';
-    }).join('');
-
-    return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">' +
-           cards +
-           '</div>' +
-           '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">' +
-           'dont ' + caConfirme.toLocaleString('fr') + ' € confirmés (S4+)' +
-           '</div>';
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">'
+      + kpis.map(function(k){
+          return '<div style="background:'+k.bg+';border-radius:10px;padding:10px 12px;text-align:center;">'
+            +'<div style="font-size:18px;font-weight:800;color:'+k.c+';">'+k.v+'</div>'
+            +'<div style="font-size:10px;color:'+k.c+';opacity:0.8;margin-top:2px;">'+k.l+'</div>'
+            +'</div>';
+        }).join('')
+      + '</div>'
+      + '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">dont '
+      + caConf.toLocaleString('fr') + ' € confirmés (S4+)</div>';
   }
 
   function buildReservationCard(r) {
@@ -623,14 +550,8 @@ contact@abracadaparc.fr`;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const nomsMois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    // Dédupliquer : fiches valides uniquement, S1-S2 masqués
-    const seenCal = new Set();
     const byDay = {};
-    getReservations().forEach(r => {
-      if (!r || typeof r !== 'object' || !r.id) return;
-      if (seenCal.has(r.id)) return;
-      seenCal.add(r.id);
-      if (r.statut === '1' || r.statut === '2') return;
+    Object.values(state.reservations).forEach(r => {
       if (r.date) { if (!byDay[r.date]) byDay[r.date] = []; byDay[r.date].push(r); }
     });
     const offset = firstDay === 0 ? 6 : firstDay - 1;
@@ -666,20 +587,59 @@ contact@abracadaparc.fr`;
     ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map(j => `<div style="text-align:center;font-size:10px;font-weight:700;color:#9E9E9E;">${j}</div>`).join('')}
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
-  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) confirmée(s) ce mois</div>
+  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
+</div>`;
+  }
 
-  <!-- CODE COULEUR -->
-  <div style="margin-top:14px;background:#F9FBE7;border:1px solid #E8F5E9;border-radius:10px;padding:12px 16px;">
-    <div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Code couleur — Segments</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-      ${SEGMENTS.map(function(s){return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#424242;"><div style="width:12px;height:12px;border-radius:3px;background:'+s.color+';flex-shrink:0;"></div>'+s.label+'</div>';}).join('')}
+  // ─── VUE GÂTEAUX ─────────────────────────────────────────────────────────────
+
+  function buildGateauxView() {
+    const list = Object.values(state.reservations)
+      .filter(r => r.gateau_nacima && r.date >= today())
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return `
+<div>
+  <div style="background:#FFF3E0;border:1px solid #FFD54F;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div style="font-size:13px;font-weight:700;color:#E65100;">🎂 Commandes gâteaux — Nacima</div>
+      <div style="font-size:11px;color:#E65100;margin-top:2px;">J-10 orange · J-7 rouge · Commander dès J-10</div>
     </div>
-    <div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:6px;margin-top:8px;padding-top:8px;border-top:1px solid #E8F5E9;">Statuts pipeline</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;">
-      ${STATUTS.map(function(s){return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#424242;"><div style="width:10px;height:10px;border-radius:50%;background:'+s.color+';flex-shrink:0;"></div>S'+s.id+' '+s.label+'</div>';}).join('')}
-    </div>
-    <div style="margin-top:8px;font-size:10px;color:#9E9E9E;">⚪ S1 et S2 (en attente de validation) ne sont pas affichés sur le calendrier</div>
+    <a href="tel:${NACIMA_TEL.replace(/ /g,'')}" style="background:#E65100;color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${NACIMA_TEL}</a>
   </div>
+  ${list.length === 0 ? '<div style="text-align:center;padding:40px;color:#9E9E9E;font-size:13px;">Aucune commande gâteau à venir</div>' : `
+  <table style="width:100%;border-collapse:collapse;">
+    <thead><tr style="background:#F1F8E9;border-bottom:2px solid #C8E6C9;">
+      ${['Date visite','Enfant','Gâteau','Inscription','Allergies','J-?','Statut'].map(h => `<th style="padding:8px 10px;font-size:11px;text-align:left;color:#558B2F;font-weight:700;">${h}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+    ${list.map(r => {
+      const dateVisite = new Date(r.date + 'T12:00');
+      const diffJ = Math.round((dateVisite - new Date(today() + 'T12:00')) / 86400000);
+      const urgColor = diffJ <= 7 ? '#C62828' : diffJ <= 10 ? '#E65100' : '#2E7D32';
+            var allergiesTxt = r.gateau_allergies && r.gateau_allergies !== 'aucune' ? r.gateau_allergies : '✅ aucune';
+      var allergieColor = r.gateau_allergies && r.gateau_allergies !== 'aucune' && r.gateau_allergies !== '' ? '#C62828' : '#2E7D32';
+      var statutLabel = r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander';
+      var statutBg = r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
+      var statutColor = r.gateau_commande === 'livre' ? '#1B5E20' : r.gateau_commande === 'prevu' ? '#1565C0' : r.gateau_commande ? '#E65100' : '#C62828';
+      return '<tr style="border-bottom:1px solid #F5F5F5;">' +
+        '<td style="padding:8px 10px;font-size:12px;font-weight:700;">' + fmtDate(r.date) + '</td>' +
+        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.prenom_enfant || r.nom_contact || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.gateau_type || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.gateau_inscription || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;font-weight:700;color:' + allergieColor + ';">' + esc(allergiesTxt) + '</td>' +
+        '<td style="padding:8px 10px;"><span style="font-weight:800;color:' + urgColor + ';">J-' + diffJ + '</span></td>' +
+        '<td style="padding:8px 10px;">' +
+          '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+            '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:' + statutBg + ';color:' + statutColor + ';">' + statutLabel + '</span>' +
+            (r.gateau_date_livraison ? '<span style="font-size:10px;color:#9E9E9E;">📅 ' + fmtDate(r.gateau_date_livraison) + '</span>' : '') +
+            '<button data-gateau-edit="' + r.id + '" style="padding:3px 10px;background:#F1F8E9;color:#2E7D32;border:1px solid #C8E6C9;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
+          '</div>' +
+        '</td>' +
+      '</tr>'
+    ;
+    }).join('')}
+    </tbody>
+  </table>`}
 </div>`;
   }
 
@@ -1348,15 +1308,8 @@ contact@abracadaparc.fr`;
       }
     }
 
-    // ── BUG FIX : merger avec l'existant pour préserver tous les champs Firebase ──
-    // Sans ce merge, les champs non présents dans le formulaire (gateau_commande,
-    // gateau_date_livraison, option_animateur, formule_label, ref_commande, solde, etc.)
-    // sont écrasés et perdus à chaque sauvegarde.
     var existing = state.reservations[r.id] || {};
-    var merged = Object.assign({}, existing, r);
-    state.reservations[r.id] = merged;
-    // ── FIN BUG FIX ──
-
+    state.reservations[r.id] = Object.assign({}, existing, r);
     state.showForm = false;
     state.walkin = false;
     saveAll();
@@ -1403,15 +1356,12 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
-    // ── RÈGLE CRITIQUE : localStorage EN PREMIER (affichage immédiat)
-    // puis Firebase écrase via listener. Ne jamais vider localStorage au démarrage.
     state.reservations = load('reservations', {});
     state.memos = load('memos', {});
 
     listen('reservations', data => {
       if (data) {
         state.reservations = data;
-        // Mettre à jour localStorage pour le prochain chargement (même clé que save())
         try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
         render();
       }
@@ -3315,29 +3265,18 @@ function fbSave(path, data) {
   const db = getFbDb();
   if (!db) return;
   try {
-    // Normaliser : toujours travailler avec un objet, jamais une string
     var obj = (typeof data === 'string') ? JSON.parse(data) : data;
-
-    if (path === 'reservations') {
-      // Réservations : update() fiche par fiche — jamais d'écrasement global
-      if (obj && typeof obj === 'object') {
-        // Nettoyer avant d'écrire : ne garder que les fiches avec un id valide
-        var clean = {};
-        Object.keys(obj).forEach(function(k) {
-          var r = obj[k];
-          if (r && typeof r === 'object' && r.id &&
-              (r.id.indexOf('CMD') === 0 || r.id.indexOf('DEV') === 0 ||
-               r.id.indexOf('GRP') === 0 || r.id.indexOf('NEW_') === 0)) {
-            clean[r.id] = r; // toujours utiliser r.id comme clé
-          }
-        });
-        if (Object.keys(clean).length > 0) {
-          db.ref("abracadaparc/reservations").update(clean);
+    if (path === 'reservations' && obj && typeof obj === 'object') {
+      var clean = {};
+      Object.keys(obj).forEach(function(k) {
+        var r = obj[k];
+        if (r && typeof r === 'object' && r.id && /^(CMD|DEV|GRP|NEW_|DEV_)/.test(r.id)) {
+          clean[r.id] = r;
         }
-      }
+      });
+      if (Object.keys(clean).length > 0) db.ref("abracadaparc/reservations").update(clean);
       return;
     }
-    // Autres paths : set normal
     db.ref("abracadaparc/" + path).set(obj);
   } catch(e) {}
 }
