@@ -136,6 +136,20 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getSegment(id) { return SEGMENTS.find(s => s.id === id) || SEGMENTS[0]; }
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
+  // ── SOURCE UNIQUE DE VÉRITÉ — toujours utiliser cette fonction ──────────────
+  // Déduplique, filtre les entrées corrompues, trie par date
+  function getReservations() {
+    var seen = new Set();
+    return getReservations().filter(function(r) {
+      if (!r || typeof r !== 'object') return false;
+      if (!r.id || typeof r.id !== 'string') return false;
+      if (!r.id.match(/^(CMD|DEV|GRP|NEW_)/)) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    }).sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+  }
+
   function calcTotal(r) {
     // Pour les groupes : toujours lire montant_total Firebase
     if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
@@ -169,7 +183,7 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
 
   function sortedReservations() {
     const seen = new Set();
-    return Object.values(state.reservations).filter(r => {
+    return getReservations().filter(r => {
       if (!r || typeof r !== 'object' || !r.id) return false;
       if (seen.has(r.id)) return false;
       seen.add(r.id);
@@ -248,7 +262,7 @@ contact@abracadaparc.fr`;
   function getGateauxAlertes() {
     const alertes = [];
     const todayStr = today();
-    Object.values(state.reservations).forEach(r => {
+    getReservations().forEach(r => {
       if (!r.gateau_nacima || !r.date) return;
       const dateVisite = new Date(r.date + 'T12:00');
       const diffJ = Math.round((dateVisite - new Date(todayStr + 'T12:00')) / 86400000);
@@ -397,7 +411,7 @@ contact@abracadaparc.fr`;
     // Dédupliquer : garder uniquement les fiches avec un id valide
     // Élimine les doublons Firebase (clés auto vs clés ID) et les strings parasites
     const seen = new Set();
-    const all = Object.values(state.reservations).filter(r => {
+    const all = getReservations().filter(r => {
       if (!r || typeof r !== 'object' || !r.id) return false;
       if (seen.has(r.id)) return false;
       seen.add(r.id);
@@ -589,7 +603,7 @@ contact@abracadaparc.fr`;
     // Dédupliquer : fiches valides uniquement, S1-S2 masqués
     const seenCal = new Set();
     const byDay = {};
-    Object.values(state.reservations).forEach(r => {
+    getReservations().forEach(r => {
       if (!r || typeof r !== 'object' || !r.id) return;
       if (seenCal.has(r.id)) return;
       seenCal.add(r.id);
