@@ -36,8 +36,9 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 
   const FORMULES = [
-    { id: 'magique',     label: "Abracada'Niv Magique",      prix: 160, prix_matin: 160, prix_apm: 160, base: 8, adultes_inclus: 2, desc: "8 enfants + 2 adultes inclus" },
-    { id: 'fantastique', label: "Abracada'Niv Fantastique",  prix: 176, prix_matin: 176, prix_apm: 208, base: 8, adultes_inclus: 2, desc: "Matin 176€ · Après-midi 208€" },
+    { id: 'magique',      label: "Abracada'Niv Magique",       prix: 160, prix_matin: 160, prix_apm: 160, base: 8, adultes_inclus: 2, desc: "8 enfants + 2 adultes inclus" },
+    { id: 'fantastique',  label: "Abracada'Niv Fantastique",   prix: 176, prix_matin: 176, prix_apm: 208, base: 8, adultes_inclus: 2, desc: "Matin 176€ · Après-midi 208€" },
+    { id: 'garden_party', label: "Anniversaire Garden Party",  prix: 420, prix_matin: 420, prix_apm: 420, base: 8, adultes_inclus: 6, desc: "8 enfants + 6 adultes inclus · enfant supp 35€" },
     { id: 'gourmand',    label: "Abracada'Niv Gourmand",     prix: 232, base: 10, adultes_inclus: 2, desc: "Fantastique + repas inclus" },
     { id: 'classique',   label: "Abracada'Niv Classique",    prix: 250, base: 10, desc: "Formule complète standard" },
     { id: 'garden',      label: "Garden Party",              prix: 350, base: 15, desc: "Espace extérieur privatisé" },
@@ -88,7 +89,9 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
 
   function save(path, data) {
-    try { if (typeof fbSave === 'function') fbSave(path, JSON.stringify(data)); } catch (e) {}
+    // Passer l'objet directement à fbSave (pas une string)
+    // fbSave gère lui-même la sérialisation selon le path
+    try { if (typeof fbSave === 'function') fbSave(path, data); } catch (e) {}
     try { localStorage.setItem('abr_' + path, JSON.stringify(data)); } catch (e) {}
   }
 
@@ -167,7 +170,9 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
     const base = isApm ? (f.prix_apm || f.prix) : (f.prix_matin || f.prix);
     const nbEnf = parseInt(r.effectif_enfants) || 0;
     const nbAdu = parseInt(r.effectif_adultes) || 0;
-    const supEnf = Math.max(0, nbEnf - (f.base || 8)) * 26;
+    // Prix supp enfant : 35€ pour garden_party, 26€ pour les autres formules
+    const prixEnfSupp = r.formule_id === 'garden_party' ? 35 : 26;
+    const supEnf = Math.max(0, nbEnf - (f.base || 8)) * prixEnfSupp;
     const supAdu = Math.max(0, nbAdu - (f.adultes_inclus || 2)) * 10;
     // Animateur : lire le tarif exact si disponible, sinon 100€ par défaut
     const animateur = r.option_animateur ? (parseFloat(r.option_animateur_tarif) || 100) : 0;
@@ -407,20 +412,10 @@ contact@abracadaparc.fr`;
   }
 
   function buildStats() {
-    // Dédupliquer : garder uniquement les fiches avec un id valide
-    // Élimine les doublons Firebase (clés auto vs clés ID) et les strings parasites
-    const seen = new Set();
-    const all = getReservations().filter(r => {
-      if (!r || typeof r !== 'object' || !r.id) return false;
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    });
-    // CA uniquement sur les dossiers confirmés S4, S5, S6 (pas les demandes en attente)
-    const confirmes = all.filter(r => parseInt(r.statut || '1') >= 4);
-    const ca = confirmes.reduce((s, r) => s + calcTotal(r), 0);
-    const caEnAttente = all.filter(r => parseInt(r.statut || '1') < 4).reduce((s, r) => s + calcTotal(r), 0);
-    const soldes = confirmes.filter(r => r.statut !== '6').reduce((s, r) => {
+    const all = getReservations();
+    const ca = all.reduce((s, r) => s + calcTotal(r), 0);
+    const caConfirme = all.filter(r => parseInt(r.statut || '1') >= 4).reduce((s, r) => s + calcTotal(r), 0);
+    const soldes = all.filter(r => r.statut !== '6').reduce((s, r) => {
       const t = calcTotal(r); const a = parseFloat(r.acompte_paye) || 0;
       return s + Math.max(0, t - a);
     }, 0);
@@ -429,17 +424,17 @@ contact@abracadaparc.fr`;
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">
   ${[
     ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
-    ['CA confirmé S4+', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
+    ['CA total', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
     ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
     ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
   ].map(([l, v, c, bg]) => `
-  <div style="background:${bg};border-radius:10px;padding:10px 12px;text-align:center;">
-    <div style="font-size:18px;font-weight:800;color:${c};">${v}</div>
-    <div style="font-size:10px;color:${c};opacity:0.8;margin-top:2px;">${l}</div>
+  <div style="background:\${bg};border-radius:10px;padding:10px 12px;text-align:center;">
+    <div style="font-size:18px;font-weight:800;color:\${c};">\${v}</div>
+    <div style="font-size:10px;color:\${c};opacity:0.8;margin-top:2px;">\${l}</div>
   </div>`).join('')}
 </div>
 <div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">
-  + ${caEnAttente.toLocaleString('fr')} € en cours (S1-S3 non confirmés)
+  dont \${caConfirme.toLocaleString('fr')} € confirmés (S4+)
 </div>`;
   }
 
@@ -3291,21 +3286,31 @@ function fbSave(path, data) {
   const db = getFbDb();
   if (!db) return;
   try {
-    // Pour les réservations : écriture fiche par fiche (update/merge)
-    // pour ne JAMAIS écraser les fiches Firebase non présentes dans l'état local.
+    // Normaliser : toujours travailler avec un objet, jamais une string
+    var obj = (typeof data === 'string') ? JSON.parse(data) : data;
+
     if (path === 'reservations') {
-      try {
-        var parsed = typeof data === 'string' ? JSON.parse(data) : data;
-        if (parsed && typeof parsed === 'object') {
-          // update() = merge partiel : écrit uniquement les clés fournies
-          db.ref("abracadaparc/reservations").update(parsed);
-          return;
+      // Réservations : update() fiche par fiche — jamais d'écrasement global
+      if (obj && typeof obj === 'object') {
+        // Nettoyer avant d'écrire : ne garder que les fiches avec un id valide
+        var clean = {};
+        Object.keys(obj).forEach(function(k) {
+          var r = obj[k];
+          if (r && typeof r === 'object' && r.id &&
+              (r.id.indexOf('CMD') === 0 || r.id.indexOf('DEV') === 0 ||
+               r.id.indexOf('GRP') === 0 || r.id.indexOf('NEW_') === 0)) {
+            clean[r.id] = r; // toujours utiliser r.id comme clé
+          }
+        });
+        if (Object.keys(clean).length > 0) {
+          db.ref("abracadaparc/reservations").update(clean);
         }
-      } catch(e) {}
+      }
+      return;
     }
-    // Pour les autres paths (memos etc.) : set normal
-    db.ref("abracadaparc/"+path).set(data);
-  } catch {}
+    // Autres paths : set normal
+    db.ref("abracadaparc/" + path).set(obj);
+  } catch(e) {}
 }
 
 function fbListen(path, cb) {
