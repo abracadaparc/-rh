@@ -389,17 +389,20 @@ contact@abracadaparc.fr`;
 
   function buildStats() {
     const all = Object.values(state.reservations);
-    const ca = all.reduce((s, r) => s + calcTotal(r), 0);
-    const soldes = all.filter(r => r.statut !== '6').reduce((s, r) => {
+    // CA uniquement sur les dossiers confirmés S4, S5, S6 (pas les demandes en attente)
+    const confirmes = all.filter(r => parseInt(r.statut || '1') >= 4);
+    const ca = confirmes.reduce((s, r) => s + calcTotal(r), 0);
+    const caEnAttente = all.filter(r => parseInt(r.statut || '1') < 4).reduce((s, r) => s + calcTotal(r), 0);
+    const soldes = confirmes.filter(r => r.statut !== '6').reduce((s, r) => {
       const t = calcTotal(r); const a = parseFloat(r.acompte_paye) || 0;
       return s + Math.max(0, t - a);
     }, 0);
     const walkins = all.filter(r => r.walkin).length;
     return `
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">
   ${[
     ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
-    ['CA total estimé', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
+    ['CA confirmé S4+', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
     ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
     ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
   ].map(([l, v, c, bg]) => `
@@ -407,6 +410,9 @@ contact@abracadaparc.fr`;
     <div style="font-size:18px;font-weight:800;color:${c};">${v}</div>
     <div style="font-size:10px;color:${c};opacity:0.8;margin-top:2px;">${l}</div>
   </div>`).join('')}
+</div>
+<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">
+  + ${caEnAttente.toLocaleString('fr')} € en cours (S1-S3 non confirmés)
 </div>`;
   }
 
@@ -566,8 +572,14 @@ contact@abracadaparc.fr`;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const nomsMois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    // Dédupliquer par ID pour éviter les doublons dans le calendrier
+    const seen = {};
     const byDay = {};
     Object.values(state.reservations).forEach(r => {
+      if (!r.id || seen[r.id]) return;
+      seen[r.id] = true;
+      // Masquer les demandes en attente S1-S2 du calendrier (pas encore confirmées)
+      if (r.statut === '1' || r.statut === '2') return;
       if (r.date) { if (!byDay[r.date]) byDay[r.date] = []; byDay[r.date].push(r); }
     });
     const offset = firstDay === 0 ? 6 : firstDay - 1;
@@ -603,59 +615,20 @@ contact@abracadaparc.fr`;
     ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map(j => `<div style="text-align:center;font-size:10px;font-weight:700;color:#9E9E9E;">${j}</div>`).join('')}
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
-  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
-</div>`;
-  }
+  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) confirmée(s) ce mois</div>
 
-  // ─── VUE GÂTEAUX ─────────────────────────────────────────────────────────────
-
-  function buildGateauxView() {
-    const list = Object.values(state.reservations)
-      .filter(r => r.gateau_nacima && r.date >= today())
-      .sort((a, b) => a.date.localeCompare(b.date));
-    return `
-<div>
-  <div style="background:#FFF3E0;border:1px solid #FFD54F;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <div style="font-size:13px;font-weight:700;color:#E65100;">🎂 Commandes gâteaux — Nacima</div>
-      <div style="font-size:11px;color:#E65100;margin-top:2px;">J-10 orange · J-7 rouge · Commander dès J-10</div>
+  <!-- CODE COULEUR -->
+  <div style="margin-top:14px;background:#F9FBE7;border:1px solid #E8F5E9;border-radius:10px;padding:12px 16px;">
+    <div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Code couleur — Segments</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+      ${SEGMENTS.map(function(s){return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#424242;"><div style="width:12px;height:12px;border-radius:3px;background:'+s.color+';flex-shrink:0;"></div>'+s.label+'</div>';}).join('')}
     </div>
-    <a href="tel:${NACIMA_TEL.replace(/ /g,'')}" style="background:#E65100;color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${NACIMA_TEL}</a>
+    <div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:6px;margin-top:8px;padding-top:8px;border-top:1px solid #E8F5E9;">Statuts pipeline</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      ${STATUTS.map(function(s){return '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#424242;"><div style="width:10px;height:10px;border-radius:50%;background:'+s.color+';flex-shrink:0;"></div>S'+s.id+' '+s.label+'</div>';}).join('')}
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:#9E9E9E;">⚪ S1 et S2 (en attente de validation) ne sont pas affichés sur le calendrier</div>
   </div>
-  ${list.length === 0 ? '<div style="text-align:center;padding:40px;color:#9E9E9E;font-size:13px;">Aucune commande gâteau à venir</div>' : `
-  <table style="width:100%;border-collapse:collapse;">
-    <thead><tr style="background:#F1F8E9;border-bottom:2px solid #C8E6C9;">
-      ${['Date visite','Enfant','Gâteau','Inscription','Allergies','J-?','Statut'].map(h => `<th style="padding:8px 10px;font-size:11px;text-align:left;color:#558B2F;font-weight:700;">${h}</th>`).join('')}
-    </tr></thead>
-    <tbody>
-    ${list.map(r => {
-      const dateVisite = new Date(r.date + 'T12:00');
-      const diffJ = Math.round((dateVisite - new Date(today() + 'T12:00')) / 86400000);
-      const urgColor = diffJ <= 7 ? '#C62828' : diffJ <= 10 ? '#E65100' : '#2E7D32';
-            var allergiesTxt = r.gateau_allergies && r.gateau_allergies !== 'aucune' ? r.gateau_allergies : '✅ aucune';
-      var allergieColor = r.gateau_allergies && r.gateau_allergies !== 'aucune' && r.gateau_allergies !== '' ? '#C62828' : '#2E7D32';
-      var statutLabel = r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande === 'prevu' ? '📅 Livraison prévue' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander';
-      var statutBg = r.gateau_commande === 'livre' ? '#E8F5E9' : r.gateau_commande === 'prevu' ? '#E3F2FD' : r.gateau_commande ? '#FFF8E1' : '#FBE9E7';
-      var statutColor = r.gateau_commande === 'livre' ? '#1B5E20' : r.gateau_commande === 'prevu' ? '#1565C0' : r.gateau_commande ? '#E65100' : '#C62828';
-      return '<tr style="border-bottom:1px solid #F5F5F5;">' +
-        '<td style="padding:8px 10px;font-size:12px;font-weight:700;">' + fmtDate(r.date) + '</td>' +
-        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.prenom_enfant || r.nom_contact || '—') + '</td>' +
-        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.gateau_type || '—') + '</td>' +
-        '<td style="padding:8px 10px;font-size:12px;">' + esc(r.gateau_inscription || '—') + '</td>' +
-        '<td style="padding:8px 10px;font-size:11px;font-weight:700;color:' + allergieColor + ';">' + esc(allergiesTxt) + '</td>' +
-        '<td style="padding:8px 10px;"><span style="font-weight:800;color:' + urgColor + ';">J-' + diffJ + '</span></td>' +
-        '<td style="padding:8px 10px;">' +
-          '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-            '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:' + statutBg + ';color:' + statutColor + ';">' + statutLabel + '</span>' +
-            (r.gateau_date_livraison ? '<span style="font-size:10px;color:#9E9E9E;">📅 ' + fmtDate(r.gateau_date_livraison) + '</span>' : '') +
-            '<button data-gateau-edit="' + r.id + '" style="padding:3px 10px;background:#F1F8E9;color:#2E7D32;border:1px solid #C8E6C9;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
-          '</div>' +
-        '</td>' +
-      '</tr>'
-    ;
-    }).join('')}
-    </tbody>
-  </table>`}
 </div>`;
   }
 
