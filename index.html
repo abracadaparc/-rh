@@ -140,14 +140,13 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // Déduplique, filtre les entrées corrompues, trie par date
   function getReservations() {
     var seen = new Set();
-    return getReservations().filter(function(r) {
+    return Object.values(state.reservations).filter(function(r) {
       if (!r || typeof r !== 'object') return false;
       if (!r.id || typeof r.id !== 'string') return false;
-      if (!r.id.match(/^(CMD|DEV|GRP|NEW_)/)) return false;
       if (seen.has(r.id)) return false;
       seen.add(r.id);
       return true;
-    }).sort(function(a, b) { return (a.date || '').localeCompare(b.date || ''); });
+    });
   }
 
   function calcTotal(r) {
