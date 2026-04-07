@@ -412,30 +412,37 @@ contact@abracadaparc.fr`;
   }
 
   function buildStats() {
-    const all = getReservations();
-    const ca = all.reduce((s, r) => s + calcTotal(r), 0);
-    const caConfirme = all.filter(r => parseInt(r.statut || '1') >= 4).reduce((s, r) => s + calcTotal(r), 0);
-    const soldes = all.filter(r => r.statut !== '6').reduce((s, r) => {
-      const t = calcTotal(r); const a = parseFloat(r.acompte_paye) || 0;
-      return s + Math.max(0, t - a);
-    }, 0);
-    const walkins = all.filter(r => r.walkin).length;
-    return `
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">
-  ${[
-    ['Total réservations', all.length, '#2E7D32', '#E8F5E9'],
-    ['CA total', ca.toLocaleString('fr') + ' €', '#1565C0', '#E3F2FD'],
-    ['Soldes dus', soldes.toLocaleString('fr') + ' €', soldes > 0 ? '#C62828' : '#2E7D32', soldes > 0 ? '#FFEBEE' : '#E8F5E9'],
-    ['Walk-ins sur place', walkins, '#E65100', '#FFF3E0'],
-  ].map(([l, v, c, bg]) => `
-  <div style="background:\${bg};border-radius:10px;padding:10px 12px;text-align:center;">
-    <div style="font-size:18px;font-weight:800;color:\${c};">\${v}</div>
-    <div style="font-size:10px;color:\${c};opacity:0.8;margin-top:2px;">\${l}</div>
-  </div>`).join('')}
-</div>
-<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">
-  dont \${caConfirme.toLocaleString('fr')} € confirmés (S4+)
-</div>`;
+    var all = getReservations();
+    var ca = all.reduce(function(s, r) { return s + calcTotal(r); }, 0);
+    var caConfirme = all.filter(function(r) { return parseInt(r.statut || '1') >= 4; })
+                       .reduce(function(s, r) { return s + calcTotal(r); }, 0);
+    var soldes = all.filter(function(r) { return r.statut !== '6'; })
+                    .reduce(function(s, r) {
+                      var t = calcTotal(r); var a = parseFloat(r.acompte_paye) || 0;
+                      return s + Math.max(0, t - a);
+                    }, 0);
+    var walkins = all.filter(function(r) { return r.walkin; }).length;
+
+    var kpis = [
+      { label: 'Total réservations', value: all.length,                             color: '#2E7D32', bg: '#E8F5E9' },
+      { label: 'CA total',           value: ca.toLocaleString('fr') + ' €',         color: '#1565C0', bg: '#E3F2FD' },
+      { label: 'Soldes dus',         value: soldes.toLocaleString('fr') + ' €',     color: soldes > 0 ? '#C62828' : '#2E7D32', bg: soldes > 0 ? '#FFEBEE' : '#E8F5E9' },
+      { label: 'Walk-ins sur place', value: walkins,                                 color: '#E65100', bg: '#FFF3E0' },
+    ];
+
+    var cards = kpis.map(function(k) {
+      return '<div style="background:' + k.bg + ';border-radius:10px;padding:10px 12px;text-align:center;">' +
+             '<div style="font-size:18px;font-weight:800;color:' + k.color + ';">' + k.value + '</div>' +
+             '<div style="font-size:10px;color:' + k.color + ';opacity:0.8;margin-top:2px;">' + k.label + '</div>' +
+             '</div>';
+    }).join('');
+
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">' +
+           cards +
+           '</div>' +
+           '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">' +
+           'dont ' + caConfirme.toLocaleString('fr') + ' € confirmés (S4+)' +
+           '</div>';
   }
 
   function buildReservationCard(r) {
