@@ -35,16 +35,14 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
 
   // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 
-  // FORMULES ANNIVERSAIRE
-  // prix_matin = tarif 10h-13h | prix_apm = tarif 14h-17h
-  // adultes_inclus = nb adultes dans le forfait de base
-  // enf_supp_prix = prix par enfant supplémentaire
   const FORMULES = [
-    { id: 'magique',      label: "Abracada'Niv Magique",      prix: 160, prix_matin: 160, prix_apm: 160, base: 8,  adultes_inclus: 2,  enf_supp_prix: 26 },
-    { id: 'fantastique',  label: "Abracada'Niv Fantastique",  prix: 176, prix_matin: 176, prix_apm: 208, base: 8,  adultes_inclus: 2,  enf_supp_prix: 26 },
-    { id: 'gourmand',     label: "Abracada'Niv Gourmand",     prix: 160, prix_matin: 160, prix_apm: 160, base: 8,  adultes_inclus: 2,  enf_supp_prix: 26 },
-    { id: 'garden_party', label: "Anniversaire Garden Party", prix: 420, prix_matin: 420, prix_apm: 420, base: 8,  adultes_inclus: 6,  enf_supp_prix: 35 },
-    { id: 'mesure',       label: "Sur mesure",                prix: 0,   prix_matin: 0,   prix_apm: 0,   base: 0,  adultes_inclus: 0,  enf_supp_prix: 0  },
+    { id: 'magique',     label: "Abracada'Niv Magique",      prix: 160, prix_matin: 160, prix_apm: 160, base: 8, adultes_inclus: 2, desc: "8 enfants + 2 adultes inclus" },
+    { id: 'fantastique', label: "Abracada'Niv Fantastique",  prix: 176, prix_matin: 176, prix_apm: 208, base: 8, adultes_inclus: 2, desc: "Matin 176€ · Après-midi 208€" },
+    { id: 'gourmand',    label: "Abracada'Niv Gourmand",     prix: 232, base: 10, adultes_inclus: 2, desc: "Fantastique + repas inclus" },
+    { id: 'classique',   label: "Abracada'Niv Classique",    prix: 250, base: 10, desc: "Formule complète standard" },
+    { id: 'garden',      label: "Garden Party",              prix: 350, base: 15, desc: "Espace extérieur privatisé" },
+    { id: 'night',       label: "Abracada'Night",            prix: 490, base: 20, desc: "Soirée privatisation complète" },
+    { id: 'mesure',      label: "Sur mesure",                prix: 0,   base: 0,  desc: "Tarif personnalisé" },
   ];
 
   const SEGMENTS = [
@@ -90,7 +88,8 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   // ─── FIREBASE ────────────────────────────────────────────────────────────────
 
   function save(path, data) {
-    // Passer l'objet directement à fbSave — pas de JSON.stringify ici
+    // RÈGLE ABSOLUE : passer l'objet directement à fbSave — jamais JSON.stringify ici
+    // fbSave normalise lui-même les données selon le path
     try { if (typeof fbSave === 'function') fbSave(path, data); } catch (e) {}
     try { localStorage.setItem('abr_' + path, JSON.stringify(data)); } catch (e) {}
   }
@@ -140,39 +139,49 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
   function calcTotal(r) {
-    // Groupes et segments non-anniversaire : toujours lire montant_total
+    // Pour les groupes : toujours lire montant_total Firebase
     if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
-    // Anniversaire : si montant_total saisi manuellement → le respecter
-    if (r.montant_total && parseFloat(r.montant_total) > 0) return parseFloat(r.montant_total);
-    // Calcul automatique depuis la formule
+
+    // Pour les anniversaires : si montant_total est saisi manuellement → le respecter
+    // (permet à Vanessa de corriger le total sans que calcTotal l'écrase)
+    if (r.montant_total && parseFloat(r.montant_total) > 0) {
+      return parseFloat(r.montant_total);
+    }
+
+    // Sinon : calcul automatique depuis la formule
     const f = getFormule(r.formule_id);
     if (!f || f.prix === 0) return 0;
+    // Fantastique : prix différent selon horaire (matin 176€ / après-midi 208€)
     const isApm = !r.heure_debut || r.heure_debut >= '13:00';
-    const base    = isApm ? (f.prix_apm || f.prix) : (f.prix_matin || f.prix);
-    const nbEnf   = parseInt(r.effectif_enfants) || 0;
-    const nbAdu   = parseInt(r.effectif_adultes) || 0;
-    const supEnf  = Math.max(0, nbEnf - (f.base || 8)) * (f.enf_supp_prix || 26);
-    const supAdu  = Math.max(0, nbAdu - (f.adultes_inclus || 2)) * 10;
-    const anim    = r.option_animateur ? (parseFloat(r.option_animateur_tarif) || 100) : 0;
-    const gateau  = r.gateau_nacima ? (parseFloat(r.gateau_prix) || 25.90) : 0;
-    const gateau2 = r.gateau_supp ? (parseFloat(r.gateau_supp_prix) || 25.90) : 0;
-    const droit   = (!r.gateau_nacima && r.gateau_type && r.gateau_type.indexOf('+10') >= 0) ? 10 : 0;
-    return base + supEnf + supAdu + anim + gateau + gateau2 + droit;
+    const base = isApm ? (f.prix_apm || f.prix) : (f.prix_matin || f.prix);
+    const nbEnf = parseInt(r.effectif_enfants) || 0;
+    const nbAdu = parseInt(r.effectif_adultes) || 0;
+    const supEnf = Math.max(0, nbEnf - (f.base || 8)) * 26;
+    const supAdu = Math.max(0, nbAdu - (f.adultes_inclus || 2)) * 10;
+    // Animateur : lire le tarif exact si disponible, sinon 100€ par défaut
+    const animateur = r.option_animateur ? (parseFloat(r.option_animateur_tarif) || 100) : 0;
+    // Gâteau Nacima principal
+    const gateau = r.gateau_nacima ? (parseFloat(r.gateau_prix) || 25.90) : 0;
+    // Droit d'apport gâteau famille
+    const droitGateau = (!r.gateau_nacima && r.gateau_type && r.gateau_type.indexOf('+10') >= 0) ? 10 : 0;
+    // Gâteau supplémentaire (ex : 2ème anniversaire)
+    const gateauSupp = r.gateau_supp ? (parseFloat(r.gateau_supp_prix) || 25.90) : 0;
+    return base + supEnf + supAdu + animateur + gateau + droitGateau + gateauSupp;
   }
 
   // SOURCE DE VÉRITÉ UNIQUE — utilisée par toutes les vues
-  // Déduplique par r.id, filtre les entrées parasites (non-objet, sans id valide)
+  // Déduplique par r.id, filtre les parasites, trie par date
   function getReservations() {
     var seen = {};
     var result = [];
-    // Passe 1 : fiches dont la clé Firebase = leur id (les vraies fiches)
+    // Passe 1 : fiches dont la clé Firebase = leur id (fiches proprement injectées)
     Object.keys(state.reservations).forEach(function(key) {
       var r = state.reservations[key];
       if (!r || typeof r !== 'object' || !r.id || typeof r.id !== 'string') return;
       if (!/^(CMD|DEV|GRP|NEW_)/.test(r.id)) return;
       if (key === r.id && !seen[r.id]) { seen[r.id] = true; result.push(r); }
     });
-    // Passe 2 : fiches valides avec clé différente de leur id (fiches temporaires)
+    // Passe 2 : fiches valides avec clé différente de leur id (temporaires)
     Object.keys(state.reservations).forEach(function(key) {
       var r = state.reservations[key];
       if (!r || typeof r !== 'object' || !r.id || typeof r.id !== 'string') return;
@@ -267,9 +276,9 @@ contact@abracadaparc.fr`;
   // ─── RENDU PRINCIPAL ─────────────────────────────────────────────────────────
 
   function render() {
-    var el = document.getElementById('tab-reservations');
+    const el = document.getElementById('tab-reservations');
     if (!el) return;
-    // Employés : pas accès à Liste ni Mémos
+    // Si un employé se retrouve sur l'onglet Liste (non autorisé), rediriger
     if (state.currentUser !== 'Admin' && (state.view === 'liste' || state.view === 'memos')) {
       state.view = 'calendrier';
     }
@@ -299,20 +308,27 @@ contact@abracadaparc.fr`;
     </a>
   </div>` : ''}
 
-  ${/* ONGLETS DE VUE */`
+  ${/* ONGLETS — Liste et Mémos masqués pour les employés */`
   <div style="display:flex;gap:0;border-bottom:2px solid #E8F5E9;margin-bottom:16px;overflow-x:auto;">
-    ${[
-      ['liste','📋 Liste'],
-      ['calendrier','📅 Calendrier'],
-      ['gateaux','🎂 Gâteaux'],
-      ['memos',`📝 Mémos${memos.length ? ` <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">${memos.length}</span>` : ''}`],
-    ].map(([v, l]) => `
-    <button data-view="${v}" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:${state.view===v?700:400};color:${state.view===v?'#2E7D32':'#9E9E9E'};border-bottom:${state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent'};margin-bottom:-2px;">${l}</button>
-    `).join('')}
+    ${(state.currentUser === 'Admin' ? [
+      ['liste',      '📋 Liste'],
+      ['calendrier', '📅 Calendrier'],
+      ['gateaux',    '🎂 Gâteaux'],
+      ['memos',      '📝 Mémos' + (memos.length ? ' <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">' + memos.length + '</span>' : '')],
+    ] : [
+      ['calendrier', '📅 Calendrier'],
+      ['gateaux',    '🎂 Gâteaux'],
+    ]).map(([v, l]) =>
+      '<button data-view="' + v + '" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:' + (state.view===v?700:400) + ';color:' + (state.view===v?'#2E7D32':'#9E9E9E') + ';border-bottom:' + (state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent') + ';margin-bottom:-2px;">' + l + '</button>'
+    ).join('')}
     <div style="flex:1;"></div>
-    <button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>
-    <button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>
-    <button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>
+    ${state.currentUser === 'Admin' ? (
+      '<button id="btn-new-res" style="margin:4px 8px;padding:7px 14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">+ Réservation</button>' +
+      '<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>' +
+      '<button id="btn-new-memo" style="margin:4px 8px;padding:7px 14px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">📝 Mémo</button>'
+    ) : (
+      '<button id="btn-walkin" style="margin:4px 8px;padding:7px 14px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">⚡ Sur place</button>'
+    )}
   </div>`}
 
   ${/* CONTENU SELON VUE */
@@ -393,7 +409,7 @@ contact@abracadaparc.fr`;
 
   function buildStats() {
     var all = getReservations();
-    var ca     = all.reduce(function(s,r){ return s + calcTotal(r); }, 0);
+    var ca = all.reduce(function(s,r){ return s + calcTotal(r); }, 0);
     var caConf = all.filter(function(r){ return parseInt(r.statut||'1') >= 4; })
                     .reduce(function(s,r){ return s + calcTotal(r); }, 0);
     var soldes = all.filter(function(r){ return r.statut !== '6'; })
@@ -403,20 +419,20 @@ contact@abracadaparc.fr`;
                     }, 0);
     var walkins = all.filter(function(r){ return r.walkin; }).length;
     var kpis = [
-      { l:'Total réservations', v: String(all.length),                    c:'#2E7D32', bg:'#E8F5E9' },
-      { l:'CA total',           v: ca.toLocaleString('fr') + ' €',   c:'#1565C0', bg:'#E3F2FD' },
-      { l:'Soldes dus',         v: soldes.toLocaleString('fr') + ' €', c: soldes>0 ? '#C62828':'#2E7D32', bg: soldes>0 ? '#FFEBEE':'#E8F5E9' },
-      { l:'Walk-ins sur place', v: String(walkins),                        c:'#E65100', bg:'#FFF3E0' },
+      {l:'Total réservations', v: String(all.length),                     c:'#2E7D32', bg:'#E8F5E9'},
+      {l:'CA total',           v: ca.toLocaleString('fr') + ' €',    c:'#1565C0', bg:'#E3F2FD'},
+      {l:'Soldes dus',         v: soldes.toLocaleString('fr') + ' €',c: soldes>0 ? '#C62828':'#2E7D32', bg: soldes>0 ? '#FFEBEE':'#E8F5E9'},
+      {l:'Walk-ins sur place', v: String(walkins),                         c:'#E65100', bg:'#FFF3E0'},
     ];
     var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">';
-    for (var i=0; i<kpis.length; i++) {
-      html += '<div style="background:' + kpis[i].bg + ';border-radius:10px;padding:10px 12px;text-align:center;">'
-            + '<div style="font-size:18px;font-weight:800;color:' + kpis[i].c + ';">' + kpis[i].v + '</div>'
-            + '<div style="font-size:10px;color:' + kpis[i].c + ';opacity:0.8;margin-top:2px;">' + kpis[i].l + '</div>'
+    kpis.forEach(function(k) {
+      html += '<div style="background:' + k.bg + ';border-radius:10px;padding:10px 12px;text-align:center;">'
+            + '<div style="font-size:18px;font-weight:800;color:' + k.c + ';">' + k.v + '</div>'
+            + '<div style="font-size:10px;color:' + k.c + ';opacity:0.8;margin-top:2px;">' + k.l + '</div>'
             + '</div>';
-    }
-    html += '</div>';
-    html += '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">'
+    });
+    html += '</div>'
+          + '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">'
           + 'dont ' + caConf.toLocaleString('fr') + ' € confirmés (S4+)</div>';
     return html;
   }
@@ -577,8 +593,8 @@ contact@abracadaparc.fr`;
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const nomsMois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    // Calendrier : anniversaires toujours affichés (statut 1 = réservé)
-    // Groupes/scolaires : masquer S1-S2 (demande non confirmée)
+    // Déduplique via getReservations() + anniversaires toujours visibles
+    // Groupes S1-S2 masqués (pas encore confirmés)
     var byDay = {};
     getReservations().forEach(function(r) {
       if (!r.date) return;
@@ -620,29 +636,7 @@ contact@abracadaparc.fr`;
     ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map(j => `<div style="text-align:center;font-size:10px;font-weight:700;color:#9E9E9E;">${j}</div>`).join('')}
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
-  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) confirmée(s) · S1-S2 groupes masqués</div>
-  ${(function(){
-    var html = '<div style="margin-top:14px;background:#F9FBE7;border:1px solid #E8F5E9;border-radius:10px;padding:12px 16px;">';
-    html += '<div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Légende — Types de visites</div>';
-    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">';
-    SEGMENTS.forEach(function(s){
-      html += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#424242;">'
-            + '<div style="width:12px;height:12px;border-radius:3px;flex-shrink:0;background:' + s.color + ';"></div>'
-            + s.label + '</div>';
-    });
-    html += '</div>';
-    html += '<div style="font-size:11px;font-weight:700;color:#558B2F;margin-bottom:6px;padding-top:8px;border-top:1px solid #E8F5E9;">Statuts pipeline</div>';
-    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
-    STATUTS.forEach(function(s){
-      html += '<div style="display:flex;align-items:center;gap:4px;font-size:10px;">'
-            + '<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:' + s.color + ';"></div>'
-            + '<span style="color:#424242;">' + s.label + '</span></div>';
-    });
-    html += '</div>';
-    html += '<div style="margin-top:6px;font-size:10px;color:#9E9E9E;">⚪ S1-S2 groupes non confirmés masqués · 🎂 Anniversaires toujours visibles</div>';
-    html += '</div>';
-    return html;
-  })()}
+  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
 </div>`;
   }
 
@@ -1363,9 +1357,15 @@ contact@abracadaparc.fr`;
       }
     }
 
-    // MERGE : préserver les champs Firebase non présents dans le formulaire
+    // ── BUG FIX : merger avec l'existant pour préserver tous les champs Firebase ──
+    // Sans ce merge, les champs non présents dans le formulaire (gateau_commande,
+    // gateau_date_livraison, option_animateur, formule_label, ref_commande, solde, etc.)
+    // sont écrasés et perdus à chaque sauvegarde.
     var existing = state.reservations[r.id] || {};
-    state.reservations[r.id] = Object.assign({}, existing, r);
+    var merged = Object.assign({}, existing, r);
+    state.reservations[r.id] = merged;
+    // ── FIN BUG FIX ──
+
     state.showForm = false;
     state.walkin = false;
     saveAll();
@@ -1405,9 +1405,9 @@ contact@abracadaparc.fr`;
   // ─── PERSISTANCE ─────────────────────────────────────────────────────────────
 
   function saveAll() {
-    // PROTECTION : ne jamais écraser Firebase si les réservations sont vides
-    // (évite d'écraser lors d'un premier chargement avant réponse Firebase)
-    var nbRes = Object.keys(state.reservations).length;
+    // PROTECTION : ne jamais écrire si state.reservations est vide
+    // (évite d'écraser Firebase lors d'un premier chargement avant réponse Firebase)
+    var nbRes = Object.keys(state.reservations || {}).length;
     if (nbRes > 0) {
       save('reservations', state.reservations);
     }
@@ -1417,18 +1417,20 @@ contact@abracadaparc.fr`;
   // ─── INIT ─────────────────────────────────────────────────────────────────────
 
   function init(autoRender) {
+    // ── RÈGLE CRITIQUE : localStorage EN PREMIER (affichage immédiat)
+    // puis Firebase écrase via listener. Ne jamais vider localStorage au démarrage.
     state.reservations = load('reservations', {});
     state.memos = load('memos', {});
 
     listen('reservations', function(data) {
-      // Ne pas écraser si Firebase renvoie un objet vide ou null
+      // Ignorer si Firebase renvoie null ou objet vide (protège contre écrasement)
       if (data && typeof data === 'object' && Object.keys(data).length > 0) {
         state.reservations = data;
         try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
         render();
       }
     });
-    listen('memos', function(data) {
+    listen('memos', data => {
       if (data) {
         state.memos = data;
         try { localStorage.setItem('abr_memos', JSON.stringify(data)); } catch(e) {}
@@ -3329,8 +3331,10 @@ function fbSave(path, data) {
   try {
     // Normaliser : toujours un objet, jamais une string
     var obj = (typeof data === 'string') ? JSON.parse(data) : data;
+
     if (path === 'reservations' && obj && typeof obj === 'object') {
-      // Nettoyer : ne garder que les fiches avec id valide, utiliser r.id comme clé
+      // Nettoyer : ne garder que les fiches avec id valide CMD/DEV/GRP/NEW_
+      // Utiliser r.id comme clé Firebase (pas la clé de l'objet source)
       var clean = {};
       Object.keys(obj).forEach(function(k) {
         var r = obj[k];
@@ -3338,16 +3342,20 @@ function fbSave(path, data) {
           clean[r.id] = r;
         }
       });
+      // PROTECTION ABSOLUE : ne jamais écrire si aucune fiche valide
       if (Object.keys(clean).length > 0) {
+        // update() = merge partiel — ne touche qu'aux clés envoyées, jamais d'écrasement global
         db.ref("abracadaparc/reservations").update(clean);
       } else {
-        // Ne rien écrire si aucune fiche valide — protège contre l'écrasement
-        console.warn('fbSave: aucune fiche valide à écrire — écriture annulée');
+        console.warn('fbSave reservations : aucune fiche valide — écriture annulée');
       }
       return;
     }
+    // Autres paths (shifts, memos, etc.) : set normal
     db.ref("abracadaparc/" + path).set(obj);
-  } catch(e) {}
+  } catch(e) {
+    console.error('fbSave error:', e);
+  }
 }
 
 function fbListen(path, cb) {
@@ -4929,70 +4937,15 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
     const ts = timeNow;
     const base = ptg || {};
     let newPtg = {...base};
-    let alertMsg = null;
-
-    // ── Helpers ──────────────────────────────────────────────
-    const toMin = (hhmm) => { const [h,m] = hhmm.split(':').map(Number); return h*60+m; };
-
-    if (action === "arrivee") {
-      // Arrivée : enregistrer l'heure réelle, mais heure contractuelle si anticipée
-      const heureReelle  = ts;
-      const heureContrat = sh?.deb || ts;
-      const arriveeComptee = heureReelle < heureContrat ? heureContrat : heureReelle;
-      newPtg = {...base,
-        arrivee:        arriveeComptee,    // heure comptée (contractuelle si anticipée)
-        arrivee_reelle: heureReelle,       // heure réelle conservée pour info
-        status:         "en_cours",
-        geo_arrivee:    geoCoords
-      };
-      if (heureReelle < heureContrat) {
-        alertMsg = "⏰ Arrivée enregistrée à " + heureContrat + " (heure contractuelle). Votre arrivée réelle à " + heureReelle + " n'est pas comptabilisée.";
-      }
-    }
-    else if (action === "pause") {
-      newPtg = {...base, pause_debut:ts, status:"en_pause"};
-    }
-    else if (action === "reprise") {
-      newPtg = {...base, pause_fin:ts, status:"en_cours"};
-    }
-    else if (action === "depart") {
-      const heureReelle  = ts;
-      const heureContrat = sh?.fin || ts;
-      const deltaMin     = toMin(heureReelle) - toMin(heureContrat);
-      let departCompte   = heureReelle;
-      let noteDepart     = null;
-
-      if (deltaMin > 0 && deltaMin <= 5) {
-        // Dans les 5 min après l'heure → tolérance, on compte l'heure contractuelle
-        departCompte = heureContrat;
-        noteDepart   = "Départ dans la tolérance (" + heureReelle + " → compté " + heureContrat + ")";
-      } else if (deltaMin > 5) {
-        // Plus de 5 min → heure réelle + message direction
-        departCompte = heureReelle;
-        noteDepart   = "⚠️ Départ à " + heureReelle + " (" + deltaMin + " min après l'heure contractuelle " + heureContrat + ") — en attente validation direction";
-        alertMsg = "⚠️ Vous avez pointé votre sortie à " + heureReelle + ", soit " + deltaMin + " minutes après votre heure contractuelle (" + heureContrat + ").
-
-Seules les heures supplémentaires validées par la direction seront comptabilisées.
-Merci de respecter vos horaires contractuels.";
-      }
-      // Si départ avant l'heure contractuelle → compté normalement (cas rare : départ anticipé autorisé)
-
-      newPtg = {...base,
-        depart:        departCompte,
-        depart_reel:   heureReelle,
-        status:        "termine",
-        note_depart:   noteDepart,
-        geo_depart:    geoCoords,
-        signature:     btoa(unescape(encodeURIComponent(emp.id+"-"+today+"-"+ts+"-ABR2026-"+Math.random().toString(36).slice(2,8))))
-      };
-    }
-
+    if (action==="arrivee")      newPtg = {...base, arrivee:ts, status:"en_cours", geo_arrivee:geoCoords};
+    else if (action==="pause")   newPtg = {...base, pause_debut:ts, status:"en_pause"};
+    else if (action==="reprise") newPtg = {...base, pause_fin:ts, status:"en_cours"};
+    else if (action==="depart")  newPtg = {
+      ...base, depart:ts, status:"termine",
+      geo_depart:geoCoords,
+      signature: btoa(unescape(encodeURIComponent(`${emp.id}-${today}-${ts}-ABR2026-${Math.random().toString(36).slice(2,8)}`)))
+    };
     savePointage(newPtg);
-
-    // Afficher l'alerte si nécessaire
-    if (alertMsg) {
-      setTimeout(() => alert(alertMsg), 300);
-    }
   };
 
   const isLocked = sh?.locked && ptg?.status==="termine" && !isAdmin;
@@ -5058,7 +5011,7 @@ Merci de respecter vos horaires contractuels.";
       <div style={{...S.card,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Ma journée</div>
         {[
-          {key:"arrivee",     label:"Arrivée au parc",  icon:"🟢", color:"#1B5E20", realKey:"arrivee_reelle"},
+          {key:"arrivee",     label:"Arrivée au parc",  icon:"🟢", color:"#1B5E20"},
           {key:"pause_debut", label:"Début de pause",   icon:"⏸", color:"#E65100"},
           {key:"pause_fin",   label:"Fin de pause",     icon:"▶️", color:"#1565C0"},
           {key:"depart",      label:"Départ du parc",   icon:"🔴", color:"#B71C1C"},
@@ -5067,17 +5020,8 @@ Merci de respecter vos horaires contractuels.";
             <span style={{fontSize:18,width:28,textAlign:"center"}}>{ptg?.[key]?icon:"○"}</span>
             <div style={{flex:1}}>
               <div style={{fontSize:12,fontWeight:600,color:"#424242"}}>{label}</div>
-              {ptg?.[key] ? (
-            <div>
-              <div style={{fontSize:15,fontWeight:800,color}}>{ptg[key]}</div>
-              {realKey && ptg[realKey] && ptg[realKey] !== ptg[key] && (
-                <div style={{fontSize:10,color:'#9E9E9E'}}>Pointé à {ptg[realKey]}</div>
-              )}
-              {key==='depart' && ptg.note_depart && (
-                <div style={{fontSize:10,color: ptg.note_depart.indexOf('⚠️')>=0 ? '#E65100' : '#9E9E9E', marginTop:2}}>{ptg.note_depart}</div>
-              )}
-            </div>
-          ) : <div style={{fontSize:11,color:"#BDBDBD"}}>Non enregistré</div>}
+              {ptg?.[key]?<div style={{fontSize:15,fontWeight:800,color}}>{ptg[key]}</div>
+                         :<div style={{fontSize:11,color:"#BDBDBD"}}>Non enregistré</div>}
             </div>
             {key==="arrivee"&&ptg?.geo_arrivee&&<span style={{fontSize:9,color:"#9E9E9E"}}>📍{Math.round(haversine(ptg.geo_arrivee.lat,ptg.geo_arrivee.lng,PARC_LAT,PARC_LNG))}m</span>}
           </div>
@@ -5265,18 +5209,10 @@ function ValidationRow({r, i, valider, corriger}) {
   const [editDeb, setEditDeb] = useState(r.actual_deb||r.planned_deb);
   const [editFin, setEditFin] = useState(r.actual_fin||r.planned_fin);
   const [editing, setEditing] = useState(false);
-  const [showValidModal, setShowValidModal] = useState(false);
-  const [validNote, setValidNote] = useState("");
-  const [validH, setValidH] = useState(r.actual_h !== null ? String(r.actual_h) : String(r.planned_h));
   const st = STATUTS[r.sh.type];
   const deltaMin = r.delta;
-  const deltaLabel = deltaMin===null ? "—" : (deltaMin>=0?"+":"")+deltaMin+"min";
+  const deltaLabel = deltaMin===null ? "—" : `${deltaMin>=0?"+":""}${deltaMin}min`;
   const deltaColor = deltaMin===null ? "#9E9E9E" : Math.abs(deltaMin)<=5 ? "#1B5E20" : Math.abs(deltaMin)<=15 ? "#E65100" : "#C62828";
-  // Alertes pointage : arrivée anticipée ou départ tardif
-  const arriveeReelle  = r.ptg?.arrivee_reelle  || null;
-  const departReel     = r.ptg?.depart_reel      || null;
-  const noteDepart     = r.ptg?.note_depart      || null;
-  const hasAlerte      = (arriveeReelle && arriveeReelle !== r.actual_deb) || (noteDepart && noteDepart.indexOf("⚠️") >= 0);
   const validColor = r.validation==="ok" ? "#1B5E20" : r.validation==="corrected" ? "#1565C0" : "#E65100";
   const validLabel = r.validation==="ok" ? "✅ Validé" : r.validation==="corrected" ? "✏️ Corrigé" : "⏳ En attente";
   return (
@@ -5297,19 +5233,10 @@ function ValidationRow({r, i, valider, corriger}) {
       </td>
       <td style={{padding:"8px 12px"}}>
         {r.actual_h!==null ? (
-          <div style={{fontSize:11,color:"#1565C0"}}>
-            <span style={{whiteSpace:"nowrap",fontWeight:600}}>{r.actual_deb}→{r.actual_fin} · <strong>{r.actual_h.toFixed(2)}h</strong>
+          <span style={{fontSize:11,color:"#1565C0",whiteSpace:"nowrap"}}>
+            {r.actual_deb}→{r.actual_fin} · <strong>{r.actual_h.toFixed(2)}h</strong>
             {r.ptg?.signature&&<span style={{fontSize:9,color:"#9E9E9E",marginLeft:4}}>🔏</span>}
-            </span>
-            {arriveeReelle && arriveeReelle !== r.actual_deb && (
-              <div style={{fontSize:10,color:"#E65100",marginTop:1}}>⏰ Arrivée réelle {arriveeReelle} → compté {r.actual_deb}</div>
-            )}
-            {departReel && departReel !== r.actual_fin && (
-              <div style={{fontSize:10,color:noteDepart&&noteDepart.indexOf("⚠️")>=0?"#C62828":"#9E9E9E",marginTop:1}}>
-                🚪 Départ réel {departReel}{noteDepart&&noteDepart.indexOf("⚠️")>=0?" — ⚠️ validation requise":""}
-              </div>
-            )}
-          </div>
+          </span>
         ) : (
           <span style={{fontSize:11,color:"#C62828",fontWeight:600}}>Non pointé</span>
         )}
@@ -5330,55 +5257,12 @@ function ValidationRow({r, i, valider, corriger}) {
           </div>
         ) : (
           <div style={{display:"flex",gap:4}}>
-            {r.validation!=="ok" && (
-              noteDepart && noteDepart.indexOf("⚠️")>=0
-                ? <button onClick={()=>setShowValidModal(true)} style={{...S.btn,background:"#FFF3E0",color:"#E65100",border:"1px solid #FFD54F",padding:"3px 10px",fontSize:11}}>⚠️ Valider HS</button>
-                : <button onClick={()=>valider(r)} style={{...S.btn,...S.btnG,padding:"3px 10px",fontSize:11}}>✅</button>
-            )}
+            {r.validation!=="ok"&&<button onClick={()=>valider(r)} style={{...S.btn,...S.btnG,padding:"3px 10px",fontSize:11}}>✅</button>}
             <button onClick={()=>setEditing(true)} style={{...S.btn,background:"#E3F2FD",color:"#1565C0",border:"none",padding:"3px 10px",fontSize:11}}>✏️</button>
           </div>
         )}
       </td>
     </tr>
-    {showValidModal && (
-      <tr>
-        <td colSpan={7} style={{padding:"12px 16px",background:"#FFF8E1",borderBottom:"2px solid #FFD54F"}}>
-          <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap"}}>
-            <div style={{flex:1,minWidth:200}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#E65100",marginBottom:6}}>
-                ⚠️ Validation heures supplémentaires — {r.emp.prenom||r.emp.nom} · {r.ds}
-              </div>
-              <div style={{fontSize:11,color:"#757575",marginBottom:8}}>
-                Départ réel : <strong>{departReel||r.actual_fin}</strong> · Contrat : <strong>{r.planned_fin}</strong> · Delta : <strong>+{r.delta} min</strong>
-              </div>
-              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-                <label style={{fontSize:11,color:"#424242",whiteSpace:"nowrap"}}>Heures à valider :</label>
-                <input type="number" step="0.25" min="0" max="24" value={validH} onChange={e=>setValidH(e.target.value)}
-                  style={{width:70,padding:"4px 8px",border:"1.5px solid #FFD54F",borderRadius:6,fontSize:12,fontFamily:"inherit"}}/>
-                <span style={{fontSize:11,color:"#9E9E9E"}}>h</span>
-              </div>
-              <textarea placeholder="Note direction (ex : fermeture tardive, événement exceptionnel…)"
-                value={validNote} onChange={e=>setValidNote(e.target.value)}
-                style={{width:"100%",padding:"6px 10px",border:"1px solid #FFD54F",borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",minHeight:50}}/>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:6,paddingTop:16}}>
-              <button onClick={()=>{valider(r,parseFloat(validH)||r.actual_h);setShowValidModal(false);}}
-                style={{...S.btn,...S.btnG,padding:"8px 16px",fontSize:12,whiteSpace:"nowrap"}}>
-                ✅ Valider {validH}h
-              </button>
-              <button onClick={()=>{valider(r,r.planned_h);setShowValidModal(false);}}
-                style={{...S.btn,background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",padding:"8px 16px",fontSize:11,whiteSpace:"nowrap"}}>
-                Valider heure contrat ({r.planned_h}h)
-              </button>
-              <button onClick={()=>setShowValidModal(false)}
-                style={{...S.btn,background:"#F5F5F5",color:"#757575",border:"none",padding:"6px 16px",fontSize:11}}>
-                Annuler
-              </button>
-            </div>
-          </div>
-        </td>
-      </tr>
-    )}
   );
 }
 
@@ -5414,13 +5298,9 @@ function ValidationPaieTab({team, shifts, setShifts}) {
     }
   });
 
-  // Filtre "alertes" = départs tardifs en attente de validation direction
-  const alertesPointage = rows.filter(r => r.ptg?.note_depart && r.ptg.note_depart.indexOf("⚠️") >= 0);
-
   const filtered = rows.filter(r => {
-    if (filter==="ecarts")    return r.delta!==null&&Math.abs(r.delta)>5;
+    if (filter==="ecarts") return r.delta!==null&&Math.abs(r.delta)>5;
     if (filter==="nonpointe") return r.actual_h===null&&r.sh.type==="travail";
-    if (filter==="alertes")   return r.ptg?.note_depart && r.ptg.note_depart.indexOf("⚠️") >= 0;
     return true;
   });
 
@@ -5446,8 +5326,7 @@ function ValidationPaieTab({team, shifts, setShifts}) {
           {label:"Heures prévues",  val:`${totalPlanned.toFixed(1)}h`, bg:"#E8F5E9",color:"#1B5E20"},
           {label:"Heures pointées", val:`${totalActual.toFixed(1)}h`,  bg:"#E3F2FD",color:"#1565C0"},
           {label:"Non pointés",     val:`${nonPointes}j`,              bg:nonPointes>0?"#FFF8E1":"#F5F5F5",color:nonPointes>0?"#E65100":"#9E9E9E"},
-          {label:"Écarts > 5min",   val:`${ecarts}`,                               bg:ecarts>0?"#FFEBEE":"#F5F5F5",color:ecarts>0?"#C62828":"#9E9E9E"},
-          {label:"Départs tardifs",  val:`${alertesPointage.length}`,               bg:alertesPointage.length>0?"#FFF3E0":"#F5F5F5",color:alertesPointage.length>0?"#E65100":"#9E9E9E"},
+          {label:"Écarts > 5min",   val:`${ecarts}`,                   bg:ecarts>0?"#FFEBEE":"#F5F5F5",color:ecarts>0?"#C62828":"#9E9E9E"},
         ].map(({label,val,bg,color})=>(
           <div key={label} style={{flex:1,minWidth:120,padding:"12px 16px",borderRadius:12,background:bg,textAlign:"center"}}>
             <div style={{fontSize:22,fontWeight:800,color}}>{val}</div>
@@ -5461,12 +5340,9 @@ function ValidationPaieTab({team, shifts, setShifts}) {
           <span style={{padding:"6px 14px",fontWeight:700,color:"#2E7D32",fontSize:13,background:"#F1F8E9"}}>{MOIS_LONG[month]} {year}</span>
           <button onClick={()=>setMonth(m=>m<12?m+1:1)} style={{padding:"6px 12px",border:"none",background:"#fff",cursor:"pointer"}}>→</button>
         </div>
-        {[["tous","Tous"],["ecarts","⚠️ Écarts"],["nonpointe","🔴 Non pointés"],["alertes","🕐 Départs tardifs"]].map(([f,l])=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{...S.btn,padding:"6px 14px",fontSize:11,
-            background:filter===f?"#2E7D32":f==="alertes"&&alertesPointage.length>0?"#FFF3E0":"#F1F8E9",
-            color:filter===f?"#fff":f==="alertes"&&alertesPointage.length>0?"#E65100":"#2E7D32",
-            border:filter===f?"none":f==="alertes"&&alertesPointage.length>0?"1px solid #FFD54F":"1px solid #C8E6C9"}}>
-            {l}{f==="alertes"&&alertesPointage.length>0?" ("+alertesPointage.length+")":""}
+        {["tous","ecarts","nonpointe"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{...S.btn,padding:"6px 14px",fontSize:11,background:filter===f?"#2E7D32":"#F1F8E9",color:filter===f?"#fff":"#2E7D32",border:filter===f?"none":"1px solid #C8E6C9"}}>
+            {f==="tous"?"Tous":f==="ecarts"?"⚠️ Écarts":"🔴 Non pointés"}
           </button>
         ))}
         <button onClick={()=>rows.filter(r=>r.validation==="pending").forEach(r=>valider(r))} style={{...S.btn,...S.btnG,marginLeft:"auto",fontSize:12}}>✅ Tout valider</button>
