@@ -1405,7 +1405,12 @@ contact@abracadaparc.fr`;
   // ─── PERSISTANCE ─────────────────────────────────────────────────────────────
 
   function saveAll() {
-    save('reservations', state.reservations);
+    // PROTECTION : ne jamais écraser Firebase si les réservations sont vides
+    // (évite d'écraser lors d'un premier chargement avant réponse Firebase)
+    var nbRes = Object.keys(state.reservations).length;
+    if (nbRes > 0) {
+      save('reservations', state.reservations);
+    }
     save('memos', state.memos);
   }
 
@@ -1416,7 +1421,8 @@ contact@abracadaparc.fr`;
     state.memos = load('memos', {});
 
     listen('reservations', function(data) {
-      if (data) {
+      // Ne pas écraser si Firebase renvoie un objet vide ou null
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
         state.reservations = data;
         try { localStorage.setItem('abr_reservations', JSON.stringify(data)); } catch(e) {}
         render();
@@ -3334,6 +3340,9 @@ function fbSave(path, data) {
       });
       if (Object.keys(clean).length > 0) {
         db.ref("abracadaparc/reservations").update(clean);
+      } else {
+        // Ne rien écrire si aucune fiche valide — protège contre l'écrasement
+        console.warn('fbSave: aucune fiche valide à écrire — écriture annulée');
       }
       return;
     }
@@ -4920,15 +4929,70 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
     const ts = timeNow;
     const base = ptg || {};
     let newPtg = {...base};
-    if (action==="arrivee")      newPtg = {...base, arrivee:ts, status:"en_cours", geo_arrivee:geoCoords};
-    else if (action==="pause")   newPtg = {...base, pause_debut:ts, status:"en_pause"};
-    else if (action==="reprise") newPtg = {...base, pause_fin:ts, status:"en_cours"};
-    else if (action==="depart")  newPtg = {
-      ...base, depart:ts, status:"termine",
-      geo_depart:geoCoords,
-      signature: btoa(unescape(encodeURIComponent(`${emp.id}-${today}-${ts}-ABR2026-${Math.random().toString(36).slice(2,8)}`)))
-    };
+    let alertMsg = null;
+
+    // ── Helpers ──────────────────────────────────────────────
+    const toMin = (hhmm) => { const [h,m] = hhmm.split(':').map(Number); return h*60+m; };
+
+    if (action === "arrivee") {
+      // Arrivée : enregistrer l'heure réelle, mais heure contractuelle si anticipée
+      const heureReelle  = ts;
+      const heureContrat = sh?.deb || ts;
+      const arriveeComptee = heureReelle < heureContrat ? heureContrat : heureReelle;
+      newPtg = {...base,
+        arrivee:        arriveeComptee,    // heure comptée (contractuelle si anticipée)
+        arrivee_reelle: heureReelle,       // heure réelle conservée pour info
+        status:         "en_cours",
+        geo_arrivee:    geoCoords
+      };
+      if (heureReelle < heureContrat) {
+        alertMsg = "⏰ Arrivée enregistrée à " + heureContrat + " (heure contractuelle). Votre arrivée réelle à " + heureReelle + " n'est pas comptabilisée.";
+      }
+    }
+    else if (action === "pause") {
+      newPtg = {...base, pause_debut:ts, status:"en_pause"};
+    }
+    else if (action === "reprise") {
+      newPtg = {...base, pause_fin:ts, status:"en_cours"};
+    }
+    else if (action === "depart") {
+      const heureReelle  = ts;
+      const heureContrat = sh?.fin || ts;
+      const deltaMin     = toMin(heureReelle) - toMin(heureContrat);
+      let departCompte   = heureReelle;
+      let noteDepart     = null;
+
+      if (deltaMin > 0 && deltaMin <= 5) {
+        // Dans les 5 min après l'heure → tolérance, on compte l'heure contractuelle
+        departCompte = heureContrat;
+        noteDepart   = "Départ dans la tolérance (" + heureReelle + " → compté " + heureContrat + ")";
+      } else if (deltaMin > 5) {
+        // Plus de 5 min → heure réelle + message direction
+        departCompte = heureReelle;
+        noteDepart   = "⚠️ Départ à " + heureReelle + " (" + deltaMin + " min après l'heure contractuelle " + heureContrat + ") — en attente validation direction";
+        alertMsg = "⚠️ Vous avez pointé votre sortie à " + heureReelle + ", soit " + deltaMin + " minutes après votre heure contractuelle (" + heureContrat + ").
+
+Seules les heures supplémentaires validées par la direction seront comptabilisées.
+Merci de respecter vos horaires contractuels.";
+      }
+      // Si départ avant l'heure contractuelle → compté normalement (cas rare : départ anticipé autorisé)
+
+      newPtg = {...base,
+        depart:        departCompte,
+        depart_reel:   heureReelle,
+        status:        "termine",
+        note_depart:   noteDepart,
+        geo_depart:    geoCoords,
+        signature:     btoa(unescape(encodeURIComponent(emp.id+"-"+today+"-"+ts+"-ABR2026-"+Math.random().toString(36).slice(2,8))))
+      };
+    }
+
     savePointage(newPtg);
+
+    // Afficher l'alerte si nécessaire
+    if (alertMsg) {
+      setTimeout(() => alert(alertMsg), 300);
+    }
   };
 
   const isLocked = sh?.locked && ptg?.status==="termine" && !isAdmin;
@@ -4994,7 +5058,7 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
       <div style={{...S.card,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>Ma journée</div>
         {[
-          {key:"arrivee",     label:"Arrivée au parc",  icon:"🟢", color:"#1B5E20"},
+          {key:"arrivee",     label:"Arrivée au parc",  icon:"🟢", color:"#1B5E20", realKey:"arrivee_reelle"},
           {key:"pause_debut", label:"Début de pause",   icon:"⏸", color:"#E65100"},
           {key:"pause_fin",   label:"Fin de pause",     icon:"▶️", color:"#1565C0"},
           {key:"depart",      label:"Départ du parc",   icon:"🔴", color:"#B71C1C"},
@@ -5003,8 +5067,17 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
             <span style={{fontSize:18,width:28,textAlign:"center"}}>{ptg?.[key]?icon:"○"}</span>
             <div style={{flex:1}}>
               <div style={{fontSize:12,fontWeight:600,color:"#424242"}}>{label}</div>
-              {ptg?.[key]?<div style={{fontSize:15,fontWeight:800,color}}>{ptg[key]}</div>
-                         :<div style={{fontSize:11,color:"#BDBDBD"}}>Non enregistré</div>}
+              {ptg?.[key] ? (
+            <div>
+              <div style={{fontSize:15,fontWeight:800,color}}>{ptg[key]}</div>
+              {realKey && ptg[realKey] && ptg[realKey] !== ptg[key] && (
+                <div style={{fontSize:10,color:'#9E9E9E'}}>Pointé à {ptg[realKey]}</div>
+              )}
+              {key==='depart' && ptg.note_depart && (
+                <div style={{fontSize:10,color: ptg.note_depart.indexOf('⚠️')>=0 ? '#E65100' : '#9E9E9E', marginTop:2}}>{ptg.note_depart}</div>
+              )}
+            </div>
+          ) : <div style={{fontSize:11,color:"#BDBDBD"}}>Non enregistré</div>}
             </div>
             {key==="arrivee"&&ptg?.geo_arrivee&&<span style={{fontSize:9,color:"#9E9E9E"}}>📍{Math.round(haversine(ptg.geo_arrivee.lat,ptg.geo_arrivee.lng,PARC_LAT,PARC_LNG))}m</span>}
           </div>
@@ -5192,10 +5265,18 @@ function ValidationRow({r, i, valider, corriger}) {
   const [editDeb, setEditDeb] = useState(r.actual_deb||r.planned_deb);
   const [editFin, setEditFin] = useState(r.actual_fin||r.planned_fin);
   const [editing, setEditing] = useState(false);
+  const [showValidModal, setShowValidModal] = useState(false);
+  const [validNote, setValidNote] = useState("");
+  const [validH, setValidH] = useState(r.actual_h !== null ? String(r.actual_h) : String(r.planned_h));
   const st = STATUTS[r.sh.type];
   const deltaMin = r.delta;
-  const deltaLabel = deltaMin===null ? "—" : `${deltaMin>=0?"+":""}${deltaMin}min`;
+  const deltaLabel = deltaMin===null ? "—" : (deltaMin>=0?"+":"")+deltaMin+"min";
   const deltaColor = deltaMin===null ? "#9E9E9E" : Math.abs(deltaMin)<=5 ? "#1B5E20" : Math.abs(deltaMin)<=15 ? "#E65100" : "#C62828";
+  // Alertes pointage : arrivée anticipée ou départ tardif
+  const arriveeReelle  = r.ptg?.arrivee_reelle  || null;
+  const departReel     = r.ptg?.depart_reel      || null;
+  const noteDepart     = r.ptg?.note_depart      || null;
+  const hasAlerte      = (arriveeReelle && arriveeReelle !== r.actual_deb) || (noteDepart && noteDepart.indexOf("⚠️") >= 0);
   const validColor = r.validation==="ok" ? "#1B5E20" : r.validation==="corrected" ? "#1565C0" : "#E65100";
   const validLabel = r.validation==="ok" ? "✅ Validé" : r.validation==="corrected" ? "✏️ Corrigé" : "⏳ En attente";
   return (
@@ -5216,10 +5297,19 @@ function ValidationRow({r, i, valider, corriger}) {
       </td>
       <td style={{padding:"8px 12px"}}>
         {r.actual_h!==null ? (
-          <span style={{fontSize:11,color:"#1565C0",whiteSpace:"nowrap"}}>
-            {r.actual_deb}→{r.actual_fin} · <strong>{r.actual_h.toFixed(2)}h</strong>
+          <div style={{fontSize:11,color:"#1565C0"}}>
+            <span style={{whiteSpace:"nowrap",fontWeight:600}}>{r.actual_deb}→{r.actual_fin} · <strong>{r.actual_h.toFixed(2)}h</strong>
             {r.ptg?.signature&&<span style={{fontSize:9,color:"#9E9E9E",marginLeft:4}}>🔏</span>}
-          </span>
+            </span>
+            {arriveeReelle && arriveeReelle !== r.actual_deb && (
+              <div style={{fontSize:10,color:"#E65100",marginTop:1}}>⏰ Arrivée réelle {arriveeReelle} → compté {r.actual_deb}</div>
+            )}
+            {departReel && departReel !== r.actual_fin && (
+              <div style={{fontSize:10,color:noteDepart&&noteDepart.indexOf("⚠️")>=0?"#C62828":"#9E9E9E",marginTop:1}}>
+                🚪 Départ réel {departReel}{noteDepart&&noteDepart.indexOf("⚠️")>=0?" — ⚠️ validation requise":""}
+              </div>
+            )}
+          </div>
         ) : (
           <span style={{fontSize:11,color:"#C62828",fontWeight:600}}>Non pointé</span>
         )}
@@ -5240,12 +5330,55 @@ function ValidationRow({r, i, valider, corriger}) {
           </div>
         ) : (
           <div style={{display:"flex",gap:4}}>
-            {r.validation!=="ok"&&<button onClick={()=>valider(r)} style={{...S.btn,...S.btnG,padding:"3px 10px",fontSize:11}}>✅</button>}
+            {r.validation!=="ok" && (
+              noteDepart && noteDepart.indexOf("⚠️")>=0
+                ? <button onClick={()=>setShowValidModal(true)} style={{...S.btn,background:"#FFF3E0",color:"#E65100",border:"1px solid #FFD54F",padding:"3px 10px",fontSize:11}}>⚠️ Valider HS</button>
+                : <button onClick={()=>valider(r)} style={{...S.btn,...S.btnG,padding:"3px 10px",fontSize:11}}>✅</button>
+            )}
             <button onClick={()=>setEditing(true)} style={{...S.btn,background:"#E3F2FD",color:"#1565C0",border:"none",padding:"3px 10px",fontSize:11}}>✏️</button>
           </div>
         )}
       </td>
     </tr>
+    {showValidModal && (
+      <tr>
+        <td colSpan={7} style={{padding:"12px 16px",background:"#FFF8E1",borderBottom:"2px solid #FFD54F"}}>
+          <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:200}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#E65100",marginBottom:6}}>
+                ⚠️ Validation heures supplémentaires — {r.emp.prenom||r.emp.nom} · {r.ds}
+              </div>
+              <div style={{fontSize:11,color:"#757575",marginBottom:8}}>
+                Départ réel : <strong>{departReel||r.actual_fin}</strong> · Contrat : <strong>{r.planned_fin}</strong> · Delta : <strong>+{r.delta} min</strong>
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                <label style={{fontSize:11,color:"#424242",whiteSpace:"nowrap"}}>Heures à valider :</label>
+                <input type="number" step="0.25" min="0" max="24" value={validH} onChange={e=>setValidH(e.target.value)}
+                  style={{width:70,padding:"4px 8px",border:"1.5px solid #FFD54F",borderRadius:6,fontSize:12,fontFamily:"inherit"}}/>
+                <span style={{fontSize:11,color:"#9E9E9E"}}>h</span>
+              </div>
+              <textarea placeholder="Note direction (ex : fermeture tardive, événement exceptionnel…)"
+                value={validNote} onChange={e=>setValidNote(e.target.value)}
+                style={{width:"100%",padding:"6px 10px",border:"1px solid #FFD54F",borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",minHeight:50}}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,paddingTop:16}}>
+              <button onClick={()=>{valider(r,parseFloat(validH)||r.actual_h);setShowValidModal(false);}}
+                style={{...S.btn,...S.btnG,padding:"8px 16px",fontSize:12,whiteSpace:"nowrap"}}>
+                ✅ Valider {validH}h
+              </button>
+              <button onClick={()=>{valider(r,r.planned_h);setShowValidModal(false);}}
+                style={{...S.btn,background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",padding:"8px 16px",fontSize:11,whiteSpace:"nowrap"}}>
+                Valider heure contrat ({r.planned_h}h)
+              </button>
+              <button onClick={()=>setShowValidModal(false)}
+                style={{...S.btn,background:"#F5F5F5",color:"#757575",border:"none",padding:"6px 16px",fontSize:11}}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    )}
   );
 }
 
@@ -5281,9 +5414,13 @@ function ValidationPaieTab({team, shifts, setShifts}) {
     }
   });
 
+  // Filtre "alertes" = départs tardifs en attente de validation direction
+  const alertesPointage = rows.filter(r => r.ptg?.note_depart && r.ptg.note_depart.indexOf("⚠️") >= 0);
+
   const filtered = rows.filter(r => {
-    if (filter==="ecarts") return r.delta!==null&&Math.abs(r.delta)>5;
+    if (filter==="ecarts")    return r.delta!==null&&Math.abs(r.delta)>5;
     if (filter==="nonpointe") return r.actual_h===null&&r.sh.type==="travail";
+    if (filter==="alertes")   return r.ptg?.note_depart && r.ptg.note_depart.indexOf("⚠️") >= 0;
     return true;
   });
 
@@ -5309,7 +5446,8 @@ function ValidationPaieTab({team, shifts, setShifts}) {
           {label:"Heures prévues",  val:`${totalPlanned.toFixed(1)}h`, bg:"#E8F5E9",color:"#1B5E20"},
           {label:"Heures pointées", val:`${totalActual.toFixed(1)}h`,  bg:"#E3F2FD",color:"#1565C0"},
           {label:"Non pointés",     val:`${nonPointes}j`,              bg:nonPointes>0?"#FFF8E1":"#F5F5F5",color:nonPointes>0?"#E65100":"#9E9E9E"},
-          {label:"Écarts > 5min",   val:`${ecarts}`,                   bg:ecarts>0?"#FFEBEE":"#F5F5F5",color:ecarts>0?"#C62828":"#9E9E9E"},
+          {label:"Écarts > 5min",   val:`${ecarts}`,                               bg:ecarts>0?"#FFEBEE":"#F5F5F5",color:ecarts>0?"#C62828":"#9E9E9E"},
+          {label:"Départs tardifs",  val:`${alertesPointage.length}`,               bg:alertesPointage.length>0?"#FFF3E0":"#F5F5F5",color:alertesPointage.length>0?"#E65100":"#9E9E9E"},
         ].map(({label,val,bg,color})=>(
           <div key={label} style={{flex:1,minWidth:120,padding:"12px 16px",borderRadius:12,background:bg,textAlign:"center"}}>
             <div style={{fontSize:22,fontWeight:800,color}}>{val}</div>
@@ -5323,9 +5461,12 @@ function ValidationPaieTab({team, shifts, setShifts}) {
           <span style={{padding:"6px 14px",fontWeight:700,color:"#2E7D32",fontSize:13,background:"#F1F8E9"}}>{MOIS_LONG[month]} {year}</span>
           <button onClick={()=>setMonth(m=>m<12?m+1:1)} style={{padding:"6px 12px",border:"none",background:"#fff",cursor:"pointer"}}>→</button>
         </div>
-        {["tous","ecarts","nonpointe"].map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{...S.btn,padding:"6px 14px",fontSize:11,background:filter===f?"#2E7D32":"#F1F8E9",color:filter===f?"#fff":"#2E7D32",border:filter===f?"none":"1px solid #C8E6C9"}}>
-            {f==="tous"?"Tous":f==="ecarts"?"⚠️ Écarts":"🔴 Non pointés"}
+        {[["tous","Tous"],["ecarts","⚠️ Écarts"],["nonpointe","🔴 Non pointés"],["alertes","🕐 Départs tardifs"]].map(([f,l])=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{...S.btn,padding:"6px 14px",fontSize:11,
+            background:filter===f?"#2E7D32":f==="alertes"&&alertesPointage.length>0?"#FFF3E0":"#F1F8E9",
+            color:filter===f?"#fff":f==="alertes"&&alertesPointage.length>0?"#E65100":"#2E7D32",
+            border:filter===f?"none":f==="alertes"&&alertesPointage.length>0?"1px solid #FFD54F":"1px solid #C8E6C9"}}>
+            {l}{f==="alertes"&&alertesPointage.length>0?" ("+alertesPointage.length+")":""}
           </button>
         ))}
         <button onClick={()=>rows.filter(r=>r.validation==="pending").forEach(r=>valider(r))} style={{...S.btn,...S.btnG,marginLeft:"auto",fontSize:12}}>✅ Tout valider</button>
