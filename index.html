@@ -21,6 +21,43 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
 </head>
 <body>
 <div id="root"></div>
+<div id="fallback-loader" style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#F4F8F4;gap:16px;">
+  <span style="font-size:48px">🌿</span>
+  <div style="font-size:18px;font-weight:800;color:#1B5E20">AbracadaParc RH</div>
+  <div style="font-size:13px;color:#9E9E9E">Chargement en cours...</div>
+  <div id="fallback-error" style="display:none;color:#C62828;font-size:12px;background:#FFEBEE;padding:12px 20px;border-radius:8px;max-width:400px;text-align:center"></div>
+</div>
+<script>
+  // Masquer le fallback dès que React est monté
+  var _fallbackTimer = setTimeout(function() {
+    var fb = document.getElementById('fallback-loader');
+    var root = document.getElementById('root');
+    if (fb && root && !root.children.length) {
+      document.getElementById('fallback-error').style.display = 'block';
+      document.getElementById('fallback-error').textContent = 
+        'Erreur de chargement. Vérifiez votre connexion puis rechargez la page (Ctrl+R).';
+    }
+  }, 6000);
+  var _origRender = null;
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      var root = document.getElementById('root');
+      var fb = document.getElementById('fallback-loader');
+      if (root && root.children.length > 0 && fb) {
+        fb.style.display = 'none';
+        clearTimeout(_fallbackTimer);
+      }
+    }, 500);
+  });
+  // Capturer les erreurs JS globales
+  window.addEventListener('error', function(e) {
+    var err = document.getElementById('fallback-error');
+    if (err) {
+      err.style.display = 'block';
+      err.textContent = 'Erreur JS: ' + (e.message || 'inconnue') + ' (ligne ' + e.lineno + ')';
+    }
+  });
+</script>
 <script>
 /**
  * ReservationsTab v5 — AbracadaParc
@@ -5672,6 +5709,8 @@ function App() {
 }
 
 
+var _fbDomEl = document.getElementById('fallback-loader');
+if (_fbDomEl) _fbDomEl.style.display = 'none';
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
