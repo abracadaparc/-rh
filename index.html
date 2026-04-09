@@ -1607,6 +1607,29 @@ const TEAM_INIT = [
     poei_debut:"2026-04-01", poei_fin:"2026-04-19", poei_organisme:"France Travail",
   },
   {
+    id:"t7", nom:"SANOGO", prenom:"Sally", color:"#F06292",
+    type:"stagiaire", contrat:"Convention de stage",
+    debut:"2026-04-14", fin:"2026-07-31", heures_mois:35, taux:0,
+    disponibilite:"Toutes les semaines du 14/04 au 31/07/2026 — horaires à définir avec l'école.",
+    ecole_periodes:[],
+    poste:"Stagiaire — développement commercial & communication", actif:true,
+    note:"Stage conventionné. Fiche de liaison reçue 08/04. Convention de stage à établir. Email : sanogosally12@icloud.com",
+    ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"sanogosally12@icloud.com",
+    iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+  },
+  {
+    id:"sally_s", nom:"SANOGO", prenom:"Sally", color:"#00897B",
+    type:"stagiaire", contrat:"Convention de stage",
+    debut:"2026-04-14", fin:"2026-07-31", heures_mois:140, taux:4.50,
+    disponibilite:"Mardi au Samedi · 11h00 → 18h30 (7h effectives/jour). Fériés non payés : 1er mai, 7 mai, 22 mai, 29 mai, 12 juin.",
+    ecole_periodes:[],
+    poste:"Stagiaire polyvalente", actif:true,
+    note:"Convention de stage S6 BDMRC. Gratification 4,50€/h. Contact : sanogosally12@icloud.com",
+    ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"",
+    tel:"", email:"sanogosally12@icloud.com",
+    iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+  },
+  {
     id:"t6", nom:"NOUVEAU C", prenom:"", color:"#546E7A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
     debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.50,
@@ -2149,7 +2172,7 @@ function EquipeTab({ team, setTeam }) {
     setShowForm(false);
   };
 
-  const typeColors = { apprenti:"#1565C0", saisonnier:"#2E7D32", extra:"#BF360C" };
+  const typeColors = { apprenti:"#1565C0", saisonnier:"#2E7D32", stagiaire:"#F06292", extra:"#BF360C" };
 
   return (
     <div>
@@ -2171,7 +2194,7 @@ function EquipeTab({ team, setTeam }) {
           const typeColor = typeColors[emp.type] || "#757575";
           const daysLeft = Math.round((new Date(emp.fin+"T12:00") - new Date()) / (1000*60*60*24));
           const monthlyBrut = emp.heures_mois * emp.taux;
-          const monthlyCharge = emp.type === 'apprenti' ? 0 : monthlyBrut * CHARGES_PAT;
+          const monthlyCharge = (emp.type === 'apprenti' || emp.type === 'stagiaire') ? 0 : monthlyBrut * CHARGES_PAT;
           return (
             <div key={emp.id} style={{ ...S.card, padding:"14px 18px", opacity:emp.actif?1:0.55 }}>
               <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
@@ -2248,6 +2271,7 @@ function EquipeTab({ team, setTeam }) {
               <select value={form.type} onChange={f("type")} style={S.inp}>
                 <option value="apprenti">Apprenti</option>
                 <option value="saisonnier">Saisonnier</option>
+                <option value="stagiaire">Stagiaire</option>
                 <option value="poei">POEI France Travail</option>
               </select>
             </div>
@@ -2524,6 +2548,11 @@ function getEmpAvailability(emp, ds, dayType, isWE) {
     if (ds < "2026-04-20") return 0;
     return 1;
   }
+  // SALLY – stagiaire : lun-ven uniquement, du 14/04 au 31/07
+  if (emp.id === "t7") {
+    if (dw === 0 || dw === 6) return 0; // pas le week-end
+    return 1;
+  }
 }
 
 // Average hours per day based on level and slot (spread across team positions)
@@ -2572,7 +2601,7 @@ function PlanningPrevTab({ team }) {
   );
   const grandTotal = Math.round(matrix.reduce((s,r)=>s+r.total,0)*10)/10;
 
-  const typeColors = { apprenti:"#1565C0", saisonnier:"#2E7D32", extra:"#BF360C" };
+  const typeColors = { apprenti:"#1565C0", saisonnier:"#2E7D32", extra:"#BF360C", stagiaire:"#00897B" };
 
   return (
     <div>
@@ -3672,6 +3701,24 @@ function generateDefaultShifts(team) {
       if (ds === ecs) shifts[`t1_${ds}`] = {type:"ecole", note};
     }
     d = addDays(d, 1);
+  }
+
+  // ── SALLY (t7) : stagiaire lun-ven du 14/04 au 31/07 ──
+  var SALLY_DEBUT = "2026-04-14", SALLY_FIN = "2026-07-31";
+  let dSally = new Date("2026-04-14T12:00");
+  const endSally = new Date("2026-07-31T12:00");
+  while (dSally <= endSally) {
+    const dsSally = fmt(dSally);
+    const dwSally = dSally.getDay();
+    if (dwSally !== 0 && dwSally !== 6) {
+      // Lundi-vendredi : journée complète
+      if (getDayType(dsSally)) {
+        shifts["t7_" + dsSally] = {type:"travail", deb:"09:30", fin:"17:00", h:7.0, note:"Stage"};
+      } else {
+        shifts["t7_" + dsSally] = {type:"repos", note:""};
+      }
+    }
+    dSally = addDays(dSally, 1);
   }
 
   // ── POEI Florence (t5) & Joris (t4) : 1–19 avril ──
