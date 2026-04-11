@@ -211,19 +211,28 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function getReservations() {
     var seen = {};
     var result = [];
-    // Passe 1 : fiches dont la clé Firebase = leur id (fiches proprement injectées)
+    // Accepte toutes les fiches valides quelle que soit la forme de l'ID
+    // Une fiche valide = objet avec un id string + (segment OU date OU organisation)
+    function estFicheValide(r) {
+      if (!r || typeof r !== 'object') return false;
+      if (!r.id || typeof r.id !== 'string' || r.id.length < 3) return false;
+      // Exclure les clés système Firebase (abr_memos, abr_reservations, etc.)
+      if (/^abr_/.test(r.id)) return false;
+      // Doit avoir au moins un champ métier
+      return !!(r.segment || r.date || r.organisation || r.prenom_enfant || r.nom_contact);
+    }
+    // Passe 1 : clé Firebase = id de la fiche (fiches propres)
     Object.keys(state.reservations).forEach(function(key) {
       var r = state.reservations[key];
-      if (!r || typeof r !== 'object' || !r.id || typeof r.id !== 'string') return;
-      if (!/^(CMD|DEV|GRP|NEW_|D-)/.test(r.id)) return;
+      if (!estFicheValide(r)) return;
       if (key === r.id && !seen[r.id]) { seen[r.id] = true; result.push(r); }
     });
-    // Passe 2 : fiches valides avec clé différente de leur id (temporaires)
+    // Passe 2 : clé Firebase différente de l'id (fiches temporaires ou mal indexées)
     Object.keys(state.reservations).forEach(function(key) {
       var r = state.reservations[key];
-      if (!r || typeof r !== 'object' || !r.id || typeof r.id !== 'string') return;
-      if (!/^(CMD|DEV|GRP|NEW_|D-)/.test(r.id)) return;
-      if (!seen[r.id]) { seen[r.id] = true; result.push(r); }
+      if (!estFicheValide(r)) return;
+      var idKey = r.id || key;
+      if (!seen[idKey]) { seen[idKey] = true; result.push(r); }
     });
     return result.sort(function(a, b) { return (a.date||'').localeCompare(b.date||''); });
   }
