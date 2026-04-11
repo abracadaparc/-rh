@@ -350,10 +350,12 @@ contact@abracadaparc.fr`;
     ${(state.currentUser === 'Admin' ? [
       ['liste',      '📋 Liste'],
       ['calendrier', '📅 Calendrier'],
+      ['terrain',    '📍 Terrain'],
       ['gateaux',    '🎂 Gâteaux'],
       ['memos',      '📝 Mémos' + (memos.length ? ' <span style="background:#E53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">' + memos.length + '</span>' : '')],
     ] : [
       ['calendrier', '📅 Calendrier'],
+      ['terrain',    '📍 Terrain'],
       ['gateaux',    '🎂 Gâteaux'],
     ]).map(([v, l]) =>
       '<button data-view="' + v + '" style="padding:10px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;white-space:nowrap;font-weight:' + (state.view===v?700:400) + ';color:' + (state.view===v?'#2E7D32':'#9E9E9E') + ';border-bottom:' + (state.view===v?'2.5px solid #2E7D32':'2.5px solid transparent') + ';margin-bottom:-2px;">' + l + '</button>'
@@ -371,6 +373,7 @@ contact@abracadaparc.fr`;
   ${/* CONTENU SELON VUE */
     state.view === 'liste'      ? buildListeView() :
     state.view === 'calendrier' ? buildCalView() :
+    state.view === 'terrain'    ? buildTerrainView() :
     state.view === 'gateaux'    ? buildGateauxView() :
     state.view === 'memos'      ? buildMemosView() : ''}
 
@@ -675,6 +678,156 @@ contact@abracadaparc.fr`;
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
   <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
 </div>`;
+  }
+
+
+  // ─── VUE TERRAIN ─────────────────────────────────────────────────────────────
+  // Permet à l'équipe de saisir les effectifs réels le jour de la visite
+  // Calcule automatiquement le solde ajusté (règle -10% max CGV)
+  function buildTerrainView() {
+    var aujourd_hui = today();
+    var dans7j = new Date();
+    dans7j.setDate(dans7j.getDate() + 7);
+    var ds7 = dans7j.toISOString().slice(0,10);
+
+    // Visites dans les 7 prochains jours + aujourd'hui
+    var visites = Object.values(state.reservations)
+      .filter(function(r) {
+        if (!r.date) return false;
+        var isGroupe = r.segment !== 'anniversaire' && !(r.id && r.id.indexOf('CMD') === 0);
+        var dateOk = r.date >= aujourd_hui && r.date <= ds7;
+        var statutOk = parseInt(r.statut || '1') >= 3;
+        return isGroupe && dateOk && statutOk;
+      })
+      .sort(function(a,b){ return a.date.localeCompare(b.date); });
+
+    if (visites.length === 0) {
+      return '<div style="text-align:center;padding:60px 20px;color:#9E9E9E;">' +
+        '<div style="font-size:40px;margin-bottom:12px;">📍</div>' +
+        '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">Aucune visite dans les 7 prochains jours</div>' +
+        '<div style="font-size:12px;">Les visites confirmées (statut 3+) apparaîtront ici</div>' +
+        '</div>';
+    }
+
+    var rows = visites.map(function(r) {
+      var enf_p   = parseInt(r.effectif_enfants || 0);
+      var acc_p   = parseInt(r.effectif_adultes || 0);
+      var enf_r   = parseInt(r.effectif_enfants_reel || 0);
+      var acc_r   = parseInt(r.effectif_adultes_reel || 0);
+      var montant = parseFloat(r.montant_total || 0);
+      var acompte = parseFloat(r.acompte_paye || r.acompte || 0);
+
+      // Calcul solde ajusté : si effectif réel < effectif devis → -10% max
+      var soldeAffiche = montant - acompte;
+      var soldeAjuste  = soldeAffiche;
+      var ajustement   = '';
+      if (enf_r > 0 && enf_r < enf_p) {
+        var diffPct = (enf_p - enf_r) / enf_p;
+        var reduction = Math.min(diffPct, 0.10); // max 10%
+        var nouveauMontant = Math.round(montant * (1 - reduction) * 100) / 100;
+        soldeAjuste = Math.max(0, nouveauMontant - acompte);
+        var econom = Math.round((montant - nouveauMontant) * 100) / 100;
+        ajustement = '<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 7px;border-radius:10px;font-weight:700;">-' + econom.toFixed(2) + '€ ajusté</span>';
+      }
+
+      var isToday = r.date === aujourd_hui;
+      var diffJ   = Math.round((new Date(r.date + 'T12:00') - new Date(aujourd_hui + 'T12:00')) / 86400000);
+      var urgBg   = isToday ? '#E8F5E9' : diffJ === 1 ? '#FFF8E1' : '#FAFAFA';
+      var urgBorder = isToday ? '#A5D6A7' : diffJ === 1 ? '#FFD54F' : '#EEEEEE';
+
+      var saisiOk = enf_r > 0;
+
+      return '<div style="background:' + urgBg + ';border:1.5px solid ' + urgBorder + ';border-radius:12px;padding:14px 16px;margin-bottom:12px;">' +
+        // En-tête
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
+          '<div>' +
+            '<div style="font-size:13px;font-weight:800;color:#1B5E20;">' + esc(r.organisation || r.nom_contact || r.id) + '</div>' +
+            '<div style="font-size:11px;color:#757575;margin-top:2px;">' +
+              fmtDate(r.date) + ' · ' + (r.heure_debut||'') + '-' + (r.heure_fin||'') +
+              ' · ' + (r.formule_id === 'matin' ? 'Matin' : r.formule_id === 'apres-midi' ? 'Après-midi' : 'Journée') +
+            '</div>' +
+            (r.tel_contact ? '<a href="tel:' + r.tel_contact.replace(/ /g,'') + '" style="font-size:11px;color:#1565C0;text-decoration:none;">📞 ' + esc(r.tel_contact) + '</a>' : '') +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:' + (isToday?'#2E7D32':'#FFF8E1') + ';color:' + (isToday?'#fff':'#E65100') + ';">' +
+              (isToday ? "🟢 Aujourd'hui" : 'J-' + diffJ) +
+            '</span>' +
+          '</div>' +
+        '</div>' +
+        // Ligne devis
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">' +
+          '<div style="background:#fff;border-radius:8px;padding:8px 10px;text-align:center;">' +
+            '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Devis enfants</div>' +
+            '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + enf_p + '</div>' +
+          '</div>' +
+          '<div style="background:#fff;border-radius:8px;padding:8px 10px;text-align:center;">' +
+            '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Devis acc.</div>' +
+            '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + acc_p + '</div>' +
+          '</div>' +
+          '<div style="background:#fff;border-radius:8px;padding:8px 10px;text-align:center;">' +
+            '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Montant devis</div>' +
+            '<div style="font-size:14px;font-weight:800;color:#1B5E20;">' + montant.toFixed(2) + '€</div>' +
+          '</div>' +
+        '</div>' +
+        // Saisie effectif réel
+        '<div style="background:#fff;border:1px solid #C8E6C9;border-radius:10px;padding:12px;margin-bottom:10px;">' +
+          '<div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">📍 Effectif réel du jour</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div>' +
+              '<label style="font-size:11px;color:#757575;display:block;margin-bottom:4px;">Enfants présents</label>' +
+              '<input type="number" min="0" max="500" ' +
+                'data-terrain-id="' + r.id + '" data-terrain-field="effectif_enfants_reel" ' +
+                'value="' + (enf_r || '') + '" placeholder="' + enf_p + '" ' +
+                'style="width:100%;padding:8px;border:1.5px solid ' + (saisiOk?'#A5D6A7':'#FFD54F') + ';border-radius:8px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box;">' +
+            '</div>' +
+            '<div>' +
+              '<label style="font-size:11px;color:#757575;display:block;margin-bottom:4px;">Accompagnants présents</label>' +
+              '<input type="number" min="0" max="100" ' +
+                'data-terrain-id="' + r.id + '" data-terrain-field="effectif_adultes_reel" ' +
+                'value="' + (acc_r || '') + '" placeholder="' + acc_p + '" ' +
+                'style="width:100%;padding:8px;border:1.5px solid #E8F5E9;border-radius:8px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box;">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        // Solde à encaisser
+        '<div style="display:flex;justify-content:space-between;align-items:center;background:' + (saisiOk?'#E8F5E9':'#FFF8E1') + ';border-radius:10px;padding:10px 14px;">' +
+          '<div>' +
+            '<div style="font-size:11px;color:#757575;">Acompte encaissé</div>' +
+            '<div style="font-size:13px;font-weight:700;color:#1565C0;">' + acompte.toFixed(2) + '€</div>' +
+          '</div>' +
+          '<div style="text-align:center;">' +
+            ajustement +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<div style="font-size:11px;color:#757575;">Solde à encaisser</div>' +
+            '<div style="font-size:18px;font-weight:900;color:' + (saisiOk?'#2E7D32':'#E65100') + ';">' + soldeAjuste.toFixed(2) + '€</div>' +
+          '</div>' +
+        '</div>' +
+        // Bouton sauvegarder
+        '<div style="margin-top:10px;text-align:center;">' +
+          '<button data-terrain-save="' + r.id + '" ' +
+            'style="width:100%;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">' +
+            '💾 Sauvegarder l\'effectif réel' +
+          '</button>' +
+        '</div>' +
+        // Notes terrain
+        '<div style="margin-top:8px;">' +
+          '<textarea data-terrain-id="' + r.id + '" data-terrain-field="notes_terrain" ' +
+            'placeholder="Notes terrain (incidents, retard, remarques...)" ' +
+            'style="width:100%;padding:8px;border:1px solid #E8F5E9;border-radius:8px;font-size:11px;font-family:inherit;resize:vertical;min-height:50px;box-sizing:border-box;">' +
+            esc(r.notes_terrain || '') +
+          '</textarea>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div>' +
+      '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:12px;padding:12px 16px;margin-bottom:14px;">' +
+        '<div style="font-size:13px;font-weight:700;color:#1B5E20;">📍 Vue Terrain — ' + visites.length + ' visite(s) dans les 7 prochains jours</div>' +
+        '<div style="font-size:11px;color:#2E7D32;margin-top:3px;">Saisir l\'effectif réel · Le solde ajusté est calculé automatiquement (max -10% CGV)</div>' +
+      '</div>' +
+      rows +
+    '</div>';
   }
 
   // ─── VUE GÂTEAUX ─────────────────────────────────────────────────────────────
@@ -1271,6 +1424,52 @@ contact@abracadaparc.fr`;
           closeModal();
           render();
         });
+      });
+    });
+
+    // ── Terrain : sauvegarder effectif réel ──────────────────────────────────
+    el.querySelectorAll('[data-terrain-save]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-terrain-save');
+        var r  = state.reservations[id];
+        if (!r) return;
+        var enfInput = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="effectif_enfants_reel"]');
+        var accInput = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="effectif_adultes_reel"]');
+        var notesInput = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="notes_terrain"]');
+        var enfR  = enfInput  ? (parseInt(enfInput.value)  || 0) : 0;
+        var accR  = accInput  ? (parseInt(accInput.value)  || 0) : 0;
+        var notes = notesInput ? notesInput.value : '';
+        // Calcul solde ajuste (regle -10% max CGV)
+        var enf_p   = parseInt(r.effectif_enfants || 0);
+        var montant = parseFloat(r.montant_total || 0);
+        var acompte = parseFloat(r.acompte_paye || r.acompte || 0);
+        var solde   = montant - acompte;
+        if (enfR > 0 && enfR < enf_p) {
+          var diffPct   = (enf_p - enfR) / enf_p;
+          var reduction = Math.min(diffPct, 0.10);
+          var nvMontant = Math.round(montant * (1 - reduction) * 100) / 100;
+          solde = Math.max(0, nvMontant - acompte);
+        }
+        // Sauvegarder dans Firebase via fbSave
+        var updated = Object.assign({}, r, {
+          effectif_enfants_reel: enfR,
+          effectif_adultes_reel: accR,
+          effectif_total_reel:   enfR + accR,
+          solde_ajuste:          Math.round(solde * 100) / 100,
+          notes_terrain:         notes,
+          modified_at:           Date.now(),
+          modified_by:           state.currentUser || 'Equipe',
+        });
+        fbSave(id, updated);
+        state.reservations[id] = updated;
+        var btn2 = this;
+        btn2.textContent = '✅ Sauvegarde OK !';
+        btn2.style.background = '#388E3C';
+        setTimeout(function() {
+          btn2.textContent = "💾 Sauvegarder l'effectif reel";
+          btn2.style.background = '#2E7D32';
+          render();
+        }, 1500);
       });
     });
 
