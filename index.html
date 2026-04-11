@@ -215,14 +215,14 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
     Object.keys(state.reservations).forEach(function(key) {
       var r = state.reservations[key];
       if (!r || typeof r !== 'object' || !r.id || typeof r.id !== 'string') return;
-      if (!/^(CMD|DEV|GRP|NEW_)/.test(r.id)) return;
+      if (!/^(CMD|DEV|GRP|NEW_|D-)/.test(r.id)) return;
       if (key === r.id && !seen[r.id]) { seen[r.id] = true; result.push(r); }
     });
     // Passe 2 : fiches valides avec clé différente de leur id (temporaires)
     Object.keys(state.reservations).forEach(function(key) {
       var r = state.reservations[key];
       if (!r || typeof r !== 'object' || !r.id || typeof r.id !== 'string') return;
-      if (!/^(CMD|DEV|GRP|NEW_)/.test(r.id)) return;
+      if (!/^(CMD|DEV|GRP|NEW_|D-)/.test(r.id)) return;
       if (!seen[r.id]) { seen[r.id] = true; result.push(r); }
     });
     return result.sort(function(a, b) { return (a.date||'').localeCompare(b.date||''); });
@@ -231,7 +231,7 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   function filteredReservations() {
     return getReservations().filter(function(r) {
       if (state.segmentFilter !== 'tous' && r.segment !== state.segmentFilter) return false;
-      if (state.statutFilter !== 'tous' && r.statut !== state.statutFilter) return false;
+      if (state.statutFilter !== 'tous' && String(r.statut) !== String(state.statutFilter)) return false;
       return true;
     });
   }
@@ -639,7 +639,9 @@ contact@abracadaparc.fr`;
     getReservations().forEach(function(r) {
       if (!r.date) return;
       var isAnniv = r.segment === 'anniversaire' || (r.id && r.id.indexOf('CMD') === 0);
-      if (!isAnniv && (r.statut === '1' || r.statut === '2')) return;
+      var statutNum = parseInt(r.statut || '1');
+      // Afficher : anniversaires toujours + groupes S3+ (devis signé, confirmé, visite, facturé)
+      if (!isAnniv && statutNum < 3) return;
       if (!byDay[r.date]) byDay[r.date] = [];
       byDay[r.date].push(r);
     });
@@ -656,7 +658,10 @@ contact@abracadaparc.fr`;
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
     return (function(resa) {
-        var nom = esc(resa.prenom_enfant || resa.nom_contact || resa.organisation || '?');
+        var isAnnivR = resa.segment === 'anniversaire' || (resa.id && resa.id.indexOf('CMD') === 0);
+        var nom = esc(isAnnivR
+          ? (resa.prenom_enfant || resa.nom_contact || '?')
+          : (resa.organisation || resa.nom_contact || '?'));
         var heure = resa.heure_debut ? ' · ' + resa.heure_debut : '';
         return '<div data-cal-resa="' + resa.id + '" style="font-size:9px;background:' + seg.color + '22;color:' + seg.color + ';border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;">' + nom + heure + '</div>';
       })(r)
@@ -677,6 +682,12 @@ contact@abracadaparc.fr`;
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
   <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
+  <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;font-size:10px;">
+    ${[['anniversaire','🎂 Anniversaire'],['scolaire','🏫 Scolaire'],['alsh','🏕️ ALSH/CDL'],['groupe','👨‍👩‍👧 Groupe']].map(function(s){
+      var seg = getSegment(s[0]);
+      return '<span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:'+seg.color+';display:inline-block;"></span>'+s[1]+'</span>';
+    }).join('')}
+  </div>
 </div>`;
   }
 
