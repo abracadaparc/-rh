@@ -92,6 +92,14 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
     { id: 'entreprise',   label: '🏢 Entreprise / CE',    color: '#37474F' },
   ];
 
+const CAL_EVENT_TYPES = [
+  { id:"groupe", label:"Groupe prive", color:"#E65100", bg:"#FFF3E0" },
+  { id:"scolaire", label:"Scolaire ALSH", color:"#1565C0", bg:"#E3F2FD" },
+  { id:"association", label:"Association IME", color:"#00695C", bg:"#E0F2F1" },
+  { id:"privatisation", label:"Privatisation", color:"#6A1B9A", bg:"#F3E5F5" },
+  { id:"evenement", label:"Evenement", color:"#AD1457", bg:"#FCE4EC" },
+];
+
   const STATUTS = [
     { id: '1', label: '1 — Demande reçue',          color: '#9E9E9E', bg: '#F5F5F5' },
     { id: '2', label: '2 — Devis envoyé',            color: '#1565C0', bg: '#E3F2FD' },
@@ -4627,12 +4635,13 @@ function CPTab({team,shifts}) {
 // PLANNING ÉQUIPE (admin + readonly)
 // ═══════════════════════════════════════════════════════════
 
-function PlanningEquipeTab({team,shifts,setShifts,readonly}) {
+function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>{},readonly=false}) {
   const [monday,setMonday]=useState(getMondayLocal);
   const [viewMode,setViewMode]=useState("semaine");
   const [filterEmp,setFilterEmp]=useState("equipe");
   const [editing,setEditing]=useState(null);
   const [dupTarget,setDupTarget]=useState(null);
+  const [calEventModal,setCalEventModal]=useState(null);
 
   const safeMon=getMondayOf(monday); // toujours normaliser au lundi réel
   const week=Array.from({length:7},(_,i)=>addDaysLocal(safeMon,i));
@@ -4791,6 +4800,11 @@ function PlanningEquipeTab({team,shifts,setShifts,readonly}) {
             {week.map((d,i)=>{const tot=dayH(d);return <td key={i} style={{padding:"3px 4px",textAlign:"center"}}><span style={{fontSize:11,fontWeight:700,color:tot>0?"#2E7D32":"#E0E0E0"}}>{tot>0?`${tot.toFixed(1)}h`:"—"}</span></td>;})}
             <td colSpan={2}/>
           </tr></tfoot>
+          <tr style={{background:"#F0FAF4"}}>
+            <td style={{padding:"5px 8px",borderTop:"2px solid #C8E6C9"}}><div style={{fontSize:11,fontWeight:800,color:"#1B5E20"}}>Groupes du jour</div>{!readonly&&<div style={{fontSize:9,color:"#9E9E9E"}}>Cliquer pour ajouter</div>}</td>
+            {week.map(function(d,i){var ds=fmtLocal(d);var evts=Array.isArray(calEvents[ds])?calEvents[ds]:[];return(<td key={i} style={{padding:2,verticalAlign:"top",borderTop:"2px solid #C8E6C9"}}><div onClick={function(){if(!readonly)setCalEventModal({date:ds});}} style={{minHeight:36,borderRadius:6,padding:2,cursor:readonly?"default":"pointer",background:evts.length>0?"transparent":"#FAFAFA",border:"1px dashed "+(evts.length>0||readonly?"transparent":"#C8E6C9")}}>{evts.map(function(ev,ei){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={ei} style={{background:t.bg,border:"1px solid "+t.color+"55",borderRadius:4,padding:"2px 4px",marginBottom:2}}><div style={{fontSize:9,fontWeight:700,color:t.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:78}}>{ev.titre}</div></div>);})}{evts.length===0&&!readonly&&<span style={{fontSize:12,color:"#CCCCCC",display:"block",textAlign:"center"}}>+</span>}</div></td>);})}
+            <td colSpan={2} style={{borderTop:"2px solid #C8E6C9"}}/>
+          </tr>
         </table>
       </div>
     </div>
@@ -4845,6 +4859,8 @@ function PlanningEquipeTab({team,shifts,setShifts,readonly}) {
       )}
 
       {editing&&(()=>{const emp=team.find(e=>e.id===editing.empId);const sh=getShift(editing.empId,editing.date);return <ShiftModal emp={emp} date={editing.date} shift={sh} onSave={data=>{putShift(editing.empId,editing.date,data);setEditing(null);}} onClose={()=>setEditing(null)}/>;})()}
+
+      {calEventModal&&!readonly&&(function(){var ds=calEventModal.date;var evts=Array.isArray(calEvents[ds])?calEvents[ds]:[];return <CalEventModal date={ds} events={evts} onSave={function(u){var n=Object.assign({},calEvents);if(u.length===0){delete n[ds];}else{n[ds]=u;}setCalEvents(n);setCalEventModal(null);}} onClose={function(){setCalEventModal(null);}} />;})()}
     </div>
   );
 }
@@ -5384,9 +5400,10 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
 // ADMIN MONTH VIEW (like employee view but for all team)
 // ═══════════════════════════════════════════════════════════
 
-function AdminMonthView({team, shifts, setShifts}) {
+function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=>{}}) {
   const [monday, setMonday] = useState(getMondayLocal);
   const [selEmp, setSelEmp] = useState(null);
+  const [calModal, setCalModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const m = monday.getMonth(), y = monday.getFullYear();
   const firstMon = getMondayOf(new Date(y,m,1,12));
@@ -5507,6 +5524,20 @@ function AdminMonthView({team, shifts, setShifts}) {
 // ═══════════════════════════════════════════════════════════
 // VALIDATION PAIE — comparaison prévu vs réel
 // ═══════════════════════════════════════════════════════════
+
+// CalEventModal
+function CalEventModal({date,events,onSave,onClose}){
+  var ms=React.useState("list"),mode=ms[0],setMode=ms[1];
+  var ei=React.useState(null),editIdx=ei[0],setEditIdx=ei[1];
+  var ff=React.useState({titre:"",type:"scolaire",heure_debut:"",heure_fin:"",effectif:"",notes:""}),form=ff[0],setForm=ff[1];
+  var fld=function(k){return function(e){setForm(function(p){var n=Object.assign({},p);n[k]=e.target.value;return n;});};};
+  var openNew=function(){setForm({titre:"",type:"scolaire",heure_debut:"",heure_fin:"",effectif:"",notes:""});setEditIdx(null);setMode("edit");};
+  var openEdit=function(i){setForm(Object.assign({},events[i]));setEditIdx(i);setMode("edit");};
+  var saveEdit=function(){if(!form.titre.trim())return;var id=(editIdx!==null&&events[editIdx]&&events[editIdx].id)?events[editIdx].id:Date.now().toString(36)+Math.random().toString(36).slice(2,5);var u=events.slice();if(editIdx!==null){u[editIdx]=Object.assign({},form,{id:id});}else{u.push(Object.assign({},form,{id:id}));}onSave(u);setMode("list");};
+  var delItem=function(i){if(window.confirm("Supprimer ?"))onSave(events.filter(function(_,idx){return idx!==i;}));};
+  var d2=new Date(date+"T12:00"),ds2=d2.toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long"});
+  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:16,padding:"20px 24px",width:"100%",maxWidth:460,boxShadow:"0 20px 60px rgba(0,0,0,0.25)",maxHeight:"85vh",overflowY:"auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontSize:14,fontWeight:800,color:"#1B5E20"}}>Reservations {ds2}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#9E9E9E"}}>x</button></div>{mode==="list"?(<div>{events.length===0&&<div style={{textAlign:"center",padding:20,color:"#9E9E9E"}}>Aucune reservation</div>}{events.map(function(ev,i){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={i} style={{display:"flex",gap:10,padding:"10px 12px",borderRadius:10,marginBottom:8,background:t.bg,border:"1.5px solid "+t.color+"44"}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:t.color}}>{ev.titre}</div><div style={{fontSize:11,color:"#757575"}}>{t.label}{ev.heure_debut?" - "+ev.heure_debut:""}{ev.effectif?" - "+ev.effectif+" pers.":""}</div></div><div><button onClick={function(){openEdit(i);}} style={{padding:"3px 8px",background:"rgba(0,0,0,0.08)",color:"#424242",fontSize:11,border:"none",borderRadius:4,cursor:"pointer",marginRight:4}}>edit</button><button onClick={function(){delItem(i);}} style={{padding:"3px 8px",background:"#FFEBEE",color:"#C62828",fontSize:11,border:"none",borderRadius:4,cursor:"pointer"}}>del</button></div></div>);})}<button onClick={openNew} style={{width:"100%",padding:10,fontSize:13,background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:8}}>+ Ajouter</button></div>):(<div style={{display:"flex",flexDirection:"column",gap:12}}><input value={form.titre} onChange={fld("titre")} placeholder="Titre *" style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}} autoFocus/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}><input type="time" value={form.heure_debut} onChange={fld("heure_debut")} style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><input type="time" value={form.heure_fin} onChange={fld("heure_fin")} style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><input type="number" value={form.effectif} onChange={fld("effectif")} placeholder="Effectif" style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/></div><input value={form.notes} onChange={fld("notes")} placeholder="Notes" style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><div style={{display:"flex",gap:8}}><button onClick={saveEdit} style={{flex:1,padding:10,fontSize:13,background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}}>Enregistrer</button><button onClick={function(){setMode("list");}} style={{padding:"10px 16px",fontSize:13,background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:8,cursor:"pointer"}}>Annuler</button></div></div>)}</div></div>);
+}
 
 function ValidationRow({r, i, valider, corriger}) {
   const [editDeb, setEditDeb] = useState(r.actual_deb||r.planned_deb);
@@ -5832,6 +5863,7 @@ function App() {
   const [shifts,    setShifts,    sReady] = useStorage("abr26_shifts_v4", {});
 
   const [alertes,    setAlertes,    aReady] = useStorage("abr26_notes_v1", ALERTES_INIT);
+  const [calEvents,  setCalEvents,  cReady] = useStorage("abr26_cal_events",  {});
   const [tab,          setTab]          = useState("equipe_planning");
   const [empTab,       setEmpTab]       = useState("mon_planning");
   const [authMode,     setAuthMode]     = useState(()=>sessionStorage.getItem("abr_auth")||"login");
@@ -5868,7 +5900,7 @@ function App() {
   const loginEmployee = id=>{sessionStorage.setItem("abr_auth","employee");sessionStorage.setItem("abr_emp",id);setAuthMode("employee");setCurrentEmpId(id);};
   const logout        = ()=>{sessionStorage.clear();setAuthMode("login");setCurrentEmpId(null);};
 
-  if(!tReady||!dReady||!sReady||!aReady) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:"#2E7D32",fontSize:15}}>Chargement AbracadaParc 2026…</div>;
+  if(!tReady||!dReady||!sReady||!aReady||!cReady) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:"#2E7D32",fontSize:15}}>Chargement AbracadaParc 2026…</div>;
 
   // ── VUE SALARIÉ ──
   if(authMode==="employee") {
@@ -5895,7 +5927,7 @@ function App() {
           {empTab==="mon_planning"&&<MonPlanningTab emp={emp} shifts={shifts} setShifts={setShifts}/>}
           {empTab==="pointage"   &&<PointageTab emp={emp} shifts={shifts} setShifts={setShifts}/>}
           {empTab==="mes_resas"  &&<ReservationsTabEmp empId={emp.id} empNom={emp.prenom||emp.nom}/>}
-          {empTab==="equipe"     &&<PlanningEquipeTab team={team} shifts={shifts} setShifts={()=>{}} readonly={true}/>}
+          {empTab==="equipe"     &&<PlanningEquipeTab team={team} shifts={shifts} setShifts={()=>{}} calEvents={calEvents} setCalEvents={()=>{}} readonly={true}/>}
         </div>
       </div>
     );
@@ -5956,8 +5988,8 @@ function App() {
         ))}
       </div>
       <div style={{padding:"16px",maxWidth:1150,margin:"0 auto"}}>
-        {tab==="equipe_planning"&&<PlanningEquipeTab team={team} shifts={shifts} setShifts={setShifts}/>}
-        {tab==="mois_admin"    &&<AdminMonthView team={team} shifts={shifts} setShifts={setShifts}/>}
+        {tab==="equipe_planning"&&<PlanningEquipeTab team={team} shifts={shifts} setShifts={setShifts} calEvents={calEvents} setCalEvents={setCalEvents}/>}
+        {tab==="mois_admin"    &&<AdminMonthView team={team} shifts={shifts} setShifts={setShifts} calEvents={calEvents} setCalEvents={setCalEvents}/>}
         {tab==="cp"            &&<CPTab team={team} shifts={shifts}/>}
         {tab==="validation"   &&<ValidationPaieTab team={team} shifts={shifts} setShifts={setShifts}/>}
         {tab==="notes"        &&<NotesAlertes alertes={alertes} setAlertes={setAlertes}/>}
