@@ -3678,6 +3678,35 @@ function addDaysLocal(d, n) {
   return result;
 }
 function fmtLocal(d) {
+
+function autoFeedGroupes(reservations,calEvents){
+  var result=Object.assign({},calEvents);
+  Object.values(reservations||{}).forEach(function(r){
+    if(!r||!r.date_anniversaire)return;
+    var statut=parseInt(r.statut_id||r.statut||0);
+    var isGroupe=r.formule&&(r.formule.toLowerCase().indexOf('group')>=0
+      ||r.formule.toLowerCase().indexOf('scolaire')>=0
+      ||r.formule.toLowerCase().indexOf('journ')>=0
+      ||r.formule.toLowerCase().indexOf('matin')>=0
+      ||r.formule.toLowerCase().indexOf('apr')>=0);
+    if(statut>=4&&isGroupe){
+      var ds=r.date_anniversaire;
+      if(!result[ds])result[ds]=[];
+      var deja=result[ds].some(function(e){return e.id===r.id;});
+      if(!deja)result[ds].push({
+        id:r.id||ds,
+        titre:r.nom_enfant||r.structure||'Groupe',
+        type:r.formule&&r.formule.toLowerCase().indexOf('scolaire')>=0?'scolaire':'groupe',
+        heure_debut:r.heure_debut||'10:00',
+        heure_fin:r.heure_fin||'17:00',
+        effectif:(parseInt(r.nb_enfants||0)+parseInt(r.nb_adultes||0))||'',
+        auto:true
+      });
+    }
+  });
+  return result;
+}
+
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${dd}`;
 }
@@ -4643,6 +4672,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
   const [dupTarget,setDupTarget]=useState(null);
   const [calEventModal,setCalEventModal]=useState(null);
 
+  var calEventsAuto=autoFeedGroupes(typeof reservations!=="undefined"?reservations:{},calEvents||{});
   const safeMon=getMondayOf(monday); // toujours normaliser au lundi réel
   const week=Array.from({length:7},(_,i)=>addDaysLocal(safeMon,i));
   const todayStr=fmtLocal(new Date());
@@ -4802,7 +4832,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
           </tr></tfoot>
           <tr style={{background:"#F0FAF4"}}>
             <td style={{padding:"5px 8px",borderTop:"2px solid #C8E6C9"}}><div style={{fontSize:11,fontWeight:800,color:"#1B5E20"}}>Groupes du jour</div>{!readonly&&<div style={{fontSize:9,color:"#9E9E9E"}}>Cliquer pour ajouter</div>}</td>
-            {week.map(function(d,i){var ds=fmtLocal(d);var evts=Array.isArray(calEvents[ds])?calEvents[ds]:[];return(<td key={i} style={{padding:2,verticalAlign:"top",borderTop:"2px solid #C8E6C9"}}><div onClick={function(){if(!readonly)setCalEventModal({date:ds});}} style={{minHeight:36,borderRadius:6,padding:2,cursor:readonly?"default":"pointer",background:evts.length>0?"transparent":"#FAFAFA",border:"1px dashed "+(evts.length>0||readonly?"transparent":"#C8E6C9")}}>{evts.map(function(ev,ei){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={ei} style={{background:t.bg,border:"1px solid "+t.color+"55",borderRadius:4,padding:"2px 4px",marginBottom:2}}><div style={{fontSize:9,fontWeight:700,color:t.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:78}}>{ev.titre}</div></div>);})}{evts.length===0&&!readonly&&<span style={{fontSize:12,color:"#CCCCCC",display:"block",textAlign:"center"}}>+</span>}</div></td>);})}
+            {week.map(function(d,i){var ds=fmtLocal(d);var evts=Array.isArray(calEventsAuto[ds])?calEventsAuto[ds]:[];return(<td key={i} style={{padding:2,verticalAlign:"top",borderTop:"2px solid #C8E6C9"}}><div onClick={function(){if(!readonly)setCalEventModal({date:ds});}} style={{minHeight:36,borderRadius:6,padding:2,cursor:readonly?"default":"pointer",background:evts.length>0?"transparent":"#FAFAFA",border:"1px dashed "+(evts.length>0||readonly?"transparent":"#C8E6C9")}}>{evts.map(function(ev,ei){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={ei} style={{background:t.bg,border:"1px solid "+t.color+"55",borderRadius:4,padding:"2px 4px",marginBottom:2}}><div style={{fontSize:9,fontWeight:700,color:t.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:78}}>{ev.titre}</div></div>);})}{evts.length===0&&!readonly&&<span style={{fontSize:12,color:"#CCCCCC",display:"block",textAlign:"center"}}>+</span>}</div></td>);})}
             <td colSpan={2} style={{borderTop:"2px solid #C8E6C9"}}/>
           </tr>
         </table>
