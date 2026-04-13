@@ -1794,7 +1794,7 @@ const TEAM_INIT = [
   {
     id:"t2", nom:"AYTHANN", prenom:"", color:"#00695C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.02,
     disponibilite:"Avr–Mai : WE seulement · Juin–Juil : complet · Août : S1–S2 · Sept–Nov : WE (à confirmer)",
     ecole_periodes:[],
     poste:"Polyvalent", actif:true, note:"Confirmer dispos sept+ 3 sem. à l'avance.",
@@ -1804,7 +1804,7 @@ const TEAM_INIT = [
   {
     id:"t3", nom:"ALYSSA", prenom:"", color:"#6A1B9A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-06-21", heures_mois:80, taux:12.50,
+    debut:"2026-04-01", fin:"2026-06-21", heures_mois:80, taux:12.02,
     disponibilite:"MER + WE seulement. Sam : départ à 16h30. 3 avril : dispo à partir de 14h. Jours fériés : à confirmer 3 sem. avant.",
     ecole_periodes:[],
     poste:"Polyvalente", actif:true, note:"Contrat court. Poser les CP avant le 21/06.",
@@ -1814,7 +1814,7 @@ const TEAM_INIT = [
   {
     id:"t4", nom:"JORIS", prenom:"", color:"#BF360C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
     disponibilite:"POEI en attente de confirmation. Si validé : formation 1–19 avril, CDD à partir du 20 avril. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:[],
     poste:"Polyvalent + Développement commercial", actif:true, note:"⏳ POEI en attente retour Joris. Si refus : CDD au 1er avril — à relancer rapidement. Mentionner tâches commerciales dans le contrat.",
@@ -1825,7 +1825,7 @@ const TEAM_INIT = [
   {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
     disponibilite:"POEI validé ✅ — Formation France Travail du 1er au 19 avril inclus. Disponible à partir du 20 avril. Toute la saison. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:["1–19 avril (POEI — hors entreprise)"],
     poste:"Polyvalente Journée", actif:true, note:"✅ POEI confirmé. CDD à signer avant le 1er avril avec date de démarrage au 20/04. Pas de bulletin AbracadaParc pendant la formation.",
@@ -1859,7 +1859,7 @@ const TEAM_INIT = [
   {
     id:"t6", nom:"NOUVEAU C", prenom:"", color:"#546E7A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.50,
+    debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.02,
     disponibilite:"Toute la saison. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:[],
     poste:"Polyvalent Fermeture", actif:true, note:"Nom à compléter après recrutement final.",
@@ -1894,7 +1894,7 @@ function getSlotKey(ds, dayType, isWeekend) {
   return "we";
 }
 
-function calcDayCost(level, slotKey, taux=12.50) {
+function calcDayCost(level, slotKey, taux=12.02) {
   if (!level || !slotKey) return 0;
   const slots = LEVELS[level][slotKey] || [];
   return slots.reduce((s,p) => s + p.h, 0) * taux * CHARGES_PAT;
@@ -1934,7 +1934,18 @@ function useStorage(key, init) {
     fbRef.on("value", snap => {
       if (snap.val() !== null) {
         try {
-          const remote = typeof snap.val() === "string" ? JSON.parse(snap.val()) : snap.val();
+          let remote = typeof snap.val() === "string" ? JSON.parse(snap.val()) : snap.val();
+          // Firebase retourne un objet {0:{...},1:{...}} pour les tableaux — convertir en tableau
+          if (key === "abr26_team_v2" && remote !== null && typeof remote === "object" && !Array.isArray(remote)) {
+            remote = Object.values(remote).filter(Boolean).map(e => ({
+              ...e,
+              taux: parseFloat(e.taux) || 12.02,
+              heures_mois: parseFloat(e.heures_mois) || 104,
+              cp_ajustement: parseFloat(e.cp_ajustement) || 0,
+              ecole_periodes: Array.isArray(e.ecole_periodes) ? e.ecole_periodes : [],
+              actif: e.actif !== false,
+            }));
+          }
           ref.current = remote;
           setVal(remote);
           localStorage.setItem(key, JSON.stringify(remote));
@@ -2388,7 +2399,7 @@ function CalendrierTab({ dayLevels, setDayLevels }) {
 function EquipeTab({ team, setTeam }) {
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
+  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.02, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
   const [form, setForm] = useState(blank);
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -2454,7 +2465,7 @@ function EquipeTab({ team, setTeam }) {
                   )}
                 </div>
                 <div style={{ textAlign:"right", flexShrink:0, fontSize:11 }}>
-                  <div style={{ fontWeight:800, color:"#2E7D32", fontSize:14 }}>{emp.taux.toFixed(2)} €/h</div>
+                  <div style={{ fontWeight:800, color:"#2E7D32", fontSize:14 }}>{(parseFloat(emp.taux)||12.02).toFixed(2)} €/h</div>
                   <div style={{ color:"#9E9E9E" }}>{emp.heures_mois}h/mois</div>
                   <div style={{ color:"#616161", marginTop:3, fontWeight:600 }}>{Math.round(monthlyBrut)} € brut</div>
                   <div style={{ color:"#9E9E9E" }}>{emp.type==='apprenti' ? '~0 € (exo. apprentissage)' : `≈ ${Math.round(monthlyCharge)} € chargé`}</div>
@@ -2603,7 +2614,7 @@ function ContratsTab({ team }) {
     const today = new Date().toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" });
     const nf = emp.prenom ? `${emp.nom.toUpperCase()} ${emp.prenom}` : emp.nom.toUpperCase();
     const brut = Math.round(h * emp.taux * (is1Mai ? 2 : 1) * 100) / 100;
-    const mention1Mai = is1Mai ? `\n  → 1er mai : majoration 100% appliquée (taux ×2 = ${(emp.taux*2).toFixed(2)} €/h)\n` : "";
+    const mention1Mai = is1Mai ? `\n  → 1er mai : majoration 100% appliquée (taux ×2 = ${((parseFloat(emp.taux)||12.02)*2).toFixed(2)} €/h)\n` : "";
     setPreview(
 `CONTRAT D'EXTRA À DURÉE DÉTERMINÉE
 Convention collective IDCC 1790 — Espaces de loisirs
@@ -2649,7 +2660,7 @@ ARTICLE 3 – DURÉE DE LA VACATION
   ${mention1Mai}
 ARTICLE 6 – RÉMUNÉRATION
 
-  Taux horaire brut : ${emp.taux.toFixed(2)} €${is1Mai ? ` × 2 = ${(emp.taux*2).toFixed(2)} €` : ""}
+  Taux horaire brut : ${(parseFloat(emp.taux)||12.02).toFixed(2)} €${is1Mai ? ` × 2 = ${((parseFloat(emp.taux)||12.02)*2).toFixed(2)} €` : ""}
   Montant brut vacation : ${brut.toFixed(2)} €
 
 ARTICLE 8 – CONGÉS PAYÉS
@@ -2993,7 +3004,7 @@ function RecapECTab({ team, shifts }) {
       lines.push(`     Type de contrat  : ${emp.contrat}`);
       lines.push(`     Poste            : ${emp.poste}`);
       lines.push(`     Période          : ${emp.debut} → ${emp.fin}`);
-      lines.push(`     Taux horaire     : ${emp.taux.toFixed(2)} €/h brut`);
+      lines.push(`     Taux horaire     : ${(parseFloat(emp.taux)||12.02).toFixed(2)} €/h brut`);
       lines.push(`     Volume contractuel : ${emp.heures_mois}h/mois`);
       if (emp.disponibilite) lines.push(`     Disponibilité    : ${emp.disponibilite}`);
       if (emp.ecole_periodes?.length) lines.push(`     Périodes école   : ${emp.ecole_periodes.join(", ")}`);
@@ -3243,7 +3254,7 @@ ARTICLE 3 – DURÉE
 
 ARTICLE 6 – RÉMUNÉRATION
 
-  Taux horaire brut : ${emp.taux.toFixed(2)} €${is1Mai ? ` × 2 = ${(emp.taux*2).toFixed(2)} €` : ""}
+  Taux horaire brut : ${(parseFloat(emp.taux)||12.02).toFixed(2)} €${is1Mai ? ` × 2 = ${((parseFloat(emp.taux)||12.02)*2).toFixed(2)} €` : ""}
   Montant brut vacation : ${brut.toFixed(2)} €
   Indemnité CP (10%) : ${(brut*0.1).toFixed(2)} €
   Total brut : ${(brut*1.1).toFixed(2)} €
@@ -3267,7 +3278,7 @@ ___________________________    ___________________________`
     const prenomSal = cddPrenom.trim() || (emp ? emp.prenom : "[PRÉNOM]");
     const nf = `${nomSal.toUpperCase()} ${prenomSal}`;
     const poste = emp?.poste || "[POSTE]";
-    const taux = emp?.taux || 12.50;
+    const taux = emp?.taux || 12.02;
     const hMois = cddHeures || emp?.heures_mois || "[HEURES]";
     const debutD = cddDebut ? new Date(cddDebut+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : emp?.debut ? new Date(emp.debut+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "[DATE DÉBUT]";
     const finD   = cddFin   ? new Date(cddFin+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : emp?.fin   ? new Date(emp.fin+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "[DATE FIN]";
@@ -4122,7 +4133,7 @@ function exportFichesRH(team) {
       <td>${emp.debut ? new Date(emp.debut+"T12:00").toLocaleDateString("fr-FR") : "—"}</td>
       <td>${emp.fin   ? new Date(emp.fin  +"T12:00").toLocaleDateString("fr-FR") : "—"}</td>
       <td>${emp.heures_mois}h/mois</td>
-      <td>${emp.taux.toFixed(2)} €/h</td>
+      <td>${(parseFloat(emp.taux)||12.02).toFixed(2)} €/h</td>
       <td>${emp.ss || "<span style='color:#C62828'>MANQUANT</span>"}</td>
       <td>${ddn}</td>
       <td>${emp.lieu_naissance||"—"}</td>
@@ -4373,7 +4384,7 @@ function exportPaie(team, shifts, year, month) {
       <td>${emp.ss||"<span style='color:red'>MANQUANT</span>"}</td>
       <td>${ddn}</td>
       <td>${emp.contrat}</td>
-      <td style="text-align:center">${emp.taux.toFixed(2)} €</td>
+      <td style="text-align:center">${(parseFloat(emp.taux)||12.02).toFixed(2)} €</td>
       <td style="text-align:center">${emp.heures_mois}h</td>
       <td style="text-align:center;font-weight:bold;color:#1B5E20">${travailH.toFixed(2)}h</td>
       <td style="text-align:center">${travailJ}j</td>
@@ -5971,7 +5982,7 @@ function App() {
                   </span>
                 )}
               </div>
-              <p style={{margin:0,fontSize:10,color:"#A5D6A7"}}>IDCC 1790 · SMIC 12,50€/h · Myron 929,75€/mois · {daysToOpen>0?`Ouverture dans ${daysToOpen}j`:"Saison en cours"}</p>
+              <p style={{margin:0,fontSize:10,color:"#A5D6A7"}}>IDCC 1790 · SMIC 12,02€/h · Myron 929,75€/mois · {daysToOpen>0?`Ouverture dans ${daysToOpen}j`:"Saison en cours"}</p>
             </div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
