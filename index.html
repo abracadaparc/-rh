@@ -1700,62 +1700,54 @@ contact@abracadaparc.fr`;
     // Charger les groupes depuis abr26_groupes (indexés par N° devis)
     listen('abr26_groupes', function(data) {
       if (!data || typeof data !== 'object') return;
-      var groupesNorm = {};
+      var gNorm = {};
       Object.keys(data).forEach(function(key) {
         var g = data[key];
         if (!g || typeof g !== 'object') return;
-        // Statut : VALIDÉ→5, FACTURÉ→6, sinon 2
-        var statutTxt = (g.statut || '').toString().toUpperCase();
-        var statutNum = 2;
-        if (statutTxt === 'VALIDÉ' || statutTxt === 'VALIDE') statutNum = 5;
-        else if (statutTxt === 'FACTURÉ' || statutTxt === 'FACTURE') statutNum = 6;
-        else if (/^\d+$/.test(statutTxt)) statutNum = parseInt(statutTxt);
-        // Heure depuis creneau ex: '10h - 17h00' → '10:00'
-        var heure = '10:00';
-        if (g.creneau) {
-          var cr = g.creneau.toString().split(' - ')[0].trim();
-          var parts = cr.replace('h','|').split('|');
-          var hh = parts[0] || '10';
-          var mm = (parts[1] && parts[1].length > 0) ? parts[1].padEnd(2,'0').slice(0,2) : '00';
-          heure = hh + ':' + mm;
+        // Statut : lire le champ decision ou statut
+        var dec = (g.decision||g.statut||g.etapeDossier||'').toString().toUpperCase().trim();
+        var st = 2;
+        if(dec==='VALIDÉ'||dec==='VALIDE'||dec.indexOf('VALID')>=0) st=5;
+        else if(dec==='FACTURÉ'||dec==='FACTURE'||dec.indexOf('FACTUR')>=0) st=6;
+        else if(dec==='CONFIRMÉ'||dec==='CONFIRME') st=4;
+        else if(/^[1-6]$/.test(dec)) st=parseInt(dec);
+        // Créneau → heure_debut ex '10h - 17h00' ou '10:00'
+        var heure='10:00';
+        if(g.creneau){
+          var cr=g.creneau.toString().split('-')[0].trim().split(' ')[0].trim();
+          if(cr.indexOf('h')>=0){var p=cr.split('h');heure=p[0]+':'+(p[1]&&p[1].length?p[1].padEnd(2,'0').slice(0,2):'00');}
+          else if(cr.indexOf(':')>=0){heure=cr;}
+          else{heure=cr+':00';}
         }
-        // Date valide uniquement
-        var dateVal = '';
-        if (g.date && typeof g.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g.date)) dateVal = g.date;
+        // Date
+        var dv='';
+        if(g.date&&typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)) dv=g.date;
         // Montants
-        var total = parseFloat(g.total || g.montant || g.totalTTC || 0);
-        var acompte = parseFloat(g.acompte || g.acompte_verse || 0);
-        var solde = parseFloat(g.solde || g.solde_restant || (total - acompte) || 0);
-        groupesNorm[key] = {
-          id: key,
-          segment: g.segment || 'alsh',
-          statut: String(statutNum),
-          nom: g.client || g.nom || key,
-          nom_contact: g.client || g.nom || key,
-          organisation: g.client || g.nom || key,
-          prenom_enfant: '',
-          date: dateVal,
-          heure_debut: heure,
-          nb_enfants: parseInt(g.enfants) || 0,
-          nb_adultes: parseInt(g.accompagnants) || 0,
-          total: total,
-          montant_total: total,
-          acompte_verse: acompte,
-          solde_restant: solde,
-          notes: g.note || g.notes || '',
-          devis: key,
-          source: 'abr26_groupes'
+        var tot=parseFloat(g.total||g.montant||g.totalTTC||0);
+        var ac=parseFloat(g.acompte||g.acompte_verse||0);
+        var sol=parseFloat(g.solde||g.solde_restant||(tot-ac)||0);
+        gNorm[key]={
+          id:key, segment:g.segment||'alsh', statut:String(st),
+          nom:g.client||g.nom||key,
+          nom_contact:g.client||g.nom||key,
+          organisation:g.client||g.nom||key,
+          prenom_enfant:'', date:dv, heure_debut:heure,
+          nb_enfants:parseInt(g.enfants)||0,
+          nb_adultes:parseInt(g.accompagnants)||0,
+          total:tot, montant_total:tot,
+          acompte_verse:ac, solde_restant:sol,
+          notes:g.note||g.notes||'',
+          devis:key, source:'abr26_groupes'
         };
       });
-      state._groupes = groupesNorm;
-      // Récupérer les anniversaires depuis Firebase (pas localStorage)
-      var anniv = {};
-      Object.keys(state.reservations || {}).forEach(function(k) {
-        var rv = state.reservations[k];
-        if (rv && rv.source !== 'abr26_groupes') anniv[k] = rv;
+      state._groupes=gNorm;
+      var anniv={};
+      Object.keys(state.reservations||{}).forEach(function(k){
+        var rv=state.reservations[k];
+        if(rv&&rv.source!=='abr26_groupes') anniv[k]=rv;
       });
-      state.reservations = Object.assign({}, anniv, groupesNorm);
-      try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch(e) {}
+      state.reservations=Object.assign({},anniv,gNorm);
+      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
       render();
     });
     listen('memos', data => {
