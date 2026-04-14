@@ -1704,41 +1704,51 @@ contact@abracadaparc.fr`;
       Object.keys(data).forEach(function(key) {
         var g = data[key];
         if (!g || typeof g !== 'object') return;
-        var statutTxt = (g.statut || '').toString();
+        // Statut : VALIDÉ→5, FACTURÉ→6, sinon 2
+        var statutTxt = (g.statut || '').toString().toUpperCase();
         var statutNum = 2;
-        if (statutTxt === 'VALIDÉ' || statutTxt.indexOf('Visite') >= 0) statutNum = 5;
-        else if (statutTxt === 'FACTURÉ') statutNum = 6;
-        else if (parseInt(statutTxt) >= 1) statutNum = parseInt(statutTxt);
+        if (statutTxt === 'VALIDÉ' || statutTxt === 'VALIDE') statutNum = 5;
+        else if (statutTxt === 'FACTURÉ' || statutTxt === 'FACTURE') statutNum = 6;
+        else if (/^\d+$/.test(statutTxt)) statutNum = parseInt(statutTxt);
+        // Heure depuis creneau ex: '10h - 17h00' → '10:00'
         var heure = '10:00';
         if (g.creneau) {
           var cr = g.creneau.toString().split(' - ')[0].trim();
-          cr = cr.replace('h',':').replace(/:(\d)$/, ':0$1');
-          if (cr.indexOf(':') < 0) cr = cr + ':00';
-          heure = cr;
+          var parts = cr.replace('h','|').split('|');
+          var hh = parts[0] || '10';
+          var mm = (parts[1] && parts[1].length > 0) ? parts[1].padEnd(2,'0').slice(0,2) : '00';
+          heure = hh + ':' + mm;
         }
+        // Date valide uniquement
         var dateVal = '';
         if (g.date && typeof g.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g.date)) dateVal = g.date;
+        // Montants
+        var total = parseFloat(g.total || g.montant || g.totalTTC || 0);
+        var acompte = parseFloat(g.acompte || g.acompte_verse || 0);
+        var solde = parseFloat(g.solde || g.solde_restant || (total - acompte) || 0);
         groupesNorm[key] = {
           id: key,
           segment: g.segment || 'alsh',
-          statut: statutNum.toString(),
+          statut: String(statutNum),
           nom: g.client || g.nom || key,
           nom_contact: g.client || g.nom || key,
           organisation: g.client || g.nom || key,
+          prenom_enfant: '',
           date: dateVal,
           heure_debut: heure,
           nb_enfants: parseInt(g.enfants) || 0,
           nb_adultes: parseInt(g.accompagnants) || 0,
-          total: parseFloat(g.total || g.montant) || 0,
-          acompte_verse: parseFloat(g.acompte) || 0,
-          solde_restant: parseFloat(g.solde) || 0,
+          total: total,
+          montant_total: total,
+          acompte_verse: acompte,
+          solde_restant: solde,
           notes: g.note || g.notes || '',
           devis: key,
           source: 'abr26_groupes'
         };
       });
       state._groupes = groupesNorm;
-      // Préserver les anniversaires, ajouter les groupes
+      // Récupérer les anniversaires depuis Firebase (pas localStorage)
       var anniv = {};
       Object.keys(state.reservations || {}).forEach(function(k) {
         var rv = state.reservations[k];
