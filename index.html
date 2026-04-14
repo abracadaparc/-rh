@@ -1697,43 +1697,57 @@ contact@abracadaparc.fr`;
       }
     });
 
-    // Charger les groupes/devis depuis abr26_groupes (indexés par N° devis)
-    listen('abr26_groupes', function(data) {
-      if (data && typeof data === 'object') {
-        // Normaliser les groupes pour qu'ils soient compatibles avec state.reservations
-        var groupesNorm = {};
-        Object.keys(data).forEach(function(key) {
-          var g = data[key];
-          if (!g) return;
-          // S'assurer que chaque groupe a un id et un segment compatible
-          groupesNorm[key] = Object.assign({
-            id: key,
-            segment: g.segment || 'alsh',
-            statut: g.statut === 'VALIDÉ' ? 5 : (g.statut === 'FACTURÉ' ? 6 : 1),
-            nom: g.client || g.nom || key,
-            date: g.date || '',
-            heure_debut: g.creneau ? g.creneau.split(' - ')[0] : '10:00',
-            nb_enfants: g.enfants || 0,
-            nb_adultes: g.accompagnants || 0,
-            total: g.total || g.montant || 0,
-            acompte_verse: g.acompte || 0,
-            solde_restant: g.solde || g.total || 0,
-            notes: g.note || '',
-            source: 'abr26_groupes'
-          }, g);
-        });
-        state._groupes = groupesNorm;
-        // Fusionner groupes + anniversaires
-        var anniversaires = {};
-        Object.keys(state.reservations || {}).forEach(function(k) {
-          var r = state.reservations[k];
-          if (r && r.source !== 'abr26_groupes') anniversaires[k] = r;
-        });
-        state.reservations = Object.assign({}, groupesNorm, anniversaires);
-        try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch(e) {}
-        render();
-      }
-    });
+    // Charger les groupes depuis abr26_groupes (indexés par N° devis)
+    listen('abr26_groupes', function(data) {
+      if (!data || typeof data !== 'object') return;
+      var groupesNorm = {};
+      Object.keys(data).forEach(function(key) {
+        var g = data[key];
+        if (!g || typeof g !== 'object') return;
+        var statutTxt = (g.statut || '').toString();
+        var statutNum = 2;
+        if (statutTxt === 'VALIDÉ' || statutTxt.indexOf('Visite') >= 0) statutNum = 5;
+        else if (statutTxt === 'FACTURÉ') statutNum = 6;
+        else if (parseInt(statutTxt) >= 1) statutNum = parseInt(statutTxt);
+        var heure = '10:00';
+        if (g.creneau) {
+          var cr = g.creneau.toString().split(' - ')[0].trim();
+          cr = cr.replace('h',':').replace(/:(\d)$/, ':0$1');
+          if (cr.indexOf(':') < 0) cr = cr + ':00';
+          heure = cr;
+        }
+        var dateVal = '';
+        if (g.date && typeof g.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g.date)) dateVal = g.date;
+        groupesNorm[key] = {
+          id: key,
+          segment: g.segment || 'alsh',
+          statut: statutNum.toString(),
+          nom: g.client || g.nom || key,
+          nom_contact: g.client || g.nom || key,
+          organisation: g.client || g.nom || key,
+          date: dateVal,
+          heure_debut: heure,
+          nb_enfants: parseInt(g.enfants) || 0,
+          nb_adultes: parseInt(g.accompagnants) || 0,
+          total: parseFloat(g.total || g.montant) || 0,
+          acompte_verse: parseFloat(g.acompte) || 0,
+          solde_restant: parseFloat(g.solde) || 0,
+          notes: g.note || g.notes || '',
+          devis: key,
+          source: 'abr26_groupes'
+        };
+      });
+      state._groupes = groupesNorm;
+      // Préserver les anniversaires, ajouter les groupes
+      var anniv = {};
+      Object.keys(state.reservations || {}).forEach(function(k) {
+        var rv = state.reservations[k];
+        if (rv && rv.source !== 'abr26_groupes') anniv[k] = rv;
+      });
+      state.reservations = Object.assign({}, anniv, groupesNorm);
+      try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch(e) {}
+      render();
+    });
     listen('memos', data => {
       if (data) {
         state.memos = data;
