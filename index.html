@@ -227,7 +227,11 @@ const CAL_EVENT_TYPES = [
       // Exclure les clés système Firebase (abr_memos, abr_reservations, etc.)
       if (/^abr_/.test(r.id)) return false;
       // Doit avoir au moins un champ métier
-      return !!(r.segment || r.date || r.organisation || r.prenom_enfant || r.nom_contact);
+      
+      // Masquer les REFUSÉS (gardés dans Firebase pour historique)
+      var _dec = ((r.decision || '')).toString().toUpperCase();
+      if (_dec === 'REFUSE' || _dec === 'REFUSÉ') return false;
+      return !!(r.segment || r.date || r.organisation || r.prenom_enfant || r.nom_contact);
     }
     // Passe 1 : clé Firebase = id de la fiche (fiches propres)
     Object.keys(state.reservations).forEach(function(key) {
@@ -532,7 +536,10 @@ contact@abracadaparc.fr`;
         <button data-advance="${r.id}" style="padding:4px 8px;background:#E8F5E9;color:#2E7D32;border:1px solid #C8E6C9;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;">Avancer →</button>` : ''}
         <button data-edit="${r.id}" style="padding:4px 8px;background:#F5F5F5;color:#424242;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">✏️</button>
         <button data-history="${r.id}" style="padding:4px 8px;background:#E3F2FD;color:#1565C0;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">📋 ${r.history && r.history.length > 0 ? r.history.length : ''}</button>
-        <button data-delete="${r.id}" style="padding:4px 8px;background:#FFEBEE;color:#C62828;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">🗑</button>
+        ${r.drive_dossier_url ? `<a href="${r.drive_dossier_url}" target="_blank" title="Dossier Drive" style="padding:4px 8px;background:#E8F5E9;color:#2E7D32;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📁</a>` : ''}
+        ${r.gmail_devis_url ? `<a href="${r.gmail_devis_url}" target="_blank" title="Devis Gmail" style="padding:4px 8px;background:#FFF3E0;color:#E65100;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📧</a>` : ''}
+        ${r.gmail_bc_url ? `<a href="${r.gmail_bc_url}" target="_blank" title="BC Gmail" style="padding:4px 8px;background:#E3F2FD;color:#1565C0;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📋 BC</a>` : ''}
+        <button data-delete="${r.id}" style="padding:4px 8px;background:#FFEBEE;color:#C62828;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">🗑</button>
       </div>
     </div>
   </div>
