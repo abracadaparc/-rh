@@ -599,6 +599,9 @@ contact@abracadaparc.fr`;
         '<div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E8F5E9;">' +
           '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
           '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
+          (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Dossier Drive">📁 Drive</a>' : '') +
+          (r.gmail_devis_url ? '<a href="' + r.gmail_devis_url + '" target="_blank" style="padding:10px 14px;background:#FFF3E0;color:#E65100;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir devis Gmail">📧 Devis</a>' : '') +
+          (r.gmail_bc_url ? '<a href="' + r.gmail_bc_url + '" target="_blank" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir BC Gmail">📋 BC</a>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -1850,7 +1853,7 @@ const TEAM_INIT = [
   {
     id:"t2", nom:"AYTHANN", prenom:"", color:"#00695C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.02,
     disponibilite:"Avr–Mai : WE seulement · Juin–Juil : complet · Août : S1–S2 · Sept–Nov : WE (à confirmer)",
     ecole_periodes:[],
     poste:"Polyvalent", actif:true, note:"Confirmer dispos sept+ 3 sem. à l'avance.",
@@ -1860,7 +1863,7 @@ const TEAM_INIT = [
   {
     id:"t3", nom:"ALYSSA", prenom:"", color:"#6A1B9A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-06-21", heures_mois:80, taux:12.50,
+    debut:"2026-04-01", fin:"2026-06-21", heures_mois:80, taux:12.02,
     disponibilite:"MER + WE seulement. Sam : départ à 16h30. 3 avril : dispo à partir de 14h. Jours fériés : à confirmer 3 sem. avant.",
     ecole_periodes:[],
     poste:"Polyvalente", actif:true, note:"Contrat court. Poser les CP avant le 21/06.",
@@ -1870,7 +1873,7 @@ const TEAM_INIT = [
   {
     id:"t4", nom:"JORIS", prenom:"", color:"#BF360C",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
     disponibilite:"POEI en attente de confirmation. Si validé : formation 1–19 avril, CDD à partir du 20 avril. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:[],
     poste:"Polyvalent + Développement commercial", actif:true, note:"⏳ POEI en attente retour Joris. Si refus : CDD au 1er avril — à relancer rapidement. Mentionner tâches commerciales dans le contrat.",
@@ -1881,7 +1884,7 @@ const TEAM_INIT = [
   {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.50,
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
     disponibilite:"POEI validé ✅ — Formation France Travail du 1er au 19 avril inclus. Disponible à partir du 20 avril. Toute la saison. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:["1–19 avril (POEI — hors entreprise)"],
     poste:"Polyvalente Journée", actif:true, note:"✅ POEI confirmé. CDD à signer avant le 1er avril avec date de démarrage au 20/04. Pas de bulletin AbracadaParc pendant la formation.",
@@ -1915,7 +1918,7 @@ const TEAM_INIT = [
   {
     id:"t6", nom:"NOUVEAU C", prenom:"", color:"#546E7A",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.50,
+    debut:"2026-04-01", fin:"2026-11-02", heures_mois:80, taux:12.02,
     disponibilite:"Toute la saison. WE confirmés sept–nov. Toussaint confirmé.",
     ecole_periodes:[],
     poste:"Polyvalent Fermeture", actif:true, note:"Nom à compléter après recrutement final.",
@@ -1950,7 +1953,7 @@ function getSlotKey(ds, dayType, isWeekend) {
   return "we";
 }
 
-function calcDayCost(level, slotKey, taux=12.50) {
+function calcDayCost(level, slotKey, taux=12.02) {
   if (!level || !slotKey) return 0;
   const slots = LEVELS[level][slotKey] || [];
   return slots.reduce((s,p) => s + p.h, 0) * taux * CHARGES_PAT;
@@ -2444,7 +2447,7 @@ function CalendrierTab({ dayLevels, setDayLevels }) {
 function EquipeTab({ team, setTeam }) {
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.50, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
+  const blank = { nom:"", prenom:"", color:"#2E7D32", type:"saisonnier", contrat:"CDD Saisonnier Modulable", debut:"2026-04-01", fin:"2026-11-02", heures_mois:104, taux:12.02, disponibilite:"", ecole_periodes:[], poste:"Polyvalent", actif:true, note:"", ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"", iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0, poei_debut:"", poei_fin:"", poei_organisme:"" };
   const [form, setForm] = useState(blank);
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -3323,7 +3326,7 @@ ___________________________    ___________________________`
     const prenomSal = cddPrenom.trim() || (emp ? emp.prenom : "[PRÉNOM]");
     const nf = `${nomSal.toUpperCase()} ${prenomSal}`;
     const poste = emp?.poste || "[POSTE]";
-    const taux = emp?.taux || 12.50;
+    const taux = emp?.taux || 12.02;
     const hMois = cddHeures || emp?.heures_mois || "[HEURES]";
     const debutD = cddDebut ? new Date(cddDebut+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : emp?.debut ? new Date(emp.debut+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "[DATE DÉBUT]";
     const finD   = cddFin   ? new Date(cddFin+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : emp?.fin   ? new Date(emp.fin+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}) : "[DATE FIN]";
@@ -6030,7 +6033,7 @@ function App() {
                   </span>
                 )}
               </div>
-              <p style={{margin:0,fontSize:10,color:"#A5D6A7"}}>IDCC 1790 · SMIC 12,50€/h · Myron 929,75€/mois · {daysToOpen>0?`Ouverture dans ${daysToOpen}j`:"Saison en cours"}</p>
+              <p style={{margin:0,fontSize:10,color:"#A5D6A7"}}>IDCC 1790 · SMIC 12,02€/h · Myron 929,75€/mois · {daysToOpen>0?`Ouverture dans ${daysToOpen}j`:"Saison en cours"}</p>
             </div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
