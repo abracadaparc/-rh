@@ -1734,9 +1734,9 @@ contact@abracadaparc.fr`;
         var dv='';
         if(g.date&&typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)) dv=g.date;
         // Montants
-        var tot=parseFloat(g.total||g.montant||g.totalTTC||0);
-        var ac=parseFloat(g.acompte||g.acompte_verse||0);
-        var sol=parseFloat(g.solde||g.solde_restant||(tot-ac)||0);
+        var tot=parseFloat(g.montant_total||g.total||g.montant||g.totalTTC||0);
+        var ac=parseFloat(g.acompte_paye||g.acompte_verse||g.acompte||0);
+        var sol=parseFloat(g.solde_restant||g.solde||(tot-ac)||0);
         gNorm[key]={
           id:key, segment:g.segment||'alsh', statut:String(st),
           nom:g.client||g.nom||key,
@@ -1746,7 +1746,7 @@ contact@abracadaparc.fr`;
           nb_enfants:parseInt(g.enfants)||0,
           nb_adultes:parseInt(g.accompagnants)||0,
           total:tot, montant_total:tot,
-          acompte_verse:ac, solde_restant:sol,
+          acompte_paye:ac, acompte_verse:ac, solde_restant:sol,
           notes:g.note||g.notes||'',
           devis:key, source:'abr26_groupes'
         };
@@ -4893,11 +4893,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
             {week.map((d,i)=>{const tot=dayH(d);return <td key={i} style={{padding:"3px 4px",textAlign:"center"}}><span style={{fontSize:11,fontWeight:700,color:tot>0?"#2E7D32":"#E0E0E0"}}>{tot>0?`${tot.toFixed(1)}h`:"—"}</span></td>;})}
             <td colSpan={2}/>
           </tr></tfoot>
-          <tr style={{background:"#F0FAF4"}}>
-            <td style={{padding:"5px 8px",borderTop:"2px solid #C8E6C9"}}><div style={{fontSize:11,fontWeight:800,color:"#1B5E20"}}>Groupes du jour</div>{!readonly&&<div style={{fontSize:9,color:"#9E9E9E"}}>Cliquer pour ajouter</div>}</td>
-            {week.map(function(d,i){var ds=fmtLocal(d);var evts=Array.isArray(calEvents[ds])?calEvents[ds]:[];return(<td key={i} style={{padding:2,verticalAlign:"top",borderTop:"2px solid #C8E6C9"}}><div onClick={function(){if(!readonly)setCalEventModal({date:ds});}} style={{minHeight:36,borderRadius:6,padding:2,cursor:readonly?"default":"pointer",background:evts.length>0?"transparent":"#FAFAFA",border:"1px dashed "+(evts.length>0||readonly?"transparent":"#C8E6C9")}}>{evts.map(function(ev,ei){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={ei} style={{background:t.bg,border:"1px solid "+t.color+"55",borderRadius:4,padding:"2px 4px",marginBottom:2}}><div style={{fontSize:9,fontWeight:700,color:t.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:78}}>{ev.titre}</div></div>);})}{evts.length===0&&!readonly&&<span style={{fontSize:12,color:"#CCCCCC",display:"block",textAlign:"center"}}>+</span>}</div></td>);})}
-            <td colSpan={2} style={{borderTop:"2px solid #C8E6C9"}}/>
-          </tr>
+          
         </table>
       </div>
     </div>
