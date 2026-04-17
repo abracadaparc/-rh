@@ -93,11 +93,11 @@ input[type=date],input[type=time],input[type=number],input[type=text],input[type
   ];
 
 const CAL_EVENT_TYPES = [
-  { id:"groupe", label:"Groupe prive", color:"#E65100", bg:"#FFF3E0" },
-  { id:"scolaire", label:"Scolaire ALSH", color:"#1565C0", bg:"#E3F2FD" },
-  { id:"association", label:"Association IME", color:"#00695C", bg:"#E0F2F1" },
-  { id:"privatisation", label:"Privatisation", color:"#6A1B9A", bg:"#F3E5F5" },
-  { id:"evenement", label:"Evenement", color:"#AD1457", bg:"#FCE4EC" },
+  { id:"groupe", label:"Groupe prive", color:"#E65100", bg:"#FFF3E0" },
+  { id:"scolaire", label:"Scolaire ALSH", color:"#1565C0", bg:"#E3F2FD" },
+  { id:"association", label:"Association IME", color:"#00695C", bg:"#E0F2F1" },
+  { id:"privatisation", label:"Privatisation", color:"#6A1B9A", bg:"#F3E5F5" },
+  { id:"evenement", label:"Evenement", color:"#AD1457", bg:"#FCE4EC" },
 ];
 
   const STATUTS = [
@@ -195,7 +195,7 @@ const CAL_EVENT_TYPES = [
 
     // Sinon : calcul automatique depuis la formule
     if (r.total && parseFloat(r.total) > 0) { return parseFloat(r.total); }
-    // const f = getFormule(r.formule_id);
+    // const f = getFormule(r.formule_id);
     if (!f || f.prix === 0) return 0;
     // Fantastique : prix différent selon horaire (matin 176€ / après-midi 208€)
     const isApm = !r.heure_debut || r.heure_debut >= '13:00';
@@ -229,9 +229,9 @@ const CAL_EVENT_TYPES = [
       if (/^abr_/.test(r.id)) return false;
       // Doit avoir au moins un champ métier
       
-      // Masquer les REFUSÉS (gardés dans Firebase pour historique)
-      var _dec = ((r.decision || '')).toString().toUpperCase();
-      if (_dec === 'REFUSE' || _dec === 'REFUSÉ') return false;
+      // Masquer les REFUSÉS (gardés dans Firebase pour historique)
+      var _dec = ((r.decision || '')).toString().toUpperCase();
+      if (_dec === 'REFUSE' || _dec === 'REFUSÉ') return false;
       // Masquer les devis refusés blacklistés (pas de client, pas de date)
       var REFUSES_IDS = ['DEV20250184','DEV20250185','DEV20250187','DEV20250191',
                          'DEV20250192','DEV20250193','DEV20250194','DEV20250201'];
@@ -524,8 +524,7 @@ contact@abracadaparc.fr`;
       r.nom_contact ? '👤 ' + r.nom_contact : '',
       r.tel ? '📞 ' + r.tel : '',
       r.notes ? '💬 ' + r.notes.slice(0, 100) : ''
-    ].filter(Boolean).join('
-'));
+    ].filter(Boolean).join('\n'));
     var lieu = encodeURIComponent('AbracadaParc, 6 Place Hyacinthe Drujon, 95190 Goussainville');
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
       '&text=' + titre +
@@ -559,8 +558,8 @@ contact@abracadaparc.fr`;
     // KPIs principaux
     var kpis = [
       {l:'Total réservations', v: String(all.length),                          c:'#2E7D32', bg:'#E8F5E9'},
-      {l:'CA total',           v: caTotal.toLocaleString('fr') + ' €',    c:'#1565C0', bg:'#E3F2FD'},
-      {l:'Soldes dus',         v: soldes.toLocaleString('fr') + ' €',     c: soldes>0?'#C62828':'#2E7D32', bg: soldes>0?'#FFEBEE':'#E8F5E9'},
+      {l:'CA total',           v: caTotal.toLocaleString('fr') + ' €',    c:'#1565C0', bg:'#E3F2FD'},
+      {l:'Soldes dus',         v: soldes.toLocaleString('fr') + ' €',     c: soldes>0?'#C62828':'#2E7D32', bg: soldes>0?'#FFEBEE':'#E8F5E9'},
       {l:'Walk-ins sur place', v: String(walkins),                              c:'#E65100', bg:'#FFF3E0'},
     ];
     var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:8px;">';
@@ -576,22 +575,22 @@ contact@abracadaparc.fr`;
     html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">';
     html += '<div style="display:flex;align-items:center;gap:6px;background:#E8F5E9;border-radius:8px;padding:6px 12px;">'
           + '<span style="font-size:11px;font-weight:700;color:#2E7D32;">✅ Validés</span>'
-          + '<span style="font-size:13px;font-weight:800;color:#1B5E20;">' + caValides.toLocaleString('fr') + ' €</span>'
+          + '<span style="font-size:13px;font-weight:800;color:#1B5E20;">' + caValides.toLocaleString('fr') + ' €</span>'
           + '</div>';
     html += '<div style="font-size:14px;color:#BDBDBD;">+</div>';
     html += '<div style="display:flex;align-items:center;gap:6px;background:#FFF8E1;border-radius:8px;padding:6px 12px;">'
           + '<span style="font-size:11px;font-weight:700;color:#F57F17;">⏳ En attente</span>'
-          + '<span style="font-size:13px;font-weight:800;color:#E65100;">' + caAttente.toLocaleString('fr') + ' €</span>'
+          + '<span style="font-size:13px;font-weight:800;color:#E65100;">' + caAttente.toLocaleString('fr') + ' €</span>'
           + '</div>';
     html += '<div style="font-size:14px;color:#BDBDBD;">=</div>';
     html += '<div style="display:flex;align-items:center;gap:6px;background:#E3F2FD;border-radius:8px;padding:6px 12px;">'
           + '<span style="font-size:11px;font-weight:700;color:#1565C0;">📊 Total pipeline</span>'
-          + '<span style="font-size:13px;font-weight:800;color:#0D47A1;">' + caTotal.toLocaleString('fr') + ' €</span>'
+          + '<span style="font-size:13px;font-weight:800;color:#0D47A1;">' + caTotal.toLocaleString('fr') + ' €</span>'
           + '</div>';
     html += '</div>';
 
     html += '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">'
-          + 'dont ' + caConf.toLocaleString('fr') + ' € confirmés (S4+)</div>';
+          + 'dont ' + caConf.toLocaleString('fr') + ' € confirmés (S4+)</div>';
     return html;
   }
 
@@ -649,9 +648,9 @@ contact@abracadaparc.fr`;
         <button data-edit="${r.id}" style="padding:4px 8px;background:#F5F5F5;color:#424242;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">✏️</button>
         <button data-history="${r.id}" style="padding:4px 8px;background:#E3F2FD;color:#1565C0;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">📋 ${r.history && r.history.length > 0 ? r.history.length : ''}</button>
         ${r.drive_dossier_url ? `<a href="${r.drive_dossier_url}" target="_blank" title="Dossier Drive" style="padding:4px 8px;background:#E8F5E9;color:#2E7D32;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📁</a>` : ''}
-        ${r.gmail_devis_url ? `<a href="${r.gmail_devis_url}" target="_blank" title="Devis Gmail" style="padding:4px 8px;background:#FFF3E0;color:#E65100;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📧</a>` : ''}
-        ${r.gmail_bc_url ? `<a href="${r.gmail_bc_url}" target="_blank" title="BC Gmail" style="padding:4px 8px;background:#E3F2FD;color:#1565C0;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📋 BC</a>` : ''}
-        <button data-delete="${r.id}" style="padding:4px 8px;background:#FFEBEE;color:#C62828;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">🗑</button>
+        ${r.gmail_devis_url ? `<a href="${r.gmail_devis_url}" target="_blank" title="Devis Gmail" style="padding:4px 8px;background:#FFF3E0;color:#E65100;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📧</a>` : ''}
+        ${r.gmail_bc_url ? `<a href="${r.gmail_bc_url}" target="_blank" title="BC Gmail" style="padding:4px 8px;background:#E3F2FD;color:#1565C0;border:none;border-radius:6px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;">📋 BC</a>` : ''}
+        <button data-delete="${r.id}" style="padding:4px 8px;background:#FFEBEE;color:#C62828;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">🗑</button>
       </div>
     </div>
   </div>
@@ -727,9 +726,9 @@ contact@abracadaparc.fr`;
           '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
           '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
           (r.date ? '<a href="' + buildGCalUrl(r, hFin) + '" target="_blank" style="padding:10px 14px;background:#F3E5F5;color:#6A1B9A;border-radius:8px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ajouter à Google Agenda">📅 Agenda</a>' : '') +
-          (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Dossier Drive">📁 Drive</a>' : '') +
-          (r.gmail_devis_url ? '<a href="' + r.gmail_devis_url + '" target="_blank" style="padding:10px 14px;background:#FFF3E0;color:#E65100;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir devis Gmail">📧 Devis</a>' : '') +
-          (r.gmail_bc_url ? '<a href="' + r.gmail_bc_url + '" target="_blank" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir BC Gmail">📋 BC</a>' : '') +
+          (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Dossier Drive">📁 Drive</a>' : '') +
+          (r.gmail_devis_url ? '<a href="' + r.gmail_devis_url + '" target="_blank" style="padding:10px 14px;background:#FFF3E0;color:#E65100;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir devis Gmail">📧 Devis</a>' : '') +
+          (r.gmail_bc_url ? '<a href="' + r.gmail_bc_url + '" target="_blank" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir BC Gmail">📋 BC</a>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -1878,82 +1877,82 @@ contact@abracadaparc.fr`;
     });
 
     // Charger les groupes depuis abr26_groupes (indexés par N° devis)
-    listen('abr26_groupes', function(data) {
-      if (!data || typeof data !== 'object') return;
-      var gNorm = {};
-      Object.keys(data).forEach(function(key) {
-        var g = data[key];
-        if (!g || typeof g !== 'object') return;
-        // Statut : lire le champ decision ou statut
-        var dec = (g.decision||g.statut||g.etapeDossier||'').toString().toUpperCase().trim();
-        var st = 2;
-        if(dec==='VALIDÉ'||dec==='VALIDE'||dec.indexOf('VALID')>=0) st=5;
-        else if(dec==='FACTURÉ'||dec==='FACTURE'||dec.indexOf('FACTUR')>=0) st=6;
-        else if(dec==='CONFIRMÉ'||dec==='CONFIRME') st=4;
-        else if(/^[1-6]$/.test(dec)) st=parseInt(dec);
-        // Créneau → heure_debut ex '10h - 17h00' ou '10:00'
-        var heure='10:00';
-        if(g.creneau){
-          var cr=g.creneau.toString().split('-')[0].trim().split(' ')[0].trim();
-          if(cr.indexOf('h')>=0){var p=cr.split('h');heure=p[0]+':'+(p[1]&&p[1].length?p[1].padEnd(2,'0').slice(0,2):'00');}
-          else if(cr.indexOf(':')>=0){heure=cr;}
-          else{heure=cr+':00';}
-        }
-        // Date
-        var dv='';
-        if(g.date&&typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)) dv=g.date;
-        // Montants
-        var tot=parseFloat(g.montant_total||g.total||g.montant||g.totalTTC||0);
-        var ac=parseFloat(g.acompte_paye||g.acompte_verse||g.acompte||0);
-        var sol=parseFloat(g.solde_restant||g.solde||(tot-ac)||0);
-        gNorm[key]={
-          id:key, segment:g.segment||'alsh', statut:String(st),
-          nom:g.client||g.nom||key,
-          nom_contact:g.client||g.nom||key,
-          organisation:g.client||g.nom||key,
-          prenom_enfant:'', date:dv, heure_debut:heure,
-          nb_enfants:parseInt(g.enfants)||0,
-          nb_adultes:parseInt(g.accompagnants)||0,
-          total:tot, montant_total:tot,
-          acompte_paye:ac, acompte_verse:ac, solde_restant:sol,
-          notes:g.note||g.notes||'',
-          devis:key, source:'abr26_groupes'
-        };
-      });
-      state._groupes=gNorm;
-      var anniv={};
-      Object.keys(state.reservations||{}).forEach(function(k){
-        var rv=state.reservations[k];
-        if(rv&&rv.source!=='abr26_groupes') anniv[k]=rv;
-      });
-      state.reservations=Object.assign({},anniv,gNorm);
-      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
-      render();
-    });
+    listen('abr26_groupes', function(data) {
+      if (!data || typeof data !== 'object') return;
+      var gNorm = {};
+      Object.keys(data).forEach(function(key) {
+        var g = data[key];
+        if (!g || typeof g !== 'object') return;
+        // Statut : lire le champ decision ou statut
+        var dec = (g.decision||g.statut||g.etapeDossier||'').toString().toUpperCase().trim();
+        var st = 2;
+        if(dec==='VALIDÉ'||dec==='VALIDE'||dec.indexOf('VALID')>=0) st=5;
+        else if(dec==='FACTURÉ'||dec==='FACTURE'||dec.indexOf('FACTUR')>=0) st=6;
+        else if(dec==='CONFIRMÉ'||dec==='CONFIRME') st=4;
+        else if(/^[1-6]$/.test(dec)) st=parseInt(dec);
+        // Créneau → heure_debut ex '10h - 17h00' ou '10:00'
+        var heure='10:00';
+        if(g.creneau){
+          var cr=g.creneau.toString().split('-')[0].trim().split(' ')[0].trim();
+          if(cr.indexOf('h')>=0){var p=cr.split('h');heure=p[0]+':'+(p[1]&&p[1].length?p[1].padEnd(2,'0').slice(0,2):'00');}
+          else if(cr.indexOf(':')>=0){heure=cr;}
+          else{heure=cr+':00';}
+        }
+        // Date
+        var dv='';
+        if(g.date&&typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)) dv=g.date;
+        // Montants
+        var tot=parseFloat(g.montant_total||g.total||g.montant||g.totalTTC||0);
+        var ac=parseFloat(g.acompte_paye||g.acompte_verse||g.acompte||0);
+        var sol=parseFloat(g.solde_restant||g.solde||(tot-ac)||0);
+        gNorm[key]={
+          id:key, segment:g.segment||'alsh', statut:String(st),
+          nom:g.client||g.nom||key,
+          nom_contact:g.client||g.nom||key,
+          organisation:g.client||g.nom||key,
+          prenom_enfant:'', date:dv, heure_debut:heure,
+          nb_enfants:parseInt(g.enfants)||0,
+          nb_adultes:parseInt(g.accompagnants)||0,
+          total:tot, montant_total:tot,
+          acompte_paye:ac, acompte_verse:ac, solde_restant:sol,
+          notes:g.note||g.notes||'',
+          devis:key, source:'abr26_groupes'
+        };
+      });
+      state._groupes=gNorm;
+      var anniv={};
+      Object.keys(state.reservations||{}).forEach(function(k){
+        var rv=state.reservations[k];
+        if(rv&&rv.source!=='abr26_groupes') anniv[k]=rv;
+      });
+      state.reservations=Object.assign({},anniv,gNorm);
+      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
+      render();
+    });
     // ── Anniversaires WooCommerce ──
-    listen('abr26_reservations', function(data) {
-      if (!data || typeof data !== 'object') return;
-      var anniversaires = {};
-      Object.keys(data).forEach(function(key) {
-        var r = data[key];
-        if (!r || typeof r !== 'object') return;
-        if (!r.id) r.id = key;
-        r.source = 'abr26_reservations';
-        if (!r.segment) r.segment = 'anniversaire';
-        anniversaires[key] = r;
-      });
-      var groupes = state._groupes || {};
-      var ancResas = {};
-      Object.keys(state.reservations||{}).forEach(function(k) {
-        var rv=state.reservations[k];
-        if(rv&&rv.source!=='abr26_groupes'&&rv.source!=='abr26_reservations') ancResas[k]=rv;
-      });
-      state.reservations=Object.assign({},groupes,ancResas,anniversaires);
-      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
-      render();
-    });
+    listen('abr26_reservations', function(data) {
+      if (!data || typeof data !== 'object') return;
+      var anniversaires = {};
+      Object.keys(data).forEach(function(key) {
+        var r = data[key];
+        if (!r || typeof r !== 'object') return;
+        if (!r.id) r.id = key;
+        r.source = 'abr26_reservations';
+        if (!r.segment) r.segment = 'anniversaire';
+        anniversaires[key] = r;
+      });
+      var groupes = state._groupes || {};
+      var ancResas = {};
+      Object.keys(state.reservations||{}).forEach(function(k) {
+        var rv=state.reservations[k];
+        if(rv&&rv.source!=='abr26_groupes'&&rv.source!=='abr26_reservations') ancResas[k]=rv;
+      });
+      state.reservations=Object.assign({},groupes,ancResas,anniversaires);
+      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
+      render();
+    });
 
-    listen('memos', data => {
+    listen('memos', data => {
       if (data) {
         state.memos = data;
         try { localStorage.setItem('abr_memos', JSON.stringify(data)); } catch(e) {}
@@ -4922,7 +4921,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
   const [filterEmp,setFilterEmp]=useState("equipe");
   const [editing,setEditing]=useState(null);
   const [dupTarget,setDupTarget]=useState(null);
-  const [calEventModal,setCalEventModal]=useState(null);
+  const [calEventModal,setCalEventModal]=useState(null);
 
   const safeMon=getMondayOf(monday); // toujours normaliser au lundi réel
   const week=Array.from({length:7},(_,i)=>addDaysLocal(safeMon,i));
@@ -5140,7 +5139,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
               );
             })()}
           </tfoot>
-          
+          
         </table>
       </div>
     </div>
@@ -5196,7 +5195,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
 
       {editing&&(()=>{const emp=team.find(e=>e.id===editing.empId);const sh=getShift(editing.empId,editing.date);return <ShiftModal emp={emp} date={editing.date} shift={sh} onSave={data=>{putShift(editing.empId,editing.date,data);setEditing(null);}} onClose={()=>setEditing(null)}/>;})()}
 
-      {calEventModal&&!readonly&&(function(){var ds=calEventModal.date;var evts=Array.isArray(calEvents[ds])?calEvents[ds]:[];return <CalEventModal date={ds} events={evts} onSave={function(u){var n=Object.assign({},calEvents);if(u.length===0){delete n[ds];}else{n[ds]=u;}setCalEvents(n);setCalEventModal(null);}} onClose={function(){setCalEventModal(null);}} />;})()}
+      {calEventModal&&!readonly&&(function(){var ds=calEventModal.date;var evts=Array.isArray(calEvents[ds])?calEvents[ds]:[];return <CalEventModal date={ds} events={evts} onSave={function(u){var n=Object.assign({},calEvents);if(u.length===0){delete n[ds];}else{n[ds]=u;}setCalEvents(n);setCalEventModal(null);}} onClose={function(){setCalEventModal(null);}} />;})()}
     </div>
   );
 }
@@ -5739,7 +5738,7 @@ function PointageTab({emp, shifts, setShifts, isAdmin=false}) {
 function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=>{}}) {
   const [monday, setMonday] = useState(getMondayLocal);
   const [selEmp, setSelEmp] = useState(null);
-  const [calModal, setCalModal] = useState(null);
+  const [calModal, setCalModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const m = monday.getMonth(), y = monday.getFullYear();
   const firstMon = getMondayOf(new Date(y,m,1,12));
@@ -5863,16 +5862,16 @@ function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=
 
 // CalEventModal
 function CalEventModal({date,events,onSave,onClose}){
-  var ms=React.useState("list"),mode=ms[0],setMode=ms[1];
-  var ei=React.useState(null),editIdx=ei[0],setEditIdx=ei[1];
-  var ff=React.useState({titre:"",type:"scolaire",heure_debut:"",heure_fin:"",effectif:"",notes:""}),form=ff[0],setForm=ff[1];
-  var fld=function(k){return function(e){setForm(function(p){var n=Object.assign({},p);n[k]=e.target.value;return n;});};};
-  var openNew=function(){setForm({titre:"",type:"scolaire",heure_debut:"",heure_fin:"",effectif:"",notes:""});setEditIdx(null);setMode("edit");};
-  var openEdit=function(i){setForm(Object.assign({},events[i]));setEditIdx(i);setMode("edit");};
-  var saveEdit=function(){if(!form.titre.trim())return;var id=(editIdx!==null&&events[editIdx]&&events[editIdx].id)?events[editIdx].id:Date.now().toString(36)+Math.random().toString(36).slice(2,5);var u=events.slice();if(editIdx!==null){u[editIdx]=Object.assign({},form,{id:id});}else{u.push(Object.assign({},form,{id:id}));}onSave(u);setMode("list");};
-  var delItem=function(i){if(window.confirm("Supprimer ?"))onSave(events.filter(function(_,idx){return idx!==i;}));};
-  var d2=new Date(date+"T12:00"),ds2=d2.toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long"});
-  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:16,padding:"20px 24px",width:"100%",maxWidth:460,boxShadow:"0 20px 60px rgba(0,0,0,0.25)",maxHeight:"85vh",overflowY:"auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontSize:14,fontWeight:800,color:"#1B5E20"}}>Reservations {ds2}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#9E9E9E"}}>x</button></div>{mode==="list"?(<div>{events.length===0&&<div style={{textAlign:"center",padding:20,color:"#9E9E9E"}}>Aucune reservation</div>}{events.map(function(ev,i){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={i} style={{display:"flex",gap:10,padding:"10px 12px",borderRadius:10,marginBottom:8,background:t.bg,border:"1.5px solid "+t.color+"44"}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:t.color}}>{ev.titre}</div><div style={{fontSize:11,color:"#757575"}}>{t.label}{ev.heure_debut?" - "+ev.heure_debut:""}{ev.effectif?" - "+ev.effectif+" pers.":""}</div></div><div><button onClick={function(){openEdit(i);}} style={{padding:"3px 8px",background:"rgba(0,0,0,0.08)",color:"#424242",fontSize:11,border:"none",borderRadius:4,cursor:"pointer",marginRight:4}}>edit</button><button onClick={function(){delItem(i);}} style={{padding:"3px 8px",background:"#FFEBEE",color:"#C62828",fontSize:11,border:"none",borderRadius:4,cursor:"pointer"}}>del</button></div></div>);})}<button onClick={openNew} style={{width:"100%",padding:10,fontSize:13,background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:8}}>+ Ajouter</button></div>):(<div style={{display:"flex",flexDirection:"column",gap:12}}><input value={form.titre} onChange={fld("titre")} placeholder="Titre *" style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}} autoFocus/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}><input type="time" value={form.heure_debut} onChange={fld("heure_debut")} style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><input type="time" value={form.heure_fin} onChange={fld("heure_fin")} style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><input type="number" value={form.effectif} onChange={fld("effectif")} placeholder="Effectif" style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/></div><input value={form.notes} onChange={fld("notes")} placeholder="Notes" style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><div style={{display:"flex",gap:8}}><button onClick={saveEdit} style={{flex:1,padding:10,fontSize:13,background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}}>Enregistrer</button><button onClick={function(){setMode("list");}} style={{padding:"10px 16px",fontSize:13,background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:8,cursor:"pointer"}}>Annuler</button></div></div>)}</div></div>);
+  var ms=React.useState("list"),mode=ms[0],setMode=ms[1];
+  var ei=React.useState(null),editIdx=ei[0],setEditIdx=ei[1];
+  var ff=React.useState({titre:"",type:"scolaire",heure_debut:"",heure_fin:"",effectif:"",notes:""}),form=ff[0],setForm=ff[1];
+  var fld=function(k){return function(e){setForm(function(p){var n=Object.assign({},p);n[k]=e.target.value;return n;});};};
+  var openNew=function(){setForm({titre:"",type:"scolaire",heure_debut:"",heure_fin:"",effectif:"",notes:""});setEditIdx(null);setMode("edit");};
+  var openEdit=function(i){setForm(Object.assign({},events[i]));setEditIdx(i);setMode("edit");};
+  var saveEdit=function(){if(!form.titre.trim())return;var id=(editIdx!==null&&events[editIdx]&&events[editIdx].id)?events[editIdx].id:Date.now().toString(36)+Math.random().toString(36).slice(2,5);var u=events.slice();if(editIdx!==null){u[editIdx]=Object.assign({},form,{id:id});}else{u.push(Object.assign({},form,{id:id}));}onSave(u);setMode("list");};
+  var delItem=function(i){if(window.confirm("Supprimer ?"))onSave(events.filter(function(_,idx){return idx!==i;}));};
+  var d2=new Date(date+"T12:00"),ds2=d2.toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long"});
+  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:16,padding:"20px 24px",width:"100%",maxWidth:460,boxShadow:"0 20px 60px rgba(0,0,0,0.25)",maxHeight:"85vh",overflowY:"auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontSize:14,fontWeight:800,color:"#1B5E20"}}>Reservations {ds2}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"#9E9E9E"}}>x</button></div>{mode==="list"?(<div>{events.length===0&&<div style={{textAlign:"center",padding:20,color:"#9E9E9E"}}>Aucune reservation</div>}{events.map(function(ev,i){var t=CAL_EVENT_TYPES.find(function(x){return x.id===ev.type;})||CAL_EVENT_TYPES[0];return(<div key={i} style={{display:"flex",gap:10,padding:"10px 12px",borderRadius:10,marginBottom:8,background:t.bg,border:"1.5px solid "+t.color+"44"}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:t.color}}>{ev.titre}</div><div style={{fontSize:11,color:"#757575"}}>{t.label}{ev.heure_debut?" - "+ev.heure_debut:""}{ev.effectif?" - "+ev.effectif+" pers.":""}</div></div><div><button onClick={function(){openEdit(i);}} style={{padding:"3px 8px",background:"rgba(0,0,0,0.08)",color:"#424242",fontSize:11,border:"none",borderRadius:4,cursor:"pointer",marginRight:4}}>edit</button><button onClick={function(){delItem(i);}} style={{padding:"3px 8px",background:"#FFEBEE",color:"#C62828",fontSize:11,border:"none",borderRadius:4,cursor:"pointer"}}>del</button></div></div>);})}<button onClick={openNew} style={{width:"100%",padding:10,fontSize:13,background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",marginTop:8}}>+ Ajouter</button></div>):(<div style={{display:"flex",flexDirection:"column",gap:12}}><input value={form.titre} onChange={fld("titre")} placeholder="Titre *" style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}} autoFocus/><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}><input type="time" value={form.heure_debut} onChange={fld("heure_debut")} style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><input type="time" value={form.heure_fin} onChange={fld("heure_fin")} style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><input type="number" value={form.effectif} onChange={fld("effectif")} placeholder="Effectif" style={{width:"100%",padding:6,borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/></div><input value={form.notes} onChange={fld("notes")} placeholder="Notes" style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #C8E6C9",fontSize:13,boxSizing:"border-box"}}/><div style={{display:"flex",gap:8}}><button onClick={saveEdit} style={{flex:1,padding:10,fontSize:13,background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}}>Enregistrer</button><button onClick={function(){setMode("list");}} style={{padding:"10px 16px",fontSize:13,background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:8,cursor:"pointer"}}>Annuler</button></div></div>)}</div></div>);
 }
 
 function ValidationRow({r, i, valider, corriger}) {
@@ -6215,7 +6214,7 @@ function App() {
   }, [setShiftsRaw]);
 
   const [alertes,    setAlertes,    aReady] = useStorage("abr26_notes_v1", ALERTES_INIT);
-  const [calEvents,  setCalEvents,  cReady] = useStorage("abr26_cal_events",  {});
+  const [calEvents,  setCalEvents,  cReady] = useStorage("abr26_cal_events",  {});
   const [tab,          setTab]          = useState("equipe_planning");
   const [empTab,       setEmpTab]       = useState("mon_planning");
   const [authMode,     setAuthMode]     = useState(()=>sessionStorage.getItem("abr_auth")||"login");
