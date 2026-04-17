@@ -538,33 +538,60 @@ contact@abracadaparc.fr`;
     var all = getReservations();
     var todayS = today();
     var futurs = all.filter(function(r){ return !r.date || r.date >= todayS; });
-    var passes  = all.filter(function(r){ return r.date && r.date < todayS; });
-    var ca = all.reduce(function(s,r){ return s + calcTotal(r); }, 0);
-    var caConf = all.filter(function(r){ return parseInt(r.statut||'1') >= 4; })
-                    .reduce(function(s,r){ return s + calcTotal(r); }, 0);
-    // Soldes dus = uniquement sur les futurs et aujourd'hui (pas les passés déjà facturés)
+
+    // CA par décision
+    var caValides   = all.filter(function(r){ return (r.decision||'').toUpperCase() === 'VALIDE'; })
+                         .reduce(function(s,r){ return s + calcTotal(r); }, 0);
+    var caAttente   = all.filter(function(r){ var d=(r.decision||'').toUpperCase(); return d !== 'VALIDE' && d !== 'REFUSE'; })
+                         .reduce(function(s,r){ return s + calcTotal(r); }, 0);
+    var caTotal     = caValides + caAttente;
+    var caConf      = all.filter(function(r){ return parseInt(r.statut||'1') >= 4; })
+                         .reduce(function(s,r){ return s + calcTotal(r); }, 0);
+
+    // Soldes dus = futurs uniquement (pas les passés déjà honorés)
     var soldes = futurs.filter(function(r){ return r.statut !== '6'; })
                     .reduce(function(s,r){
                       var t = calcTotal(r), a = parseFloat(r.acompte_paye)||0;
                       return s + Math.max(0, t - a);
                     }, 0);
     var walkins = all.filter(function(r){ return r.walkin; }).length;
+
+    // KPIs principaux
     var kpis = [
-      {l:'Total réservations', v: String(all.length),                     c:'#2E7D32', bg:'#E8F5E9'},
-      {l:'CA total',           v: ca.toLocaleString('fr') + ' €',    c:'#1565C0', bg:'#E3F2FD'},
-      {l:'Soldes dus',         v: soldes.toLocaleString('fr') + ' €',c: soldes>0 ? '#C62828':'#2E7D32', bg: soldes>0 ? '#FFEBEE':'#E8F5E9'},
-      {l:'Walk-ins sur place', v: String(walkins),                         c:'#E65100', bg:'#FFF3E0'},
+      {l:'Total réservations', v: String(all.length),                          c:'#2E7D32', bg:'#E8F5E9'},
+      {l:'CA total',           v: caTotal.toLocaleString('fr') + ' €',    c:'#1565C0', bg:'#E3F2FD'},
+      {l:'Soldes dus',         v: soldes.toLocaleString('fr') + ' €',     c: soldes>0?'#C62828':'#2E7D32', bg: soldes>0?'#FFEBEE':'#E8F5E9'},
+      {l:'Walk-ins sur place', v: String(walkins),                              c:'#E65100', bg:'#FFF3E0'},
     ];
-    var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:6px;">';
+    var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:8px;">';
     kpis.forEach(function(k) {
       html += '<div style="background:' + k.bg + ';border-radius:10px;padding:10px 12px;text-align:center;">'
             + '<div style="font-size:18px;font-weight:800;color:' + k.c + ';">' + k.v + '</div>'
             + '<div style="font-size:10px;color:' + k.c + ';opacity:0.8;margin-top:2px;">' + k.l + '</div>'
             + '</div>';
     });
-    html += '</div>'
-          + '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">'
-          + 'dont ' + caConf.toLocaleString('fr') + ' € confirmés (S4+)</div>';
+    html += '</div>';
+
+    // Ligne CA décomposé : validés vs en attente
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">';
+    html += '<div style="display:flex;align-items:center;gap:6px;background:#E8F5E9;border-radius:8px;padding:6px 12px;">'
+          + '<span style="font-size:11px;font-weight:700;color:#2E7D32;">✅ Validés</span>'
+          + '<span style="font-size:13px;font-weight:800;color:#1B5E20;">' + caValides.toLocaleString('fr') + ' €</span>'
+          + '</div>';
+    html += '<div style="font-size:14px;color:#BDBDBD;">+</div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;background:#FFF8E1;border-radius:8px;padding:6px 12px;">'
+          + '<span style="font-size:11px;font-weight:700;color:#F57F17;">⏳ En attente</span>'
+          + '<span style="font-size:13px;font-weight:800;color:#E65100;">' + caAttente.toLocaleString('fr') + ' €</span>'
+          + '</div>';
+    html += '<div style="font-size:14px;color:#BDBDBD;">=</div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;background:#E3F2FD;border-radius:8px;padding:6px 12px;">'
+          + '<span style="font-size:11px;font-weight:700;color:#1565C0;">📊 Total pipeline</span>'
+          + '<span style="font-size:13px;font-weight:800;color:#0D47A1;">' + caTotal.toLocaleString('fr') + ' €</span>'
+          + '</div>';
+    html += '</div>';
+
+    html += '<div style="font-size:10px;color:#9E9E9E;margin-bottom:10px;text-align:right;">'
+          + 'dont ' + caConf.toLocaleString('fr') + ' € confirmés (S4+)</div>';
     return html;
   }
 
