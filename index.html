@@ -686,6 +686,7 @@ contact@abracadaparc.fr`;
     const offset = firstDay === 0 ? 6 : firstDay - 1;
     let cells = '';
     for (let i = 0; i < offset; i++) cells += '<div></div>';
+    const todayStr = today();
     for (let d = 1; d <= daysInMonth; d++) {
       const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const items = byDay[ds] || [];
@@ -710,7 +711,6 @@ contact@abracadaparc.fr`;
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
     }
-    const todayStr = today();
     return `
 <div style="max-width:100%;overflow-x:hidden;">
   <!-- Navigation mobile-first -->
