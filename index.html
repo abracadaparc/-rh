@@ -232,7 +232,15 @@ const CAL_EVENT_TYPES = [
       // Masquer les REFUSÉS (gardés dans Firebase pour historique)
       var _dec = ((r.decision || '')).toString().toUpperCase();
       if (_dec === 'REFUSE' || _dec === 'REFUSÉ') return false;
-      return !!(r.segment || r.date || r.organisation || r.prenom_enfant || r.nom_contact);
+      // Masquer les devis refusés blacklistés (pas de client, pas de date)
+      var REFUSES_IDS = ['DEV20250184','DEV20250185','DEV20250187','DEV20250191',
+                         'DEV20250192','DEV20250193','DEV20250194','DEV20250201'];
+      if (REFUSES_IDS.indexOf((r.id||'').toString()) >= 0) return false;
+      if (REFUSES_IDS.indexOf((r.organisation||'').toString()) >= 0) return false;
+      // Masquer fiches orphelines : id=ref devis, aucun nom client, aucune date
+      if (!r.date && !r.prenom_enfant && !r.nom_contact && r.organisation &&
+          /DEV\d{8}/.test(r.organisation)) return false;
+      return !!(r.segment || r.date || r.organisation || r.prenom_enfant || r.nom_contact);
     }
     // Passe 1 : clé Firebase = id de la fiche (fiches propres)
     Object.keys(state.reservations).forEach(function(key) {
@@ -505,8 +513,10 @@ contact@abracadaparc.fr`;
     const total = calcTotal(r);
     const acompte = parseFloat(r.acompte_paye) || 0;
     const solde = Math.max(0, total - acompte);
+    // Griser les réservations passées (date < aujourd'hui)
+    const isPast = r.date && r.date < today() && r.statut !== '0';
     return `
-<div style="background:#fff;border:1px solid #E8F5E9;border-radius:12px;padding:14px 16px;border-left:4px solid ${seg.color};">
+<div style="background:${isPast?'#FAFAFA':'#fff'};border:1px solid ${isPast?'#EEEEEE':'#E8F5E9'};border-radius:12px;padding:14px 16px;border-left:4px solid ${isPast?'#BDBDBD':seg.color};opacity:${isPast?0.6:1};">
   <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
     <div style="flex:1;min-width:200px;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
@@ -679,10 +689,12 @@ contact@abracadaparc.fr`;
     for (let d = 1; d <= daysInMonth; d++) {
       const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const items = byDay[ds] || [];
-      const isToday = ds === today();
+      const isToday = ds === todayStr;
+      const isPastDay = ds < todayStr;
+      const isWeekend = new Date(ds+'T12:00').getDay() === 0 || new Date(ds+'T12:00').getDay() === 6;
       cells += `
-<div style="min-height:70px;border:1px solid #E8F5E9;border-radius:8px;padding:4px;background:${isToday?'#F1F8E9':'#fff'};">
-  <div style="font-size:11px;font-weight:${isToday?800:400};color:${isToday?'#2E7D32':'#757575'};margin-bottom:3px;">${d}</div>
+<div style="min-height:52px;border:1px solid ${isToday?'#A5D6A7':isPastDay?'#F0F0F0':'#E8F5E9'};border-radius:6px;padding:3px;background:${isToday?'#F1F8E9':isPastDay?'#FAFAFA':isWeekend?'#FFF8F0':'#fff'};box-sizing:border-box;">
+  <div style="font-size:11px;font-weight:${isToday?800:600};color:${isToday?'#2E7D32':isPastDay?'#BDBDBD':isWeekend?'#E65100':'#424242'};margin-bottom:2px;line-height:1;">${d}</div>
   ${items.slice(0,3).map(r => {
     const seg = getSegment(r.segment);
     return (function(resa) {
@@ -691,31 +703,44 @@ contact@abracadaparc.fr`;
           ? (resa.prenom_enfant || resa.nom_contact || '?')
           : (resa.organisation || resa.nom_contact || '?'));
         var heure = resa.heure_debut ? ' · ' + resa.heure_debut : '';
-        return '<div data-cal-resa="' + resa.id + '" style="font-size:9px;background:' + seg.color + '22;color:' + seg.color + ';border-radius:3px;padding:1px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;">' + nom + heure + '</div>';
+        var isResaPast = resa.date && resa.date < todayStr;
+        return '<div data-cal-resa="' + resa.id + '" style="font-size:9px;background:' + (isResaPast?'#F5F5F5':seg.color+'22') + ';color:' + (isResaPast?'#BDBDBD':seg.color) + ';border-radius:4px;padding:2px 4px;margin-bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600;cursor:pointer;line-height:1.3;">' + nom + heure + '</div>';
       })(r)
   }).join('')}
   ${items.length > 3 ? `<div style="font-size:9px;color:#9E9E9E;">+${items.length-3}</div>` : ''}
 </div>`;
     }
+    const todayStr = today();
     return `
-<div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px;">
-    <button id="cal-prev" style="background:#F1F8E9;border:1px solid #C8E6C9;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px;color:#2E7D32;">←</button>
-    <span style="font-size:16px;font-weight:800;color:#2E7D32;min-width:180px;text-align:center;">${nomsMois[month]} ${year}</span>
-    <button id="cal-next" style="background:#F1F8E9;border:1px solid #C8E6C9;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px;color:#2E7D32;">→</button>
-    <button id="cal-today" style="background:#2E7D32;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:700;color:#fff;">Aujourd'hui</button>
+<div style="max-width:100%;overflow-x:hidden;">
+  <!-- Navigation mobile-first -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;padding:0 2px;">
+    <button id="cal-prev" style="background:#F1F8E9;border:1px solid #C8E6C9;border-radius:10px;padding:10px 16px;cursor:pointer;font-size:18px;color:#2E7D32;flex-shrink:0;touch-action:manipulation;">←</button>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
+      <span style="font-size:17px;font-weight:800;color:#2E7D32;text-align:center;">${nomsMois[month]}</span>
+      <span style="font-size:13px;font-weight:600;color:#9E9E9E;">${year}</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      <button id="cal-today" style="background:#2E7D32;border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-size:11px;font-weight:700;color:#fff;touch-action:manipulation;">Auj.</button>
+      <button id="cal-next" style="background:#F1F8E9;border:1px solid #C8E6C9;border-radius:10px;padding:10px 16px;cursor:pointer;font-size:18px;color:#2E7D32;touch-action:manipulation;">→</button>
+    </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px;">
-    ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map(j => `<div style="text-align:center;font-size:10px;font-weight:700;color:#9E9E9E;">${j}</div>`).join('')}
+  <!-- Jours de la semaine -->
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">
+    ${['Lu','Ma','Me','Je','Ve','Sa','Di'].map((j,i) => 
+      `<div style="text-align:center;font-size:10px;font-weight:700;color:${i>=5?'#BF360C':'#9E9E9E'};padding:4px 0;">${j}</div>`
+    ).join('')}
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">${cells}</div>
-  <div style="margin-top:10px;font-size:11px;color:#9E9E9E;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} réservation(s) ce mois</div>
-  <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;font-size:10px;">
-    ${[['anniversaire','🎂 Anniversaire'],['scolaire','🏫 Scolaire'],['alsh','🏕️ ALSH/CDL'],['groupe','👨‍👩‍👧 Groupe']].map(function(s){
+  <!-- Grille des jours -->
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">${cells}</div>
+  <!-- Légende + compteur -->
+  <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+    ${[['anniversaire','🎂'],['scolaire','🏫'],['alsh','🏕️'],['groupe','👨‍👩‍👧']].map(function(s){
       var seg = getSegment(s[0]);
-      return '<span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:'+seg.color+';display:inline-block;"></span>'+s[1]+'</span>';
+      return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#616161;background:#F5F5F5;padding:3px 8px;border-radius:20px;"><span style="width:8px;height:8px;border-radius:50%;background:'+seg.color+';display:inline-block;flex-shrink:0;"></span>'+s[1]+'</span>';
     }).join('')}
   </div>
+  <div style="margin-top:6px;font-size:11px;color:#BDBDBD;text-align:center;">${Object.keys(byDay).filter(d=>d.startsWith(year+'-'+String(month+1).padStart(2,'0'))).length} jour(s) avec réservation</div>
 </div>`;
   }
 
@@ -2995,7 +3020,7 @@ function PlanningPrevTab({ team }) {
                   </td>
                   <td style={{ padding:"12px 8px", border:"1px solid #E8F5E9", borderLeft:"none", borderRight:"none", fontSize:11, color:"#757575", whiteSpace:"nowrap" }}>
                     {emp.heures_mois}h/mois<br/>
-                    <span style={{ color:"#9E9E9E", fontSize:10 }}>{emp.taux}€/h</span>
+                    <span style={{ color:"#9E9E9E", fontSize:10 }}>{(parseFloat(emp.taux)||0).toFixed(2)}€/h</span>
                   </td>
                   {months.map(({m, h}) => {
                     const inContract = m >= parseInt(emp.debut.slice(5,7)) && m <= parseInt(emp.fin.slice(5,7));
@@ -3155,7 +3180,7 @@ function RecapECTab({ team, shifts }) {
       lines.push(`  ${MOIS_FR[m].padEnd(12)} : ${String(h+"h").padStart(7)} — brut ${String(brutMois.toLocaleString("fr")+"€").padStart(8)} — chargé ~${String(charged.toLocaleString("fr")+"€").padStart(9)}`);
     });
 
-    const totalBrut = Math.round(matrix.reduce((s,r) => s + r.total * r.emp.taux, 0));
+    const totalBrut = Math.round(matrix.reduce((s,r) => s + r.total * (parseFloat(r.emp.taux)||0), 0));
     const totalCharged = Math.round(totalBrut * CHARGES_PAT);
     lines.push("  " + "─".repeat(55));
     lines.push(`  ${"TOTAL SAISON".padEnd(12)} : ${String(grandTotal+"h").padStart(7)} — brut ${String(totalBrut.toLocaleString("fr")+"€").padStart(8)} — chargé ~${String(totalCharged.toLocaleString("fr")+"€").padStart(9)}`);
@@ -4128,7 +4153,7 @@ function ShiftModal({emp,date,shift,onSave,onClose}) {
             <div><label style={S.lbl}>Fin</label><input type="time" value={fin} onChange={e=>setFin(e.target.value)} style={S.inp}/></div>
           </div>
           <div style={{background:"#E8F5E9",borderRadius:8,padding:"7px 12px",textAlign:"center",fontSize:12,color:"#1B5E20",marginBottom:8}}>
-            <strong>{Math.max(0,h).toFixed(2)}h</strong> (−30min pause) · <strong>{(Math.max(0,h)*emp.taux*(is1Mai?2:1)).toFixed(2)}€ brut</strong>{is1Mai&&<span style={{color:"#E53935"}}> ×2</span>}
+            <strong>{Math.max(0,h).toFixed(2)}h</strong> (−30min pause) · <strong>{(Math.max(0,h)*(parseFloat(emp.taux)||0)*(is1Mai?2:1)).toFixed(2)}€ brut</strong>{is1Mai&&<span style={{color:"#E53935"}}> ×2</span>}
           </div>
         </>)}
         {type==="retard"&&(<div style={{marginBottom:10}}><label style={S.lbl}>Durée retard (h)</label><input type="number" step="0.25" min={0} max={8} value={hRetard} onChange={e=>setHRetard(Number(e.target.value))} style={S.inp}/></div>)}
@@ -5816,7 +5841,7 @@ function ValidationPaieTab({team, shifts, setShifts}) {
           {activeTeam.map(emp=>{
             const empRows=rows.filter(r=>r.emp.id===emp.id);
             const h=empRows.reduce((s,r)=>s+(r.validated_h||r.planned_h),0);
-            const brut=Math.round(h*emp.taux*100)/100;
+            const brut=Math.round(h*(parseFloat(emp.taux)||0)*100)/100;
             return empRows.length>0?(
               <div key={emp.id} style={{textAlign:"center"}}>
                 <div style={{fontSize:14,fontWeight:800,color:"#1B5E20"}}>{h.toFixed(1)}h</div>
