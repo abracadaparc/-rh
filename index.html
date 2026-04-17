@@ -502,6 +502,38 @@ contact@abracadaparc.fr`;
 </div>`;
   }
 
+  function buildGCalUrl(r, hFinOverride) {
+    if (!r || !r.date) return '#';
+    var d = r.date.replace(/-/g, '');
+    var debH = (r.heure_debut || '10:00').replace(':', '') + '00';
+    var hFin = hFinOverride || r.heure_fin || '';
+    if (!hFin) {
+      var cr = (r.creneau || r.formule || '').toLowerCase();
+      if (cr.includes('matin') || cr.includes('12h30') || cr.includes('12:30')) hFin = '12:30';
+      else if (cr.includes('après-midi') || cr.includes('apres-midi') || cr.includes('standard')) hFin = '17:00';
+      else if (r.heure_debut === '14:00' || r.heure_debut === '14h') hFin = '17:00';
+      else hFin = '17:00';
+    }
+    var finH = hFin.replace(':', '') + '00';
+    var titre = encodeURIComponent('🌿 AbracadaParc — ' + (r.prenom_enfant || r.organisation || r.nom_contact || 'Réservation'));
+    var details = encodeURIComponent([
+      'N° : ' + (r.id || ''),
+      r.organisation ? '🏫 ' + r.organisation : '',
+      r.effectif_total ? '👥 ' + r.effectif_total + ' pers.' : (r.effectif_enfants ? '👶 ' + r.effectif_enfants + ' enf.' : ''),
+      'Total : ' + (r.montant_total || calcTotal(r) || '') + '€',
+      r.nom_contact ? '👤 ' + r.nom_contact : '',
+      r.tel ? '📞 ' + r.tel : '',
+      r.notes ? '💬 ' + r.notes.slice(0, 100) : ''
+    ].filter(Boolean).join('
+'));
+    var lieu = encodeURIComponent('AbracadaParc, 6 Place Hyacinthe Drujon, 95190 Goussainville');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+      '&text=' + titre +
+      '&dates=' + d + 'T' + debH + '/' + d + 'T' + finH +
+      '&details=' + details +
+      '&location=' + lieu;
+  }
+
   function buildStats() {
     var all = getReservations();
     var todayS = today();
@@ -618,7 +650,15 @@ contact@abracadaparc.fr`;
 
     lignesInfos += '<div style="font-size:13px;color:#424242;line-height:2.2;border-top:1px solid #E8F5E9;padding-top:12px;">';
     lignesInfos += '📅 <strong>' + dateStr + '</strong><br/>';
-    lignesInfos += '⏰ ' + (r.heure_debut || '—') + ' → ' + (r.heure_fin || '—') + '<br/>';
+    var hFin = r.heure_fin || '';
+    if (!hFin) {
+      var cr = (r.creneau || r.formule || '').toLowerCase();
+      if (cr.includes('matin') || cr.includes('12h30') || cr.includes('12:30')) hFin = '12:30';
+      else if (cr.includes('après-midi') || cr.includes('apres-midi') || cr.includes('standard')) hFin = '17:00';
+      else if (r.heure_debut === '10:00' || r.heure_debut === '10h') hFin = '17:00';
+      else if (r.heure_debut === '14:00' || r.heure_debut === '14h') hFin = '17:00';
+    }
+    lignesInfos += '⏰ ' + (r.heure_debut || '—') + ' → ' + (hFin || '—') + '<br/>';
     if (r.effectif_enfants) lignesInfos += '👶 ' + r.effectif_enfants + ' enfant' + (r.effectif_enfants > 1 ? 's' : '') + (r.effectif_adultes > 0 ? ' · ' + r.effectif_adultes + ' adulte' + (r.effectif_adultes > 1 ? 's' : '') : '') + '<br/>';
     if (r.prenom_enfant && r.age_enfant) lignesInfos += '🎂 ' + esc(r.prenom_enfant) + ' · ' + r.age_enfant + ' ans<br/>';
     if (r.organisation) lignesInfos += '🏫 ' + esc(r.organisation) + (r.ville ? ' · ' + esc(r.ville) : '') + '<br/>';
@@ -659,6 +699,7 @@ contact@abracadaparc.fr`;
         '<div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E8F5E9;">' +
           '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
           '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
+          (r.date ? '<a href="' + buildGCalUrl(r, hFin) + '" target="_blank" style="padding:10px 14px;background:#F3E5F5;color:#6A1B9A;border-radius:8px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ajouter à Google Agenda">📅 Agenda</a>' : '') +
           (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Dossier Drive">📁 Drive</a>' : '') +
           (r.gmail_devis_url ? '<a href="' + r.gmail_devis_url + '" target="_blank" style="padding:10px 14px;background:#FFF3E0;color:#E65100;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir devis Gmail">📧 Devis</a>' : '') +
           (r.gmail_bc_url ? '<a href="' + r.gmail_bc_url + '" target="_blank" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir BC Gmail">📋 BC</a>' : '') +
@@ -5008,11 +5049,70 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
               </tr>
             ))}
           </tbody>
-          <tfoot><tr>
-            <td style={{padding:"6px 8px",fontSize:11,color:"#9E9E9E",fontWeight:600}}>TOTAL/JOUR</td>
-            {week.map((d,i)=>{const tot=dayH(d);return <td key={i} style={{padding:"3px 4px",textAlign:"center"}}><span style={{fontSize:11,fontWeight:700,color:tot>0?"#2E7D32":"#E0E0E0"}}>{tot>0?`${tot.toFixed(1)}h`:"—"}</span></td>;})}
-            <td colSpan={2}/>
-          </tr></tfoot>
+          <tfoot>
+            <tr>
+              <td style={{padding:"6px 8px",fontSize:11,color:"#9E9E9E",fontWeight:600}}>TOTAL/JOUR</td>
+              {week.map((d,i)=>{const tot=dayH(d);return <td key={i} style={{padding:"3px 4px",textAlign:"center"}}><span style={{fontSize:11,fontWeight:700,color:tot>0?"#2E7D32":"#E0E0E0"}}>{tot>0?`${tot.toFixed(1)}h`:"—"}</span></td>;})}
+              <td colSpan={2}/>
+            </tr>
+            {(()=>{
+              // Ligne groupes du jour — données depuis Firebase abr26_groupes (via window)
+              // On lit les réservations du state JS global si disponible
+              try {
+                var resas = [];
+                // Lire depuis localStorage abr_reservations (mis à jour par ReservationsTab)
+                var stored = localStorage.getItem("abr_reservations");
+                if (stored) resas = Object.values(JSON.parse(stored));
+                // Aussi lire abr26_groupes si disponible dans localStorage
+                var grpStored = localStorage.getItem("abr26_groupes_cache");
+                if (grpStored) resas = resas.concat(Object.values(JSON.parse(grpStored)));
+              } catch(e) { resas = []; }
+              var hasSomething = week.some(d => {
+                var ds = fmtLocal(d);
+                return resas.some(r => r && r.date === ds && parseInt(r.statut||"1") >= 3);
+              });
+              if (!hasSomething && resas.length === 0) return null;
+              return (
+                <tr style={{borderTop:"2px solid #E8F5E9"}}>
+                  <td style={{padding:"4px 8px",fontSize:10,color:"#1565C0",fontWeight:700,whiteSpace:"nowrap"}}>🏕️ GROUPES</td>
+                  {week.map((d,i)=>{
+                    var ds = fmtLocal(d);
+                    var groupesJour = resas.filter(r => r && r.date===ds && parseInt(r.statut||"1") >= 3 && r.segment !== "anniversaire");
+                    var annivJour = resas.filter(r => r && r.date===ds && (r.segment==="anniversaire" || (r.id&&r.id.indexOf("CMD")===0)));
+                    return (
+                      <td key={i} style={{padding:"3px 4px",verticalAlign:"top"}}>
+                        {groupesJour.map((r,j) => {
+                          var nom = (r.organisation||r.nom_contact||"?").split(" ").slice(0,2).join(" ");
+                          var eff = r.effectif_total ? r.effectif_total+"pers." : (r.enfants ? r.enfants+"enf." : "");
+                          var h = r.heure_debut ? r.heure_debut.slice(0,5) : "";
+                          var hfin = r.heure_fin ? "–"+r.heure_fin.slice(0,5) : (h==="10:00"?"–17:00":h==="14:00"?"–17:00":"");
+                          return (
+                            <div key={j} title={r.organisation||r.nom_contact} style={{fontSize:8,background:"#E3F2FD",color:"#1565C0",borderRadius:4,padding:"2px 4px",marginBottom:2,lineHeight:1.3,overflow:"hidden",maxWidth:90}}>
+                              <div style={{fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nom}</div>
+                              {(h||eff)&&<div style={{color:"#1976D2",opacity:0.9}}>{h}{hfin}{eff?" · "+eff:""}</div>}
+                            </div>
+                          );
+                        })}
+                        {annivJour.map((r,j) => {
+                          var nom = r.prenom_enfant || r.nom_contact || "?";
+                          var h = r.heure_debut ? r.heure_debut.slice(0,5) : "";
+                          var hfin = r.heure_fin ? "–"+r.heure_fin.slice(0,5) : "";
+                          return (
+                            <div key={"a"+j} title={nom} style={{fontSize:8,background:"#FCE4EC",color:"#AD1457",borderRadius:4,padding:"2px 4px",marginBottom:2,lineHeight:1.3}}>
+                              <div style={{fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🎂 {nom.split(" ")[0]}</div>
+                              {h&&<div style={{color:"#C2185B",opacity:0.9}}>{h}{hfin}</div>}
+                            </div>
+                          );
+                        })}
+                        {(groupesJour.length===0&&annivJour.length===0)&&<span style={{color:"#E0E0E0",fontSize:9}}>—</span>}
+                      </td>
+                    );
+                  })}
+                  <td colSpan={2}/>
+                </tr>
+              );
+            })()}
+          </tfoot>
           
         </table>
       </div>
