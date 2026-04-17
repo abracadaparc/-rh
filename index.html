@@ -5082,22 +5082,13 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
               <td colSpan={2}/>
             </tr>
             {(()=>{
-              // Ligne groupes du jour — données depuis Firebase abr26_groupes (via window)
-              // On lit les réservations du state JS global si disponible
-              try {
-                var resas = [];
-                // Lire depuis localStorage abr_reservations (mis à jour par ReservationsTab)
-                var stored = localStorage.getItem("abr_reservations");
-                if (stored) resas = Object.values(JSON.parse(stored));
-                // Aussi lire abr26_groupes si disponible dans localStorage
-                var grpStored = localStorage.getItem("abr26_groupes_cache");
-                if (grpStored) resas = resas.concat(Object.values(JSON.parse(grpStored)));
-              } catch(e) { resas = []; }
-              var hasSomething = week.some(d => {
-                var ds = fmtLocal(d);
-                return resas.some(r => r && r.date === ds && parseInt(r.statut||"1") >= 3);
-              });
-              if (!hasSomething && resas.length === 0) return null;
+              // Ligne groupes du jour — lecture localStorage sans try/catch inline
+              var resas = [];
+              var _stored = localStorage.getItem("abr_reservations");
+              if (_stored) { try { resas = Object.values(JSON.parse(_stored)); } catch(_e){} }
+              var _grp = localStorage.getItem("abr26_groupes_cache");
+              if (_grp) { try { resas = resas.concat(Object.values(JSON.parse(_grp))); } catch(_e){} }
+              if (resas.length === 0) return null;
               return (
                 <tr style={{borderTop:"2px solid #E8F5E9"}}>
                   <td style={{padding:"4px 8px",fontSize:10,color:"#1565C0",fontWeight:700,whiteSpace:"nowrap"}}>🏕️ GROUPES</td>
@@ -5111,7 +5102,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
                           var nom = (r.organisation||r.nom_contact||"?").split(" ").slice(0,2).join(" ");
                           var eff = r.effectif_total ? r.effectif_total+"pers." : (r.enfants ? r.enfants+"enf." : "");
                           var h = r.heure_debut ? r.heure_debut.slice(0,5) : "";
-                          var hfin = r.heure_fin ? "–"+r.heure_fin.slice(0,5) : (h==="10:00"?"–17:00":h==="14:00"?"–17:00":"");
+                          var hfin = r.heure_fin ? "-"+r.heure_fin.slice(0,5) : (h==="10:00"?"-17:00":h==="14:00"?"-17:00":"");
                           return (
                             <div key={j} title={r.organisation||r.nom_contact} style={{fontSize:8,background:"#E3F2FD",color:"#1565C0",borderRadius:4,padding:"2px 4px",marginBottom:2,lineHeight:1.3,overflow:"hidden",maxWidth:90}}>
                               <div style={{fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nom}</div>
@@ -5122,7 +5113,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
                         {annivJour.map((r,j) => {
                           var nom = r.prenom_enfant || r.nom_contact || "?";
                           var h = r.heure_debut ? r.heure_debut.slice(0,5) : "";
-                          var hfin = r.heure_fin ? "–"+r.heure_fin.slice(0,5) : "";
+                          var hfin = r.heure_fin ? "-"+r.heure_fin.slice(0,5) : "";
                           return (
                             <div key={"a"+j} title={nom} style={{fontSize:8,background:"#FCE4EC",color:"#AD1457",borderRadius:4,padding:"2px 4px",marginBottom:2,lineHeight:1.3}}>
                               <div style={{fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🎂 {nom.split(" ")[0]}</div>
