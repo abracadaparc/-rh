@@ -2025,9 +2025,28 @@ function useStorage(key, init) {
       if (snap.val() !== null) {
         try {
           const remote = typeof snap.val() === "string" ? JSON.parse(snap.val()) : snap.val();
-          ref.current = remote;
-          setVal(remote);
-          localStorage.setItem(key, JSON.stringify(remote));
+          // Pour les réservations : merger pour préserver les champs locaux
+          // (notes, etc.) si Firebase n'a pas de valeur pour ces champs
+          let merged = remote;
+          if (key === "abr26_reservations" || key === "abr_reservations") {
+            const current = ref.current || {};
+            if (typeof remote === "object" && typeof current === "object") {
+              merged = {...remote};
+              Object.keys(current).forEach(id => {
+                if (merged[id] && current[id]) {
+                  // Préserver les champs locaux non vides si Firebase n'a pas de valeur
+                  ["notes","gateau_commande","gateau_date_livraison","option_animateur","ref_commande"].forEach(field => {
+                    if (!merged[id][field] && current[id][field]) {
+                      merged[id][field] = current[id][field];
+                    }
+                  });
+                }
+              });
+            }
+          }
+          ref.current = merged;
+          setVal(merged);
+          localStorage.setItem(key, JSON.stringify(merged));
         } catch {}
       }
       setReady(true);
@@ -2544,7 +2563,7 @@ function EquipeTab({ team, setTeam }) {
                   )}
                 </div>
                 <div style={{ textAlign:"right", flexShrink:0, fontSize:11 }}>
-                  <div style={{ fontWeight:800, color:"#2E7D32", fontSize:14 }}>{emp.taux.toFixed(2)} €/h</div>
+                  <div style={{ fontWeight:800, color:"#2E7D32", fontSize:14 }}>{(emp.taux||0).toFixed(2)} €/h</div>
                   <div style={{ color:"#9E9E9E" }}>{emp.heures_mois}h/mois</div>
                   <div style={{ color:"#616161", marginTop:3, fontWeight:600 }}>{Math.round(monthlyBrut)} € brut</div>
                   <div style={{ color:"#9E9E9E" }}>{emp.type==='apprenti' ? '~0 € (exo. apprentissage)' : `≈ ${Math.round(monthlyCharge)} € chargé`}</div>
@@ -2693,7 +2712,7 @@ function ContratsTab({ team }) {
     const today = new Date().toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" });
     const nf = emp.prenom ? `${emp.nom.toUpperCase()} ${emp.prenom}` : emp.nom.toUpperCase();
     const brut = Math.round(h * emp.taux * (is1Mai ? 2 : 1) * 100) / 100;
-    const mention1Mai = is1Mai ? `\n  → 1er mai : majoration 100% appliquée (taux ×2 = ${(emp.taux*2).toFixed(2)} €/h)\n` : "";
+    const mention1Mai = is1Mai ? `\n  → 1er mai : majoration 100% appliquée (taux ×2 = ${((emp.taux||0)*2).toFixed(2)} €/h)\n` : "";
     setPreview(
 `CONTRAT D'EXTRA À DURÉE DÉTERMINÉE
 Convention collective IDCC 1790 — Espaces de loisirs
@@ -2739,7 +2758,7 @@ ARTICLE 3 – DURÉE DE LA VACATION
   ${mention1Mai}
 ARTICLE 6 – RÉMUNÉRATION
 
-  Taux horaire brut : ${emp.taux.toFixed(2)} €${is1Mai ? ` × 2 = ${(emp.taux*2).toFixed(2)} €` : ""}
+  Taux horaire brut : ${(emp.taux||0).toFixed(2)} €${is1Mai ? ` × 2 = ${((emp.taux||0)*2).toFixed(2)} €` : ""}
   Montant brut vacation : ${brut.toFixed(2)} €
 
 ARTICLE 8 – CONGÉS PAYÉS
@@ -3083,7 +3102,7 @@ function RecapECTab({ team, shifts }) {
       lines.push(`     Type de contrat  : ${emp.contrat}`);
       lines.push(`     Poste            : ${emp.poste}`);
       lines.push(`     Période          : ${emp.debut} → ${emp.fin}`);
-      lines.push(`     Taux horaire     : ${emp.taux.toFixed(2)} €/h brut`);
+      lines.push(`     Taux horaire     : ${(emp.taux||0).toFixed(2)} €/h brut`);
       lines.push(`     Volume contractuel : ${emp.heures_mois}h/mois`);
       if (emp.disponibilite) lines.push(`     Disponibilité    : ${emp.disponibilite}`);
       if (emp.ecole_periodes?.length) lines.push(`     Périodes école   : ${emp.ecole_periodes.join(", ")}`);
@@ -3333,7 +3352,7 @@ ARTICLE 3 – DURÉE
 
 ARTICLE 6 – RÉMUNÉRATION
 
-  Taux horaire brut : ${emp.taux.toFixed(2)} €${is1Mai ? ` × 2 = ${(emp.taux*2).toFixed(2)} €` : ""}
+  Taux horaire brut : ${(emp.taux||0).toFixed(2)} €${is1Mai ? ` × 2 = ${((emp.taux||0)*2).toFixed(2)} €` : ""}
   Montant brut vacation : ${brut.toFixed(2)} €
   Indemnité CP (10%) : ${(brut*0.1).toFixed(2)} €
   Total brut : ${(brut*1.1).toFixed(2)} €
@@ -3429,7 +3448,7 @@ ARTICLE 5 – DURÉE DU TRAVAIL (MODULABLE)
 
 ARTICLE 6 – RÉMUNÉRATION
 
-  Taux horaire brut : ${taux.toFixed(2)} €
+  Taux horaire brut : ${(taux||0).toFixed(2)} €
   Salaire brut mensuel indicatif : ${brutMois.toLocaleString("fr")} €
   (calculé sur la base de ${hMois}h/mois)
 
@@ -4215,7 +4234,7 @@ function exportFichesRH(team) {
       <td>${emp.debut ? new Date(emp.debut+"T12:00").toLocaleDateString("fr-FR") : "—"}</td>
       <td>${emp.fin   ? new Date(emp.fin  +"T12:00").toLocaleDateString("fr-FR") : "—"}</td>
       <td>${emp.heures_mois}h/mois</td>
-      <td>${emp.taux.toFixed(2)} €/h</td>
+      <td>${(emp.taux||0).toFixed(2)} €/h</td>
       <td>${emp.ss || "<span style='color:#C62828'>MANQUANT</span>"}</td>
       <td>${ddn}</td>
       <td>${emp.lieu_naissance||"—"}</td>
@@ -4466,7 +4485,7 @@ function exportPaie(team, shifts, year, month) {
       <td>${emp.ss||"<span style='color:red'>MANQUANT</span>"}</td>
       <td>${ddn}</td>
       <td>${emp.contrat}</td>
-      <td style="text-align:center">${emp.taux.toFixed(2)} €</td>
+      <td style="text-align:center">${(emp.taux||0).toFixed(2)} €</td>
       <td style="text-align:center">${emp.heures_mois}h</td>
       <td style="text-align:center;font-weight:bold;color:#1B5E20">${travailH.toFixed(2)}h</td>
       <td style="text-align:center">${travailJ}j</td>
@@ -5949,7 +5968,23 @@ function LoginScreen({team,onAdmin,onEmployee}) {
 function App() {
   const [team,      setTeam,      tReady] = useStorage("abr26_team_v2",   TEAM_INIT);
   const [dayLevels, setDayLevels, dReady] = useStorage("abr26_levels_v1", {});
-  const [shifts,    setShifts,    sReady] = useStorage("abr26_shifts_v4", {});
+  const [shifts,    setShiftsRaw, sReady] = useStorage("abr26_shifts_v4", {});
+  // Historique Ctrl+Z — jusqu'à 20 états précédents (mémoire session uniquement)
+  const shiftsHistory = useRef([]);
+  const setShifts = useCallback((updater) => {
+    setShiftsRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Sauvegarder l'état précédent dans l'historique
+      shiftsHistory.current = [...shiftsHistory.current.slice(-19), JSON.stringify(prev)];
+      return next;
+    });
+  }, [setShiftsRaw]);
+  const undoShift = useCallback(() => {
+    if (shiftsHistory.current.length === 0) return;
+    const prev = JSON.parse(shiftsHistory.current[shiftsHistory.current.length - 1]);
+    shiftsHistory.current = shiftsHistory.current.slice(0, -1);
+    setShiftsRaw(prev);
+  }, [setShiftsRaw]);
 
   const [alertes,    setAlertes,    aReady] = useStorage("abr26_notes_v1", ALERTES_INIT);
   const [calEvents,  setCalEvents,  cReady] = useStorage("abr26_cal_events",  {});
@@ -5964,7 +5999,23 @@ function App() {
   // Auto-fill shifts
   useEffect(()=>{
     if(sReady&&tReady&&Object.keys(shifts).length===0&&team.length>0) setShifts(generateDefaultShifts(team));
-  },[sReady,tReady]);
+  }, [sReady, tReady]);
+
+  // Ctrl+Z global pour annuler la dernière modification de planning
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        // Ne pas interférer si un champ texte est actif
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        undoShift();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undoShift]);
+
 
   // Migration: convert old ecole shifts during POEI periods to poei type
   useEffect(()=>{
