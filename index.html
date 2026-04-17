@@ -255,7 +255,18 @@ const CAL_EVENT_TYPES = [
       var idKey = r.id || key;
       if (!seen[idKey]) { seen[idKey] = true; result.push(r); }
     });
-    return result.sort(function(a, b) { return (a.date||'').localeCompare(b.date||''); });
+    const _today = today();
+    return result.sort(function(a, b) {
+      const aDate = a.date || '';
+      const bDate = b.date || '';
+      const aFut = aDate >= _today;
+      const bFut = bDate >= _today;
+      // Futurs en premier, passés en bas
+      if (aFut && !bFut) return -1;
+      if (!aFut && bFut) return 1;
+      // Dans chaque groupe : tri par date ASC
+      return aDate.localeCompare(bDate);
+    });
   }
 
   function filteredReservations() {
@@ -472,17 +483,35 @@ contact@abracadaparc.fr`;
   <!-- Liste -->
   <div style="display:flex;flex-direction:column;gap:8px;">
     ${list.length === 0 ? '<div style="text-align:center;padding:40px;color:#9E9E9E;font-size:13px;">Aucune réservation — cliquez sur + Réservation ou ⚡ Sur place</div>' :
-      list.map(r => buildReservationCard(r)).join('')}
+      (function() {
+        var todayS2 = today();
+        var futurs2 = list.filter(function(r){ return !r.date || r.date >= todayS2; });
+        var passes2  = list.filter(function(r){ return r.date && r.date < todayS2; });
+        var out = futurs2.map(function(r){ return buildReservationCard(r); }).join('');
+        if (passes2.length > 0) {
+          out += '<div style="margin:16px 0 8px;display:flex;align-items:center;gap:10px;">' +
+            '<div style="flex:1;height:1px;background:#E0E0E0;"></div>' +
+            '<span style="font-size:11px;font-weight:700;color:#BDBDBD;white-space:nowrap;">— ' + passes2.length + ' visite(s) passée(s) —</span>' +
+            '<div style="flex:1;height:1px;background:#E0E0E0;"></div>' +
+            '</div>';
+          out += passes2.map(function(r){ return buildReservationCard(r); }).join('');
+        }
+        return out;
+      })()}
   </div>
 </div>`;
   }
 
   function buildStats() {
     var all = getReservations();
+    var todayS = today();
+    var futurs = all.filter(function(r){ return !r.date || r.date >= todayS; });
+    var passes  = all.filter(function(r){ return r.date && r.date < todayS; });
     var ca = all.reduce(function(s,r){ return s + calcTotal(r); }, 0);
     var caConf = all.filter(function(r){ return parseInt(r.statut||'1') >= 4; })
                     .reduce(function(s,r){ return s + calcTotal(r); }, 0);
-    var soldes = all.filter(function(r){ return r.statut !== '6'; })
+    // Soldes dus = uniquement sur les futurs et aujourd'hui (pas les passés déjà facturés)
+    var soldes = futurs.filter(function(r){ return r.statut !== '6'; })
                     .reduce(function(s,r){
                       var t = calcTotal(r), a = parseFloat(r.acompte_paye)||0;
                       return s + Math.max(0, t - a);
@@ -528,7 +557,19 @@ contact@abracadaparc.fr`;
         ${r.walkin ? '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#FFF3E0;color:#E65100;">⚡ Sur place</span>' : ''}
       </div>
       <div style="font-size:12px;color:#616161;">
-        📅 ${fmtDate(r.date)} ${r.heure_debut ? `· ${r.heure_debut}–${r.heure_fin || ''}` : ''}
+        📅 ${fmtDate(r.date)} ${(function() {
+          if (!r.heure_debut) return '';
+          var fin = r.heure_fin || '';
+          // Déduire heure_fin si absente depuis la formule/créneau
+          if (!fin) {
+            var cren = (r.creneau || r.formule || '').toLowerCase();
+            if (cren.includes('matin') || cren.includes('12h30') || cren.includes('12:30')) fin = '12:30';
+            else if (cren.includes('après-midi') || cren.includes('apres-midi') || cren.includes('14h') || cren === 'standard') fin = '17:00';
+            else if (r.heure_debut === '10:00' || r.heure_debut === '10h') fin = '17:00';
+            else if (r.heure_debut === '14:00' || r.heure_debut === '14h') fin = '17:00';
+          }
+          return '· ' + r.heure_debut + (fin ? '–' + fin : '');
+        })()}
         ${r.effectif_total ? `· 👥 ${r.effectif_total} pers.` : ''}
         ${r.formule_id ? `· ${getFormule(r.formule_id)?.label || ''}` : ''}
       </div>
@@ -541,6 +582,7 @@ contact@abracadaparc.fr`;
         <div style="font-size:13px;font-weight:800;color:#1B5E20;">${total.toLocaleString('fr')} €</div>
         ${acompte > 0 ? `<div style="font-size:10px;color:#9E9E9E;">Acompte : ${acompte.toLocaleString('fr')} €</div>` : ''}
         ${solde > 0 ? `<div style="font-size:11px;font-weight:700;color:#C62828;">Solde : ${solde.toLocaleString('fr')} €</div>` : `<div style="font-size:10px;color:#2E7D32;">✅ Réglé</div>`}
+        ${r.mode_paiement ? `<div style="font-size:10px;color:#757575;margin-top:1px;">${({'internet_cb':'💳 CB','virement':'🏦 Virement','especes':'💵 Espèces','cheque':'📝 Chèque','cheque_vacances':'🏖️ CV','bon_commande':'📋 BC','cb':'💳 CB sur place','Carte':'💳 Carte','Virement':'🏦 Virement','BC':'📋 BC','Chèque':'📝 Chèque','Espèces':'💵 Espèces'}[r.mode_paiement] || r.mode_paiement)}</div>` : ''}
       </div>` : ''}
       <div style="display:flex;gap:4px;flex-wrap:wrap;">
         ${r.statut !== '6' ? `
