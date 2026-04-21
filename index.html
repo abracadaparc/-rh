@@ -2658,13 +2658,6 @@ function EquipeTab({ team, setTeam }) {
 
   return (
     <div>
-      <div style={{ ...S.card, marginBottom:18, background:"#FFF9C4", border:"1px solid #FFD54F" }}>
-        <div style={{ fontSize:12, color:"#F57F17", lineHeight:1.8 }}>
-          📋 <strong>POEI recommandé</strong> pour Joris et Florence avant le 1er avril — formation préalable à l'embauche France Travail, réduire le coût employeur.<br/>
-          🔵 <strong>Myron (apprenti)</strong> : coût patronal allégé via l'alternance — valider les périodes école avec le CFA.<br/>
-          ⚠️ <strong>Alyssa</strong> : contrat jusqu'au 21/06 seulement — anticiper CP et solde de tout compte.
-        </div>
-      </div>
 
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
         <span style={{ fontSize:15, fontWeight:700, color:"#2E7D32" }}>Équipe Saison 2026</span>
@@ -3020,11 +3013,6 @@ function getEmpAvailability(emp, ds, dayType, isWE) {
     if (ds > "2026-06-21") return 0;
     return (dw === 3 || isWE) ? 1 : 0;
   }
-  // JORIS – POEI en attente : on exclut aussi le 1-19 avril par précaution
-  if (emp.id === "t4") {
-    if (ds < "2026-04-20") return 0; // POEI probable, même logique que Florence
-    return 1;
-  }
   // FLORENCE – POEI validé : formation 1-19 avril, dispo à partir du 20 avril
   if (emp.id === "t5") {
     if (ds < "2026-04-20") return 0;
@@ -3309,7 +3297,6 @@ function RecapECTab({ team, shifts }) {
 
     lines.push("4. POINTS D'ATTENTION & RECOMMANDATIONS");
     lines.push(sep2);
-    lines.push(`  ▸ POEI recommandé pour Joris et Florence (France Travail) avant le 1er avril 2026.`);
     lines.push(`    Formation préalable à l'embauche : réduction significative du coût employeur.`);
     lines.push(`  ▸ Myron (apprenti LP 3e année, 20 ans) : exonération quasi-totale charges patronales.`);
     lines.push(`    Taux légal min. : 67% SMIC = ~7,96 €/h → brut ~1 207 €/mois.`);
