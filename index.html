@@ -2166,8 +2166,11 @@ function useStorage(key, init) {
   useEffect(() => {
     const db = getFbDb();
     if (!db) { setReady(true); return; }
+    // TIMEOUT SECOURS : si Firebase ne répond pas en 4s → afficher quand même
+    const timeout = setTimeout(() => { setReady(true); }, 4000);
     const fbRef = db.ref("abracadaparc/" + key);
     fbRef.on("value", snap => {
+      clearTimeout(timeout);
       if (snap.val() !== null) {
         try {
           const remote = typeof snap.val() === "string" ? JSON.parse(snap.val()) : snap.val();
