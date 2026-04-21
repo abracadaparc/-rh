@@ -4696,10 +4696,17 @@ const DEFAULT_PWD    = "Abracadaparc2026";
 const DEFAULT_EMP_PIN = "1234";
 
 async function initHash() {
-  if (!localStorage.getItem(ADMIN_HASH_KEY)) {
+  // Recréer si absent, vide ou corrompu (ex: après vidage cache)
+  const existing = localStorage.getItem(ADMIN_HASH_KEY);
+  if (!existing || existing.length < 10) {
     const h = await sha256(DEFAULT_PWD);
     localStorage.setItem(ADMIN_HASH_KEY, h);
   }
+}
+async function resetToDefaultPwd() {
+  const h = await sha256(DEFAULT_PWD);
+  localStorage.setItem(ADMIN_HASH_KEY, h);
+  return true;
 }
 async function checkPwd(pwd) {
   const h = await sha256(pwd);
@@ -5518,7 +5525,7 @@ function ParametresTab({onChangePwd,team}) {
         {pwdMsg&&<div style={{fontSize:12,color:pwdMsg.startsWith("✅")?"#1B5E20":"#C62828",marginBottom:10,fontWeight:600}}>{pwdMsg}</div>}
         <button onClick={handleChangePwd} style={{...S.btn,...S.btnG}}>Mettre à jour</button>
         <div style={{marginTop:10,fontSize:11,color:"#9E9E9E"}}>
-          Mot de passe stocké chiffré (SHA-256). Par défaut : <code>Abracadaparc2026</code>
+          Mot de passe stocké chiffré (SHA-256).
         </div>
       </div>
 
@@ -6862,7 +6869,8 @@ function LoginScreen({team,onAdmin,onEmployee}) {
           <button onClick={tryAdmin} disabled={loading} style={{...S.btn,...S.btnG,flex:1,opacity:loading?0.6:1}}>{loading?"Vérification…":"Accéder"}</button>
           <button onClick={()=>{setMode("choose");setPin("");setErr("");}} style={{...S.btn,...S.btnS}}>Retour</button>
         </div>
-        <div style={{marginTop:10,fontSize:10,color:"#BDBDBD"}}>Mot de passe par défaut : Abracadaparc2026</div>
+        <div style={{marginTop:10,fontSize:10,color:"#BDBDBD"}}>Accès réservé — contact@abracadaparc.fr</div>
+          <button onClick={async()=>{await resetToDefaultPwd();setErr("✅ Mot de passe réinitialisé — réessayez");}} style={{marginTop:6,background:"none",border:"none",fontSize:10,color:"#BDBDBD",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>Mot de passe oublié ? Réinitialiser</button>
       </div>
     </div>
   );
