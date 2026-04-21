@@ -2071,6 +2071,18 @@ const TEAM_INIT = [
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
   },
   {
+    id:"t4", nom:"CAHRISSON-ETIENNE", prenom:"Belenz", color:"#BF360C",
+    type:"saisonnier", contrat:"CDD Saisonnier Modulable",
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
+    disponibilite:"POEI validé ✅ — Formation France Travail 1–19 avril. CDD démarré le 20 avril 2026. Disponible toute la saison. WE confirmés sept–oct. Toussaint confirmé.",
+    ecole_periodes:["1–19 avril (POEI — hors entreprise)"],
+    poste:"Polyvalent + Développement commercial", actif:true,
+    note:"✅ POEI confirmé. CDD modulable démarré le 20/04/2026. Email : cahrisson.pro@gmail.com",
+    ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"cahrisson.pro@gmail.com",
+    iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+    poei_debut:"2026-04-01", poei_fin:"2026-04-19", poei_organisme:"France Travail",
+  },
+  {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
     debut:"2026-04-20", fin:"2026-11-02", heures_mois:120, taux:12.02,
@@ -2993,45 +3005,87 @@ ___________________________        ___________________________`
 // Returns typical hours worked per open day per employee based on their availability rules
 // We use NORMAL level as forecast basis (conservative, can be adjusted)
 function getEmpAvailability(emp, ds, dayType, isWE) {
-  if (ds < emp.debut || ds > emp.fin) return 0;
+  if (!ds || ds < emp.debut || ds > emp.fin) return 0;
   const d = new Date(ds + "T12:00");
   const dw = d.getDay(); // 0=Sun, 1=Mon, 6=Sat
   const m = d.getMonth() + 1;
 
-  if (emp.id === "t1") { // MYRON – apprenti, dispo tous les jours sauf école
-    // École périodes: 18-22 mai, 23 juin, 17-21 août → on exclut ces jours du prévisionnel
+  // MYRON (t1) – apprenti, dispo tous les jours sauf périodes école
+  if (emp.id === "t1") {
     const ecoleIntervals = [
-      ["2026-05-18","2026-05-22"], ["2026-06-23","2026-06-23"],
+      ["2026-05-18","2026-05-22"],
+      ["2026-06-23","2026-06-23"],
       ["2026-08-17","2026-08-21"],
     ];
     for (const [s,e] of ecoleIntervals) { if (ds >= s && ds <= e) return 0; }
-    return 1; // dispo
+    return 1;
   }
-  if (emp.id === "t2") { // AYTHANN – WE only Apr-May, full Jun-Jul, S1-S2 Aug, WE Sep-Nov
-    if (m <= 5) return isWE ? 1 : 0;
-    if (m <= 7) return 1;
-    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // S1+S2 = until Aug 16
-    return isWE ? 1 : 0; // Sep-Nov: WE only
+
+  // AYTHANN (t2) – WE seulement avr-mai, complet juin-juil, S1+S2 août uniquement
+  // Contrat se termine fin août — septembre non confirmé
+  if (emp.id === "t2") {
+    if (m <= 5) return isWE ? 1 : 0;   // avr-mai : WE uniquement
+    if (m <= 7) return 1;               // juin-juil : tous les jours
+    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // août S1+S2 seulement
+    return 0; // sept+ : non prévu (à confirmer séparément)
   }
-  if (emp.id === "t3") { // ALYSSA – MER + WE only, until Jun 21
+
+  // ALYSSA (t3) – MER + WE uniquement, jusqu'au 21 juin
+  if (emp.id === "t3") {
     if (ds > "2026-06-21") return 0;
     return (dw === 3 || isWE) ? 1 : 0;
   }
-  // FLORENCE – POEI validé : formation 1-19 avril, dispo à partir du 20 avril
+
+  // BELENZ (t4) – CDD modulable démarré le 21 avril, toute la saison
+  if (emp.id === "t4") {
+    if (ds < "2026-04-20") return 0;
+    return 1; // disponible tous les jours ouverts jusqu'en novembre
+  }
+
+  // FLORENCE (t5) – POEI 1-19 avril, dispo dès le 20 avril toute la saison
   if (emp.id === "t5") {
     if (ds < "2026-04-20") return 0;
     return 1;
   }
-  // SALLY – stagiaire : lun-ven uniquement, du 14/04 au 31/07
-  if (emp.id === "t7") {
-    if (dw === 0 || dw === 6) return 0; // pas le week-end
+
+  // SALLY (sally_s) – mar-sam, 14/04 au 31/07
+  // Mardi=2, Mercredi=3, Jeudi=4, Vendredi=5, Samedi=6
+  if (emp.id === "sally_s") {
+    if (dw === 0 || dw === 1) return 0; // pas dim ni lun
     return 1;
   }
+
+  // t6 NOUVEAU C – toute la saison, WE confirmés sept-oct
+  if (emp.id === "t6") {
+    if (m >= 9) return isWE ? 1 : 0;
+    return 1;
+  }
+
+  // Fallback générique : dispo sur toute la période de contrat
+  return 1;
 }
 
 // Average hours per day based on level and slot (spread across team positions)
 // We use a fair split: in NORMAL: positions alternate ~7-8h each
-const AVG_H_NORMAL = { wed:7.33, we:7.25, vacWD:7.33, vacWE:7.25 };
+// Heures réelles par salarié selon les créneaux définis dans le planning :
+// Myron (t1)      : 09:30-17:00 = 7h (tous types de jours)
+// Aythann (t2)    : 11:30-18:30 = 6.5h (tous ses jours)
+// Alyssa (t3)     : 09:30-18:30 = 8.5h (mer/vac), 09:30-16:30/17:30 = 7h (WE)
+// Belenz (t4)     : 09:30-17:30 = 7.5h (journée) ou 15:00-22:30 = 7h (fermeture) — moy 7.25h
+// Florence (t5)   : 09:30-18:30 = 8.5h (mer/vac), 11:30-18:30 = 6.5h (WE) — moy 7.5h
+// Sally (sally_s) : 11:30-18:30 = 7h (mar-sam)
+// Nouveau C (t6)  : 11:30-18:30 = 6.5h (fermeture)
+const AVG_H_BY_EMP = {
+  t1:      { wed:7.0,  we:7.0,  vacWD:7.0,  vacWE:7.0  },
+  t2:      { wed:6.5,  we:6.5,  vacWD:6.5,  vacWE:6.5  },
+  t3:      { wed:8.5,  we:7.0,  vacWD:8.5,  vacWE:7.0  },
+  t4:      { wed:7.25, we:7.25, vacWD:7.25, vacWE:7.25 },
+  t5:      { wed:8.5,  we:6.5,  vacWD:8.5,  vacWE:6.5  },
+  sally_s: { wed:7.0,  we:7.0,  vacWD:7.0,  vacWE:7.0  },
+  t6:      { wed:6.5,  we:6.5,  vacWD:6.5,  vacWE:6.5  },
+};
+// Fallback pour IDs inconnus
+const AVG_H_NORMAL = { wed:7.0, we:7.0, vacWD:7.0, vacWE:7.0 };
 
 function forecastMonthHours(emp, month, year) {
   let h = 0;
@@ -3047,7 +3101,8 @@ function forecastMonthHours(emp, month, year) {
     const avail = getEmpAvailability(emp, ds, dayType, isWE);
     if (!avail) continue;
     const sk = getSlotKey(ds, dayType, isWE);
-    h += AVG_H_NORMAL[sk] || 7;
+    const empHours = AVG_H_BY_EMP[emp.id] || AVG_H_NORMAL;
+    h += empHours[sk] || 7;
   }
   return Math.round(h * 10) / 10;
 }
@@ -4882,12 +4937,12 @@ function generateDefaultShifts(team) {
         const MAI_START = "2026-05-01";
         if (ds >= "2026-04-20" && ds < MAI_START) {
           // AVRIL : Joris journée, Myron soirée
-          assign("t4", ds, "09:30", "17:30", 7.5); // JORIS journée
+          assign("t4", ds, "09:30", "17:30", 7.5); // BELENZ journée
           assign("t1", ds, "15:00", "22:30", 7.0); // MYRON soirée fermeture
         } else if (ds >= MAI_START) {
           // MAI → : Myron journée, Joris soirée fermeture
           assign("t1", ds, "09:30", "17:00", 7.0); // MYRON journée
-          assign("t4", ds, "15:00", "22:30", 7.0); // JORIS soirée fermeture (anniversaires/escape)
+          assign("t4", ds, "15:00", "22:30", 7.0); // BELENZ soirée fermeture
           // Aythann soirée à partir de mai (13h-22h30) — non publié pour l'instant
           // assign("t2", ds, "13:00", "22:30", 9.0); // AYTHANN SOIR — à activer après communication
         }
@@ -4897,7 +4952,7 @@ function generateDefaultShifts(team) {
         if (ds >= "2026-04-20") assign("t5", ds, "11:30", "18:30", 6.5); // FLORENCE
       } else {
         // DIMANCHE
-        if (ds >= "2026-04-20") assign("t4", ds, "09:30", "17:30", 7.5); // JORIS
+        if (ds >= "2026-04-20") assign("t4", ds, "09:30", "17:30", 7.5); // BELENZ
         if (ds <= ALYSSA_END)  assign("t3", ds, "09:30", "17:30", 7.5); // ALYSSA dim → 17h30
         if (aythann && getEmpAvailability(aythann,ds,dayType,isWE)) assign("t2", ds, "11:30", "18:30", 6.5); // AYTHANN
         if (ds >= "2026-04-20") assign("t5", ds, "11:30", "18:30", 6.5); // FLORENCE
