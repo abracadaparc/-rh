@@ -6,6 +6,7 @@
 <title>AbracadaParc RH · Saison 2026</title>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -3863,6 +3864,70 @@ function getFbDb() {
   } catch(e) { return null; }
 }
 
+// ═══════════════════════════════════════════════════════════
+// SYSTÈME INVITATION PAR LIEN MAGIQUE — Firebase Auth
+// ═══════════════════════════════════════════════════════════
+
+function getFbAuth() {
+  try {
+    if (!window.firebase) return null;
+    const cfg = {
+      apiKey:"AIzaSyCPE1KzlK-bnjlFIKh68TlOtmqK7PKwkvg",
+      authDomain:"abracadaparc-rh-5dd09.firebaseapp.com",
+      databaseURL:"https://abracadaparc-rh-5dd09-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId:"abracadaparc-rh-5dd09",
+      storageBucket:"abracadaparc-rh-5dd09.firebasestorage.app",
+      messagingSenderId:"468321623779",
+      appId:"1:468321623779:web:1dc21a8c981572d880efd6"
+    };
+    if (!firebase.apps?.length) firebase.initializeApp(cfg);
+    return firebase.auth();
+  } catch(e) { return null; }
+}
+
+// Envoyer un lien magique par email (Email Link / Passwordless)
+async function envoyerLienMagique(email, nomSalarie) {
+  const auth = getFbAuth();
+  if (!auth) return { ok: false, err: "Firebase Auth non disponible" };
+  const actionCodeSettings = {
+    url: window.location.href.split('?')[0], // URL de l'app sans paramètres
+    handleCodeInApp: true,
+  };
+  try {
+    await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+    // Sauvegarder l'email localement pour le retrouver au retour
+    localStorage.setItem('abr_invite_email', email);
+    localStorage.setItem('abr_invite_nom', nomSalarie || '');
+    return { ok: true };
+  } catch(e) {
+    return { ok: false, err: e.message || "Erreur envoi" };
+  }
+}
+
+// Vérifier si l'URL contient un lien magique et connecter automatiquement
+async function verifierLienMagiqueURL() {
+  const auth = getFbAuth();
+  if (!auth) return null;
+  try {
+    if (!auth.isSignInWithEmailLink(window.location.href)) return null;
+    let email = localStorage.getItem('abr_invite_email');
+    if (!email) {
+      email = window.prompt('Confirmez votre adresse email pour vous connecter :');
+      if (!email) return null;
+    }
+    const result = await auth.signInWithEmailLink(email, window.location.href);
+    localStorage.removeItem('abr_invite_email');
+    // Nettoyer l'URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return result.user;
+  } catch(e) { return null; }
+}
+
+// Exposer pour utilisation dans React
+window.abr_envoyerLienMagique = envoyerLienMagique;
+window.abr_verifierLienMagiqueURL = verifierLienMagiqueURL;
+window.abr_getFbAuth = getFbAuth;
+
 function fbSave(path, data) {
   var db = getFbDb();
   if (!db) return;
@@ -4734,6 +4799,8 @@ function ParametresTab({onChangePwd,team}) {
 
   return (
     <div>
+      {/* INVITATION PAR LIEN MAGIQUE */}
+      <InvitationPanel />
       {/* RÉUTILISATION 2027 */}
       <div style={{...S.card,marginBottom:20,background:"#E8F5E9",border:"1px solid #A5D6A7"}}>
         <div style={{fontSize:15,fontWeight:800,color:"#1B5E20",marginBottom:10}}>🔄 Réutilisation pour 2027 et au-delà</div>
@@ -6022,6 +6089,64 @@ function ValidationPaieTab({team, shifts, setShifts}) {
 // LOGIN
 // ═══════════════════════════════════════════════════════════
 
+// ─── PANNEAU INVITATION PAR LIEN MAGIQUE ────────────────────────────────────
+function InvitationPanel() {
+  const [email, setEmail]       = React.useState('');
+  const [nom,   setNom]         = React.useState('');
+  const [status, setStatus]     = React.useState('idle'); // idle | sending | ok | error
+  const [msg, setMsg]           = React.useState('');
+
+  const envoyer = async () => {
+    if (!email || !email.includes('@')) { setMsg('Email invalide'); setStatus('error'); return; }
+    setStatus('sending'); setMsg('');
+    const res = await window.abr_envoyerLienMagique(email, nom);
+    if (res.ok) {
+      setStatus('ok');
+      setMsg(`✅ Lien envoyé à ${email} — la personne n'a qu'à cliquer pour accéder à l'app.`);
+      setEmail(''); setNom('');
+    } else {
+      setStatus('error');
+      setMsg('❌ Erreur : ' + res.err);
+    }
+  };
+
+  return (
+    <div style={{background:'#E8F5E9',border:'1px solid #A5D6A7',borderRadius:12,padding:'16px 18px',marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:800,color:'#1B5E20',marginBottom:4}}>📨 Inviter un membre de l'équipe</div>
+      <div style={{fontSize:11,color:'#2E7D32',marginBottom:12}}>La personne reçoit un lien par email — elle clique et accède directement, sans mot de passe.</div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <input
+          value={nom} onChange={e=>setNom(e.target.value)}
+          placeholder="Prénom Nom (ex: Florence Folco)"
+          style={{flex:'1 1 160px',padding:'8px 10px',borderRadius:8,border:'1.5px solid #C8E6C9',fontSize:13,fontFamily:'inherit',outline:'none'}}
+        />
+        <input
+          value={email} onChange={e=>{setEmail(e.target.value);setStatus('idle');setMsg('');}}
+          placeholder="email@exemple.fr"
+          type="email"
+          style={{flex:'1 1 200px',padding:'8px 10px',borderRadius:8,border:'1.5px solid #C8E6C9',fontSize:13,fontFamily:'inherit',outline:'none'}}
+          onKeyDown={e=>{if(e.key==='Enter') envoyer();}}
+        />
+        <button
+          onClick={envoyer}
+          disabled={status==='sending'}
+          style={{padding:'8px 18px',background:status==='sending'?'#9E9E9E':'#2E7D32',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'inherit',whiteSpace:'nowrap',opacity:status==='sending'?0.7:1}}
+        >
+          {status==='sending' ? '⏳ Envoi…' : '📨 Envoyer le lien'}
+        </button>
+      </div>
+      {msg && (
+        <div style={{marginTop:8,fontSize:12,color:status==='ok'?'#1B5E20':'#C62828',fontWeight:600,background:status==='ok'?'#F1F8E9':'#FFEBEE',padding:'6px 10px',borderRadius:6}}>
+          {msg}
+        </div>
+      )}
+      <div style={{marginTop:8,fontSize:10,color:'#757575'}}>
+        Emails déjà invités : contact@abracadaparc.fr · cahrisson.pro@gmail.com · aythann.obert@gmail.com · florencefolco@hotmail.fr · sanogosally12@gmail.com · aantongeethafontgalland@gmail.com · candunmyron@gmail.com
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen({team,onAdmin,onEmployee}) {
   // ALL hooks at top level — never inside if blocks (React rule)
   const [mode,setMode]=useState("choose");
@@ -6225,6 +6350,30 @@ function App() {
   const loginAdmin    = ()=>{sessionStorage.setItem("abr_auth","admin");setAuthMode("admin");};
   const loginEmployee = id=>{sessionStorage.setItem("abr_auth","employee");sessionStorage.setItem("abr_emp",id);setAuthMode("employee");setCurrentEmpId(id);};
   const logout        = ()=>{sessionStorage.clear();setAuthMode("login");setCurrentEmpId(null);};
+
+  // Vérifier si l'URL contient un lien magique Firebase → connexion automatique
+  useEffect(()=>{
+    if(typeof window.abr_verifierLienMagiqueURL !== 'function') return;
+    window.abr_verifierLienMagiqueURL().then(user => {
+      if (!user) return;
+      const email = user.email || '';
+      // Si c'est Vanessa → connecter en admin
+      if (email === 'contact@abracadaparc.fr') {
+        loginAdmin();
+        return;
+      }
+      // Sinon → chercher dans l'équipe par email
+      const emp = team.find(e => e.email === email);
+      if (emp) {
+        loginEmployee(emp.id);
+      } else {
+        // Email reconnu Firebase mais pas dans l'équipe → login quand même en employé générique
+        sessionStorage.setItem("abr_auth","employee");
+        sessionStorage.setItem("abr_email_magique", email);
+        setAuthMode("employee");
+      }
+    });
+  }, [tReady]);
 
   if(!tReady||!dReady||!sReady||!aReady||!cReady) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:"#2E7D32",fontSize:15}}>Chargement AbracadaParc 2026…</div>;
 
