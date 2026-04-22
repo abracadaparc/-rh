@@ -4984,8 +4984,13 @@ const STATUTS = {
 // SHIFT MODAL
 // ═══════════════════════════════════════════════════════════
 // Helper: effective hours for a shift (école = 7h, travail = actual h)
-function shH(sh) {
+function shH(sh, emp, dateStr) {
   if (!sh) return 0;
+  if (emp && dateStr) {
+    var _d = new Date(dateStr + "T12:00:00");
+    if (emp.debut && new Date(emp.debut + "T00:00:00") > _d) return 0;
+    if (emp.fin   && new Date(emp.fin   + "T23:59:59") < _d) return 0;
+  }
   if (sh.type === "travail")    return sh.h || 0;
   if (sh.type === "ecole")      return 7.0;  // ✅ école = 7h, salaire maintenu
   if (sh.type === "soir")       return sh.h || 7.0; // créneau soir
@@ -5658,7 +5663,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
 
   const getShift=(eid,ds)=>shifts[`${eid}_${ds}`];
   const putShift=(eid,ds,data)=>{if(readonly)return;setShifts(p=>{const n={...p};data===null?delete n[`${eid}_${ds}`]:(n[`${eid}_${ds}`]=data);return n;});};
-  const weekH=eid=>week.reduce((s,d)=>{return s+shH(getShift(eid,fmtLocal(d)));},0);
+  const weekH=eid=>{const _e=team.find(function(e){return String(e.id)===String(eid);});return week.reduce(function(s,d){var _ds=fmtLocal(d);return s+shH(getShift(eid,_ds),_e,_ds);},0);};
   const dayH=d=>displayTeam.reduce((s,e)=>{const sh=getShift(e.id,fmtLocal(d));return s+(sh?.type==="travail"?(sh.h||0):0);},0);
   const weekLabel=()=>{const a=safeMon.toLocaleDateString("fr-FR",{day:"2-digit",month:"long"});const b=addDaysLocal(safeMon,6).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});return `${a} → ${b}`;};
   const dtColor={mercredi:"#1565C0",weekend:"#BF360C",vacances:"#2E7D32"};
@@ -5689,7 +5694,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
             </tr></thead>
             <tbody>
               {displayTeam.map(emp=>{
-                const weekTotals=weeks.map(({days})=>days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)));},0));
+                const weekTotals=weeks.map(({days})=>days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)),emp,fmtLocal(d));},0));
                 const monthTotal=weekTotals.reduce((s,h)=>s+h,0);
                 return (<tr key={emp.id} style={{background:"#fff"}}>
                   <td style={{padding:"8px 8px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:9,height:9,borderRadius:"50%",background:emp.color,flexShrink:0}}/><div style={{fontSize:12,fontWeight:700,color:"#212121"}}>{emp.prenom?emp.prenom.split(" ")[0]:emp.nom}</div></div></td>
@@ -6496,7 +6501,7 @@ function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=
         const {acquis,pris,restants,deficit}=calcCP(emp,shifts,season);
         const monthH=weeks.flatMap(w=>w.days).reduce((s,d)=>{
           if(d.getMonth()!==m)return s;
-          return s+shH(getShift(emp.id,fmtLocal(d)));
+          return s+shH(getShift(emp.id,fmtLocal(d)),emp,fmtLocal(d));
         },0);
         const delta=monthH-emp.heures_mois;
 
@@ -6518,7 +6523,7 @@ function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=
 
             {/* Weeks */}
             {weeks.map(({mon:wm,days},wi)=>{
-              const wH=days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)));},0);
+              const wH=days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)),emp,fmtLocal(d));},0);
               const wDelta=wH-(emp.heures_mois/4.33);
               return (
                 <div key={wi} style={{marginBottom:8}}>
