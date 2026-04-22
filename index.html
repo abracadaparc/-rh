@@ -2071,18 +2071,6 @@ const TEAM_INIT = [
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
   },
   {
-    id:"t4", nom:"CAHRISSON-ETIENNE", prenom:"Belenz", color:"#BF360C",
-    type:"saisonnier", contrat:"CDD Saisonnier Modulable",
-    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
-    disponibilite:"POEI validé ✅ — Formation France Travail 1–19 avril. CDD démarré le 20 avril 2026. Disponible toute la saison. WE confirmés sept–oct. Toussaint confirmé.",
-    ecole_periodes:["1–19 avril (POEI — hors entreprise)"],
-    poste:"Polyvalent + Développement commercial", actif:true,
-    note:"✅ POEI confirmé. CDD modulable démarré le 20/04/2026. Email : cahrisson.pro@gmail.com",
-    ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"cahrisson.pro@gmail.com",
-    iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
-    poei_debut:"2026-04-01", poei_fin:"2026-04-19", poei_organisme:"France Travail",
-  },
-  {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
     type:"saisonnier", contrat:"CDD Saisonnier Modulable",
     debut:"2026-04-20", fin:"2026-11-02", heures_mois:120, taux:12.02,
@@ -3005,98 +2993,47 @@ ___________________________        ___________________________`
 // Returns typical hours worked per open day per employee based on their availability rules
 // We use NORMAL level as forecast basis (conservative, can be adjusted)
 function getEmpAvailability(emp, ds, dayType, isWE) {
-  if (!ds || ds < emp.debut || ds > emp.fin) return 0;
+  if (ds < emp.debut || ds > emp.fin) return 0;
   const d = new Date(ds + "T12:00");
   const dw = d.getDay(); // 0=Sun, 1=Mon, 6=Sat
   const m = d.getMonth() + 1;
 
-  // MYRON (t1) – apprenti, dispo tous les jours sauf périodes école
-  if (emp.id === "t1") {
+  if (emp.id === "t1") { // MYRON – apprenti, dispo tous les jours sauf école
+    // École périodes: 18-22 mai, 23 juin, 17-21 août → on exclut ces jours du prévisionnel
     const ecoleIntervals = [
-      ["2026-05-18","2026-05-22"],
-      ["2026-06-23","2026-06-23"],
+      ["2026-05-18","2026-05-22"], ["2026-06-23","2026-06-23"],
       ["2026-08-17","2026-08-21"],
     ];
     for (const [s,e] of ecoleIntervals) { if (ds >= s && ds <= e) return 0; }
-    return 1;
+    return 1; // dispo
   }
-
-  // AYTHANN (t2) – WE seulement avr-mai, complet juin-juil, S1+S2 août uniquement
-  // Contrat se termine fin août — septembre non confirmé
-  if (emp.id === "t2") {
-    if (m <= 5) return isWE ? 1 : 0;   // avr-mai : WE uniquement
-    if (m <= 7) return 1;               // juin-juil : tous les jours
-    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // août S1+S2 seulement
-    return 0; // sept+ : non prévu (à confirmer séparément)
+  if (emp.id === "t2") { // AYTHANN – WE only Apr-May, full Jun-Jul, S1-S2 Aug, WE Sep-Nov
+    if (m <= 5) return isWE ? 1 : 0;
+    if (m <= 7) return 1;
+    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // S1+S2 = until Aug 16
+    return isWE ? 1 : 0; // Sep-Nov: WE only
   }
-
-  // ALYSSA (t3) – MER + WE uniquement, jusqu'au 21 juin
-  if (emp.id === "t3") {
+  if (emp.id === "t3") { // ALYSSA – MER + WE only, until Jun 21
     if (ds > "2026-06-21") return 0;
     return (dw === 3 || isWE) ? 1 : 0;
   }
-
-  // BELENZ (t4) – CDD modulable démarré le 21 avril, toute la saison
-  if (emp.id === "t4") {
-    if (ds < "2026-04-20") return 0;
-    return 1; // disponible tous les jours ouverts jusqu'en novembre
-  }
-
-  // FLORENCE (t5) – POEI 1-19 avril, dispo dès le 20 avril toute la saison
+  // FLORENCE – POEI validé : formation 1-19 avril, dispo à partir du 20 avril
   if (emp.id === "t5") {
     if (ds < "2026-04-20") return 0;
     return 1;
   }
-
-  // SALLY (sally_s) – mar-sam, 14/04 au 31/07
-  // Mardi=2, Mercredi=3, Jeudi=4, Vendredi=5, Samedi=6
-  if (emp.id === "sally_s") {
-    if (dw === 0 || dw === 1) return 0; // pas dim ni lun
+  // SALLY – stagiaire : lun-ven uniquement, du 14/04 au 31/07
+  if (emp.id === "t7") {
+    if (dw === 0 || dw === 6) return 0; // pas le week-end
     return 1;
   }
-
-  // t6 NOUVEAU C – toute la saison, WE confirmés sept-oct
-  if (emp.id === "t6") {
-    if (m >= 9) return isWE ? 1 : 0;
-    return 1;
-  }
-
-  // Fallback générique : dispo sur toute la période de contrat
-  return 1;
 }
 
 // Average hours per day based on level and slot (spread across team positions)
 // We use a fair split: in NORMAL: positions alternate ~7-8h each
-// Heures réelles par salarié selon les créneaux définis dans le planning :
-// Myron (t1)      : 09:30-17:00 = 7h (tous types de jours)
-// Aythann (t2)    : 11:30-18:30 = 6.5h (tous ses jours)
-// Alyssa (t3)     : 09:30-18:30 = 8.5h (mer/vac), 09:30-16:30/17:30 = 7h (WE)
-// Belenz (t4)     : 09:30-17:30 = 7.5h (journée) ou 15:00-22:30 = 7h (fermeture) — moy 7.25h
-// Florence (t5)   : 09:30-18:30 = 8.5h (mer/vac), 11:30-18:30 = 6.5h (WE) — moy 7.5h
-// Sally (sally_s) : 11:30-18:30 = 7h (mar-sam)
-// Nouveau C (t6)  : 11:30-18:30 = 6.5h (fermeture)
-const AVG_H_BY_EMP = {
-  t1:      { wed:7.0,  we:7.0,  vacWD:7.0,  vacWE:7.0  },
-  t2:      { wed:6.5,  we:6.5,  vacWD:6.5,  vacWE:6.5  },
-  t3:      { wed:8.5,  we:7.0,  vacWD:8.5,  vacWE:7.0  },
-  t4:      { wed:7.25, we:7.25, vacWD:7.25, vacWE:7.25 },
-  t5:      { wed:8.5,  we:6.5,  vacWD:8.5,  vacWE:6.5  },
-  sally_s: { wed:7.0,  we:7.0,  vacWD:7.0,  vacWE:7.0  },
-  t6:      { wed:6.5,  we:6.5,  vacWD:6.5,  vacWE:6.5  },
-};
-// Fallback pour IDs inconnus
-const AVG_H_NORMAL = { wed:7.0, we:7.0, vacWD:7.0, vacWE:7.0 };
+const AVG_H_NORMAL = { wed:7.33, we:7.25, vacWD:7.33, vacWE:7.25 };
 
 function forecastMonthHours(emp, month, year) {
-  // Normaliser l'emp depuis TEAM_INIT si les données Firebase sont incomplètes
-  // Cela garantit que emp.id, emp.debut, emp.fin sont toujours fiables
-  const empRef = TEAM_INIT.find(e => e.id === emp.id || e.nom === emp.nom) || emp;
-  const empNorm = Object.assign({}, empRef, {
-    debut: emp.debut || empRef.debut,
-    fin:   emp.fin   || empRef.fin,
-    id:    emp.id    || empRef.id,
-  });
-
   let h = 0;
   const days_in_month = new Date(year, month, 0).getDate();
   for (let day = 1; day <= days_in_month; day++) {
@@ -3107,11 +3044,10 @@ function forecastMonthHours(emp, month, year) {
     const d = new Date(ds + "T12:00");
     const dw = d.getDay();
     const isWE = dw === 0 || dw === 6;
-    const avail = getEmpAvailability(empNorm, ds, dayType, isWE);
+    const avail = getEmpAvailability(emp, ds, dayType, isWE);
     if (!avail) continue;
     const sk = getSlotKey(ds, dayType, isWE);
-    const empHours = AVG_H_BY_EMP[empNorm.id] || AVG_H_NORMAL;
-    h += empHours[sk] || 7;
+    h += AVG_H_NORMAL[sk] || 7;
   }
   return Math.round(h * 10) / 10;
 }
@@ -3351,19 +3287,13 @@ function RecapECTab({ team, shifts }) {
       const h = colTotals[i];
       const brutMois = Math.round(matrix.reduce((s,r) => {
         const mh = r.months[i] || 0;
-        const empRef2 = TEAM_INIT.find(e => e.id === r.emp.id || e.nom === r.emp.nom) || r.emp;
-        const taux = parseFloat(r.emp.taux) || parseFloat(empRef2.taux) || 12.02;
-        return s + mh * taux;
+        return s + mh * (parseFloat(r.emp.taux)||0);
       }, 0));
       const charged = Math.round(brutMois * CHARGES_PAT);
       lines.push(`  ${MOIS_FR[m].padEnd(12)} : ${String(h+"h").padStart(7)} — brut ${String(brutMois.toLocaleString("fr")+"€").padStart(8)} — chargé ~${String(charged.toLocaleString("fr")+"€").padStart(9)}`);
     });
 
-    const totalBrut = Math.round(matrix.reduce((s,r) => {
-      const empRef3 = TEAM_INIT.find(e => e.id === r.emp.id || e.nom === r.emp.nom) || r.emp;
-      const taux = parseFloat(r.emp.taux) || parseFloat(empRef3.taux) || 12.02;
-      return s + r.total * taux;
-    }, 0));
+    const totalBrut = Math.round(matrix.reduce((s,r) => s + r.total * (parseFloat(r.emp.taux)||0), 0));
     const totalCharged = Math.round(totalBrut * CHARGES_PAT);
     lines.push("  " + "─".repeat(55));
     lines.push(`  ${"TOTAL SAISON".padEnd(12)} : ${String(grandTotal+"h").padStart(7)} — brut ${String(totalBrut.toLocaleString("fr")+"€").padStart(8)} — chargé ~${String(totalCharged.toLocaleString("fr")+"€").padStart(9)}`);
@@ -4952,12 +4882,12 @@ function generateDefaultShifts(team) {
         const MAI_START = "2026-05-01";
         if (ds >= "2026-04-20" && ds < MAI_START) {
           // AVRIL : Joris journée, Myron soirée
-          assign("t4", ds, "09:30", "17:30", 7.5); // BELENZ journée
+          assign("t4", ds, "09:30", "17:30", 7.5); // JORIS journée
           assign("t1", ds, "15:00", "22:30", 7.0); // MYRON soirée fermeture
         } else if (ds >= MAI_START) {
           // MAI → : Myron journée, Joris soirée fermeture
           assign("t1", ds, "09:30", "17:00", 7.0); // MYRON journée
-          assign("t4", ds, "15:00", "22:30", 7.0); // BELENZ soirée fermeture
+          assign("t4", ds, "15:00", "22:30", 7.0); // JORIS soirée fermeture (anniversaires/escape)
           // Aythann soirée à partir de mai (13h-22h30) — non publié pour l'instant
           // assign("t2", ds, "13:00", "22:30", 9.0); // AYTHANN SOIR — à activer après communication
         }
@@ -4967,7 +4897,7 @@ function generateDefaultShifts(team) {
         if (ds >= "2026-04-20") assign("t5", ds, "11:30", "18:30", 6.5); // FLORENCE
       } else {
         // DIMANCHE
-        if (ds >= "2026-04-20") assign("t4", ds, "09:30", "17:30", 7.5); // BELENZ
+        if (ds >= "2026-04-20") assign("t4", ds, "09:30", "17:30", 7.5); // JORIS
         if (ds <= ALYSSA_END)  assign("t3", ds, "09:30", "17:30", 7.5); // ALYSSA dim → 17h30
         if (aythann && getEmpAvailability(aythann,ds,dayType,isWE)) assign("t2", ds, "11:30", "18:30", 6.5); // AYTHANN
         if (ds >= "2026-04-20") assign("t5", ds, "11:30", "18:30", 6.5); // FLORENCE
@@ -5253,58 +5183,7 @@ function exportFichesRH(team) {
   </table>
   <p style="margin-top:10px;font-size:8px;color:#888">⚠️ Document confidentiel — contient des données personnelles · RGPD — conservation limitée à la durée légale</p>
   <script>window.onload=function(){window.print();}<\/script>
-  <script>
-// PATCH_HEURES_MOIS
-window.empActifADate=function(emp,dateStr){
-  if(!emp||emp.actif===false)return false;
-  var d=new Date(dateStr+'T12:00:00');
-  if(emp.debut&&new Date(emp.debut+'T00:00:00')>d)return false;
-  if(emp.fin&&new Date(emp.fin+'T23:59:59')<d)return false;
-  return true;
-};
-window.calcHeuresMois=function(empId,moisStr,shifts,team){
-  var emp=Array.isArray(team)?team.find(function(e){return String(e.id)===String(empId);}):(team||{})[empId];
-  if(!emp)return 0;
-  var total=0;
-  Object.values(shifts||{}).forEach(function(s){
-    if(!s||String(s.empId)!==String(empId))return;
-    if(!s.date||!s.date.startsWith(moisStr))return;
-    if(!window.empActifADate(emp,s.date))return;
-    if(s.type==='absence'||s.type==='repos'||s.type==='conges')return;
-    if(!s.debut||!s.fin)return;
-    var d=s.debut.split(':'),f=s.fin.split(':');
-    var mins=(parseInt(f[0])*60+parseInt(f[1]||0))-(parseInt(d[0])*60+parseInt(d[1]||0));
-    if(mins<0)mins+=1440;if(mins>360)mins-=30;
-    var h=Math.round(mins/60*100)/100;
-    if(h>0&&h<24)total+=h;
-  });
-  return Math.round(total*100)/100;
-};
-window.genererExportPaie=function(moisStr,shifts,team){
-  var empList=Array.isArray(team)?team:Object.values(team||{});
-  var result=[];
-  empList.forEach(function(emp){
-    if(!emp||emp.actif===false)return;
-    var debut=emp.debut||'2026-01-01',fin=emp.fin||'2099-12-31';
-    if(fin<moisStr+'-01')return;
-    if(debut>(moisStr+'-31'))return;
-    var heures=window.calcHeuresMois(String(emp.id),moisStr,shifts,team);
-    var taux=+(emp.taux||emp.taux_horaire||12.02);
-    result.push({id:String(emp.id),nom:(emp.prenom||'')+' '+(emp.nom||emp.name||''),contrat:emp.contrat||'-',debut:debut,fin:fin,heures:heures,heuresContrat:+(emp.heures_mois||emp.contract||0),taux:taux,brut:Math.round(heures*taux*100)/100});
-  });
-  return result.sort(function(a,b){return a.nom.localeCompare(b.nom);});
-};
-window.exportPaieTexte=function(moisStr,shifts,team){
-  var label=new Date(moisStr+'-15').toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  var data=window.genererExportPaie(moisStr,shifts,team);
-  var sep='='.repeat(68);
-  var lines=['EXPORT PAIE AbracadaParc - '+label.toUpperCase(),sep,['Nom'.padEnd(28),'Heures'.padStart(8),'Contrat'.padStart(9),'Ecart'.padStart(7),'Taux'.padStart(8),'Brut'].join('  '),'-'.repeat(68)];
-  data.forEach(function(e){var delta=e.heures-e.heuresContrat,sign=delta>=0?'+':'';lines.push([e.nom.slice(0,27).padEnd(28),(e.heures+'h').padStart(8),(e.heuresContrat+'h').padStart(9),(sign+delta.toFixed(1)+'h').padStart(7),(e.taux+'eu/h').padStart(8),(e.brut+'eu').padStart(9)].join('  '));});
-  lines.push(sep,'Genere le '+new Date().toLocaleString('fr-FR'));
-  return lines.join('\n');
-};
-</script>
-</body></html>`;
+  </body></html>`;
 
   const blob = new Blob([html], {type:"text/html"});
   const url = URL.createObjectURL(blob);
