@@ -5253,7 +5253,58 @@ function exportFichesRH(team) {
   </table>
   <p style="margin-top:10px;font-size:8px;color:#888">⚠️ Document confidentiel — contient des données personnelles · RGPD — conservation limitée à la durée légale</p>
   <script>window.onload=function(){window.print();}<\/script>
-  </body></html>`;
+  <script>
+// PATCH_HEURES_MOIS
+window.empActifADate=function(emp,dateStr){
+  if(!emp||emp.actif===false)return false;
+  var d=new Date(dateStr+'T12:00:00');
+  if(emp.debut&&new Date(emp.debut+'T00:00:00')>d)return false;
+  if(emp.fin&&new Date(emp.fin+'T23:59:59')<d)return false;
+  return true;
+};
+window.calcHeuresMois=function(empId,moisStr,shifts,team){
+  var emp=Array.isArray(team)?team.find(function(e){return String(e.id)===String(empId);}):(team||{})[empId];
+  if(!emp)return 0;
+  var total=0;
+  Object.values(shifts||{}).forEach(function(s){
+    if(!s||String(s.empId)!==String(empId))return;
+    if(!s.date||!s.date.startsWith(moisStr))return;
+    if(!window.empActifADate(emp,s.date))return;
+    if(s.type==='absence'||s.type==='repos'||s.type==='conges')return;
+    if(!s.debut||!s.fin)return;
+    var d=s.debut.split(':'),f=s.fin.split(':');
+    var mins=(parseInt(f[0])*60+parseInt(f[1]||0))-(parseInt(d[0])*60+parseInt(d[1]||0));
+    if(mins<0)mins+=1440;if(mins>360)mins-=30;
+    var h=Math.round(mins/60*100)/100;
+    if(h>0&&h<24)total+=h;
+  });
+  return Math.round(total*100)/100;
+};
+window.genererExportPaie=function(moisStr,shifts,team){
+  var empList=Array.isArray(team)?team:Object.values(team||{});
+  var result=[];
+  empList.forEach(function(emp){
+    if(!emp||emp.actif===false)return;
+    var debut=emp.debut||'2026-01-01',fin=emp.fin||'2099-12-31';
+    if(fin<moisStr+'-01')return;
+    if(debut>(moisStr+'-31'))return;
+    var heures=window.calcHeuresMois(String(emp.id),moisStr,shifts,team);
+    var taux=+(emp.taux||emp.taux_horaire||12.02);
+    result.push({id:String(emp.id),nom:(emp.prenom||'')+' '+(emp.nom||emp.name||''),contrat:emp.contrat||'-',debut:debut,fin:fin,heures:heures,heuresContrat:+(emp.heures_mois||emp.contract||0),taux:taux,brut:Math.round(heures*taux*100)/100});
+  });
+  return result.sort(function(a,b){return a.nom.localeCompare(b.nom);});
+};
+window.exportPaieTexte=function(moisStr,shifts,team){
+  var label=new Date(moisStr+'-15').toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  var data=window.genererExportPaie(moisStr,shifts,team);
+  var sep='='.repeat(68);
+  var lines=['EXPORT PAIE AbracadaParc - '+label.toUpperCase(),sep,['Nom'.padEnd(28),'Heures'.padStart(8),'Contrat'.padStart(9),'Ecart'.padStart(7),'Taux'.padStart(8),'Brut'].join('  '),'-'.repeat(68)];
+  data.forEach(function(e){var delta=e.heures-e.heuresContrat,sign=delta>=0?'+':'';lines.push([e.nom.slice(0,27).padEnd(28),(e.heures+'h').padStart(8),(e.heuresContrat+'h').padStart(9),(sign+delta.toFixed(1)+'h').padStart(7),(e.taux+'eu/h').padStart(8),(e.brut+'eu').padStart(9)].join('  '));});
+  lines.push(sep,'Genere le '+new Date().toLocaleString('fr-FR'));
+  return lines.join('\n');
+};
+</script>
+</body></html>`;
 
   const blob = new Blob([html], {type:"text/html"});
   const url = URL.createObjectURL(blob);
