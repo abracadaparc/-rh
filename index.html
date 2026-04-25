@@ -4227,6 +4227,172 @@ function rv2AlerteCharge(dossiers){
   return byDate;
 }
 
+// ── COMPOSANT CALENDRIER MENSUEL (hooks au bon niveau) ──────────────────────
+function CalendrierMensuel({ dossiers, setView, setFicheId, ouvrirForm, couleurDossier }) {
+  const [calMois, setCalMois] = React.useState(()=>{
+    const now = new Date();
+    return { y: now.getFullYear(), m: now.getMonth() };
+  });
+  const [jourSel, setJourSel] = React.useState(null);
+
+  // Normaliser une date vers ISO YYYY-MM-DD
+  const normDate = (raw) => {
+    if (!raw) return '';
+    const s = String(raw);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    const mD = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (mD) return mD[0];
+    try { const d = new Date(s); if(!isNaN(d)) return d.toISOString().slice(0,10); } catch(e){}
+    return '';
+  };
+
+  // Index date → dossiers (sans refusés/annulés)
+  const byDate = {};
+  dossiers.forEach(d => {
+    const iso = normDate(d.date_souhaitee);
+    if (!iso) return;
+    const dec = (d.decision_client||'').toUpperCase();
+    if (dec.indexOf('REFUS')>=0 || dec.indexOf('ANNUL')>=0) return;
+    if (!byDate[iso]) byDate[iso] = [];
+    byDate[iso].push(d);
+  });
+
+  const { y, m } = calMois;
+  const premierJour = new Date(y, m, 1).getDay();
+  const nbJours = new Date(y, m+1, 0).getDate();
+  const decalage = premierJour === 0 ? 6 : premierJour - 1;
+  const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const jourNoms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const today = new Date().toISOString().slice(0,10);
+
+  let totalEnfMois = 0;
+  Object.keys(byDate).forEach(k => {
+    if (k.startsWith(y+'-'+String(m+1).padStart(2,'0'))) {
+      byDate[k].forEach(d => { totalEnfMois += parseInt(d.nombre_enfants_prevus)||0; });
+    }
+  });
+
+  const cellules = [];
+  for (let i = 0; i < decalage; i++) cellules.push(null);
+  for (let d = 1; d <= nbJours; d++) {
+    const iso = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    cellules.push({ d, iso, dossiers: byDate[iso]||[] });
+  }
+
+  const selDossiers = jourSel ? (byDate[jourSel]||[]) : [];
+
+  return (
+    <div>
+      {/* En-tête navigation */}
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+        <button onClick={()=>setView('liste')} style={{background:'none',border:'none',cursor:'pointer',color:'#2E7D32',fontSize:13,fontFamily:'inherit'}}>← Liste</button>
+        <button onClick={()=>setCalMois(prev=>{const nm=prev.m-1<0?11:prev.m-1,ny=prev.m-1<0?prev.y-1:prev.y;return{y:ny,m:nm};})}
+          style={{background:'#F5F5F5',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>‹</button>
+        <span style={{fontSize:15,fontWeight:800,color:'#1B5E20',flex:1,textAlign:'center'}}>
+          📅 {moisNoms[m]} {y} — {totalEnfMois} enfants
+        </span>
+        <button onClick={()=>setCalMois(prev=>{const nm=prev.m+1>11?0:prev.m+1,ny=prev.m+1>11?prev.y+1:prev.y;return{y:ny,m:nm};})}
+          style={{background:'#F5F5F5',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>›</button>
+      </div>
+
+      {/* Légende */}
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10,fontSize:11}}>
+        {[
+          {c:'#4CAF50',bg:'#E8F5E9',l:'Validé'},
+          {c:'#FF9800',bg:'#FFF8E1',l:'En attente'},
+          {c:'#F44336',bg:'#FFEBEE',l:'À relancer'},
+          {c:'#2196F3',bg:'#E3F2FD',l:'Nouveau'},
+          {c:'#E91E63',bg:'#FCE4EC',l:'🎂 Anniversaire'},
+          {c:'#9C27B0',bg:'#EDE7F6',l:'🎪 Privatisation'},
+        ].map(leg=>(
+          <span key={leg.l} style={{display:'flex',alignItems:'center',gap:4,background:leg.bg,padding:'3px 8px',borderRadius:12,color:leg.c,fontWeight:600}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:leg.c,display:'inline-block'}}/>
+            {leg.l}
+          </span>
+        ))}
+      </div>
+
+      {/* Grille calendrier */}
+      <div style={{background:'#fff',borderRadius:12,border:'1px solid #E8F5E9',overflow:'hidden',marginBottom:10}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',borderBottom:'2px solid #E8F5E9'}}>
+          {jourNoms.map(j=>(
+            <div key={j} style={{textAlign:'center',padding:'7px 0',fontSize:11,fontWeight:700,color:'#2E7D32',background:'#F1F8E9'}}>{j}</div>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)'}}>
+          {cellules.map((cel,idx)=>{
+            if (!cel) return <div key={'e'+idx} style={{minHeight:64,borderRight:'1px solid #F5F5F5',borderBottom:'1px solid #F5F5F5'}}/>;
+            const isToday = cel.iso === today;
+            const isSel   = cel.iso === jourSel;
+            const totalEnf= cel.dossiers.reduce((s,d)=>s+(parseInt(d.nombre_enfants_prevus)||0),0);
+            const bgCell  = isSel?'#F1F8E9':isToday?'#FFFDE7':'#fff';
+            return (
+              <div key={cel.iso} onClick={()=>setJourSel(cel.iso===jourSel?null:cel.iso)}
+                style={{minHeight:64,padding:'4px 3px',borderRight:'1px solid #F5F5F5',borderBottom:'1px solid #F5F5F5',
+                  background:bgCell,cursor:cel.dossiers.length>0?'pointer':'default',
+                  outline:isSel?'2px solid #2E7D32':'none',outlineOffset:-2}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                  <span style={{
+                    fontSize:12,fontWeight:isToday?800:500,
+                    background:isToday?'#2E7D32':'transparent',
+                    color:isToday?'#fff':'#555',
+                    borderRadius:isToday?'50%':'0',
+                    width:isToday?20:undefined,height:isToday?20:undefined,
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                  }}>{cel.d}</span>
+                  {totalEnf>0&&<span style={{fontSize:9,fontWeight:700,color:totalEnf>=150?'#C62828':totalEnf>=120?'#E65100':'#2E7D32'}}>{totalEnf}</span>}
+                </div>
+                {cel.dossiers.slice(0,3).map(d=>{
+                  const c = couleurDossier(d);
+                  if(!c) return null;
+                  const nom = (d.nom_structure_ou_client||d.numero_devis_ou_commande||'').split(' ').slice(0,2).join(' ');
+                  return (
+                    <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:4,padding:'1px 4px',marginBottom:2,
+                      fontSize:9,fontWeight:600,color:c.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
+                      display:'flex',alignItems:'center',gap:3}}>
+                      <span style={{width:5,height:5,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
+                      {nom||'—'}
+                    </div>
+                  );
+                })}
+                {cel.dossiers.length>3&&<div style={{fontSize:9,color:'#9E9E9E',textAlign:'center'}}>+{cel.dossiers.length-3}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Détail du jour sélectionné */}
+      {jourSel && selDossiers.length>0 && (
+        <div style={{background:'#fff',border:'2px solid #2E7D32',borderRadius:12,padding:'12px 14px'}}>
+          <div style={{fontWeight:800,color:'#1B5E20',fontSize:13,marginBottom:10}}>
+            {new Date(jourSel+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+            {' — '}{selDossiers.reduce((s,d)=>s+(parseInt(d.nombre_enfants_prevus)||0),0)} enfants
+          </div>
+          {selDossiers.map(d=>{
+            const c = couleurDossier(d);
+            if (!c) return null;
+            return (
+              <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:9,padding:'8px 12px',marginBottom:7}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <span style={{width:8,height:8,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:700,color:c.text,flex:1}}>{d.nom_structure_ou_client||d.numero_devis_ou_commande||'—'}</span>
+                  <span style={{fontSize:11,color:'#757575'}}>{d.creneau_horaire||''}</span>
+                  <span style={{fontSize:11,fontWeight:600,color:c.text,background:c.bg,padding:'2px 7px',borderRadius:10,border:'1px solid '+c.border}}>{d.statut_docs}</span>
+                  <span style={{fontSize:11,color:'#888'}}>{d.nombre_enfants_prevus||0} enf.</span>
+                  <button onClick={()=>{setFicheId(d.id);setView('fiche');}} style={{fontSize:10,background:'#fff',color:c.text,border:'1px solid '+c.border,borderRadius:5,cursor:'pointer',padding:'2px 8px',fontFamily:'inherit'}}>📋 Fiche</button>
+                  <button onClick={()=>ouvrirForm(d)} style={{fontSize:10,background:'#fff',color:'#555',border:'1px solid #DDD',borderRadius:5,cursor:'pointer',padding:'2px 8px',fontFamily:'inherit'}}>✏️</button>
+                </div>
+                {d.notes_equipe&&<div style={{fontSize:11,color:'#666',marginTop:5,paddingLeft:16}}>{d.notes_equipe.substring(0,80)}{d.notes_equipe.length>80?'…':''}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReservationsV2Tab(){
   const [dossiers, setDossiers] = React.useState(()=>{
     try{ const s=localStorage.getItem("abr_rv2"); return s?JSON.parse(s):[]; }catch{ return []; }
@@ -4243,10 +4409,15 @@ function ReservationsV2Tab(){
   const [showExport, setShowExport] = React.useState(false);
   const [msg, setMsg]           = React.useState("");
 
-  // Persistance Firebase + localStorage
+  // Persistance locale uniquement — Firebase est en lecture seule depuis l'app
+  // (seul Apps Script écrit dans Firebase)
   React.useEffect(()=>{
-    try{ localStorage.setItem("abr_rv2", JSON.stringify(dossiers)); }catch(e){}
-    try{ if(typeof fbSave==="function") fbSave("abr_rv2", dossiers); }catch(e){}
+    try{
+      // Sauvegarder uniquement les dossiers manuels (pas ceux du Sheet)
+      const manuels = dossiers.filter(d=>!d._from_sheet);
+      localStorage.setItem("abr_rv2", JSON.stringify(manuels));
+    }catch(e){}
+    // NE PAS écrire dans Firebase abr_rv2 — permission refusée volontairement
   },[dossiers]);
 
   React.useEffect(()=>{
@@ -4721,196 +4892,11 @@ function ReservationsV2Tab(){
 
   // ── VUE PLANNING ──
   if(view==="planning"){
-    // ── CALENDRIER MENSUEL AVEC COULEURS PAR TYPE ──────────────────
-    const [calMois, setCalMois] = React.useState(()=>{
-      // Démarrer au premier mois avec des dossiers, ou mois courant
-      const now = new Date();
-      return { y: now.getFullYear(), m: now.getMonth() };
-    });
-
-    // Normaliser une date vers ISO YYYY-MM-DD
-    const normDate = (raw) => {
-      if (!raw) return '';
-      const s = String(raw);
-      // Déjà ISO
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-      // Objet Date toString
-      const mD = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-      if (mD) return mD[0];
-      // Date JS locale ex: "Wed Apr 22 2026"
-      try { const d = new Date(s); if(!isNaN(d)) return d.toISOString().slice(0,10); } catch(e){}
-      return '';
-    };
-
-    // Couleur par type/statut
-    const couleurDossier = (d) => {
-      const type = (d.type_demande||d.type_evenement||'').toLowerCase();
-      const dec  = (d.decision_client||'').toUpperCase();
-      const stat = (d.statut_docs||'').toUpperCase();
-      // Refusés/Annulés → ne pas afficher dans le calendrier
-      if (dec.indexOf('REFUS')>=0||dec.indexOf('ANNUL')>=0) return null;
-      if (type.indexOf('anniversaire')>=0||type.indexOf('anniv')>=0)
-        return {bg:'#FCE4EC',border:'#F48FB1',text:'#AD1457',dot:'#E91E63'};
-      if (type.indexOf('privati')>=0||type.indexOf('privé')>=0||type.indexOf('prive')>=0)
-        return {bg:'#EDE7F6',border:'#CE93D8',text:'#6A1B9A',dot:'#9C27B0'};
-      if (dec.indexOf('VALID')>=0||stat.indexOf('DOSSIER OK')>=0)
-        return {bg:'#E8F5E9',border:'#81C784',text:'#1B5E20',dot:'#4CAF50'};
-      if (stat.indexOf('RELANCER')>=0||stat.indexOf('RELANCE BC')>=0)
-        return {bg:'#FFEBEE',border:'#EF9A9A',text:'#C62828',dot:'#F44336'};
-      if (stat.indexOf('ATTENTE')>=0)
-        return {bg:'#FFF8E1',border:'#FFD54F',text:'#E65100',dot:'#FF9800'};
-      return {bg:'#E3F2FD',border:'#90CAF9',text:'#1565C0',dot:'#2196F3'};
-    };
-
-    // Construire l'index date → dossiers
-    const byDate = {};
-    dossiers.forEach(d => {
-      const iso = normDate(d.date_souhaitee);
-      if (!iso) return;
-      const dec = (d.decision_client||'').toUpperCase();
-      // Exclure les refusés et annulés du calendrier
-      if (dec.indexOf('REFUS')>=0 || dec.indexOf('ANNUL')>=0) return;
-      if (!byDate[iso]) byDate[iso] = [];
-      byDate[iso].push(d);
-    });
-
-    // Calendrier du mois
-    const { y, m } = calMois;
-    const premierJour = new Date(y, m, 1).getDay(); // 0=dim
-    const nbJours = new Date(y, m+1, 0).getDate();
-    const decalage = premierJour === 0 ? 6 : premierJour - 1; // lun=0
-    const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    const jourNoms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-    const today = new Date().toISOString().slice(0,10);
-    const [jourSel, setJourSel] = React.useState(null);
-
-    const cellules = [];
-    for (let i = 0; i < decalage; i++) cellules.push(null);
-    for (let d = 1; d <= nbJours; d++) {
-      const iso = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-      cellules.push({ d, iso, dossiers: byDate[iso]||[] });
-    }
-
-    // Total enfants sur le mois
-    let totalEnfMois = 0;
-    Object.keys(byDate).forEach(k => {
-      if (k.startsWith(y+'-'+String(m+1).padStart(2,'0'))) {
-        byDate[k].forEach(d => { totalEnfMois += parseInt(d.nombre_enfants_prevus)||0; });
-      }
-    });
-
-    const selDossiers = jourSel ? (byDate[jourSel]||[]) : [];
-
-    return (
-      <div>
-        {/* En-tête navigation */}
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-          <button onClick={()=>setView('liste')} style={{background:'none',border:'none',cursor:'pointer',color:'#2E7D32',fontSize:13,fontFamily:'inherit'}}>← Liste</button>
-          <button onClick={()=>setCalMois(prev=>{const nm=prev.m-1<0?11:prev.m-1,ny=prev.m-1<0?prev.y-1:prev.y;return{y:ny,m:nm};})
-          } style={{background:'#F5F5F5',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>‹</button>
-          <span style={{fontSize:15,fontWeight:800,color:'#1B5E20',flex:1,textAlign:'center'}}>
-            📅 {moisNoms[m]} {y} — {totalEnfMois} enfants
-          </span>
-          <button onClick={()=>setCalMois(prev=>{const nm=prev.m+1>11?0:prev.m+1,ny=prev.m+1>11?prev.y+1:prev.y;return{y:ny,m:nm};})
-          } style={{background:'#F5F5F5',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>›</button>
-        </div>
-
-        {/* Légende couleurs */}
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10,fontSize:11}}>
-          {[
-            {c:'#4CAF50',bg:'#E8F5E9',l:'Validé'},
-            {c:'#FF9800',bg:'#FFF8E1',l:'En attente'},
-            {c:'#F44336',bg:'#FFEBEE',l:'À relancer'},
-            {c:'#2196F3',bg:'#E3F2FD',l:'Nouveau'},
-            {c:'#E91E63',bg:'#FCE4EC',l:'🎂 Anniversaire'},
-            {c:'#9C27B0',bg:'#EDE7F6',l:'🎪 Privatisation'},
-          ].map(leg=>(
-            <span key={leg.l} style={{display:'flex',alignItems:'center',gap:4,background:leg.bg,padding:'3px 8px',borderRadius:12,color:leg.c,fontWeight:600}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:leg.c,display:'inline-block'}}/>
-              {leg.l}
-            </span>
-          ))}
-        </div>
-
-        {/* Grille calendrier */}
-        <div style={{background:'#fff',borderRadius:12,border:'1px solid #E8F5E9',overflow:'hidden',marginBottom:jourSel?0:0}}>
-          {/* Jours de la semaine */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',borderBottom:'2px solid #E8F5E9'}}>
-            {jourNoms.map(j=>(
-              <div key={j} style={{textAlign:'center',padding:'7px 0',fontSize:11,fontWeight:700,color:'#2E7D32',background:'#F1F8E9'}}>{j}</div>
-            ))}
-          </div>
-          {/* Cellules */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)'}}>
-            {cellules.map((cel,idx)=>{
-              if (!cel) return <div key={'e'+idx} style={{minHeight:64,borderRight:'1px solid #F5F5F5',borderBottom:'1px solid #F5F5F5'}}/>;
-              const isToday = cel.iso === today;
-              const isSel   = cel.iso === jourSel;
-              const totalEnf= cel.dossiers.reduce((s,d)=>s+(parseInt(d.nombre_enfants_prevus)||0),0);
-              const bgCell  = isSel?'#F1F8E9':isToday?'#FFFDE7':'#fff';
-              return (
-                <div key={cel.iso} onClick={()=>setJourSel(cel.iso===jourSel?null:cel.iso)}
-                  style={{minHeight:64,padding:'4px 3px',borderRight:'1px solid #F5F5F5',borderBottom:'1px solid #F5F5F5',
-                    background:bgCell,cursor:cel.dossiers.length>0?'pointer':'default',
-                    outline:isSel?'2px solid #2E7D32':'none',outlineOffset:-2}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-                    <span style={{fontSize:12,fontWeight:isToday?800:500,color:isToday?'#1B5E20':'#555',
-                      background:isToday?'#2E7D32':'transparent',color:isToday?'#fff':'#555',
-                      borderRadius:isToday?'50%':'0',width:isToday?20:undefined,height:isToday?20:undefined,
-                      display:isToday?'flex':'block',alignItems:isToday?'center':'undefined',justifyContent:isToday?'center':'undefined',
-                      lineHeight:isToday?'1':'1.2'}}>{cel.d}</span>
-                    {totalEnf>0&&<span style={{fontSize:9,fontWeight:700,color:totalEnf>=150?'#C62828':totalEnf>=120?'#E65100':'#2E7D32'}}>{totalEnf}</span>}
-                  </div>
-                  {cel.dossiers.slice(0,3).map(d=>{
-                    const c = couleurDossier(d);
-                    if (!c) return null;
-                    const nom = (d.nom_structure_ou_client||d.numero_devis_ou_commande||'').split(' ').slice(0,2).join(' ');
-                    return (
-                      <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:4,padding:'1px 4px',marginBottom:2,
-                        fontSize:9,fontWeight:600,color:c.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'flex',alignItems:'center',gap:3}}>
-                        <span style={{width:5,height:5,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
-                        {nom||'—'}
-                      </div>
-                    );
-                  })}
-                  {cel.dossiers.length>3&&<div style={{fontSize:9,color:'#9E9E9E',textAlign:'center'}}>+{cel.dossiers.length-3}</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Détail du jour sélectionné */}
-        {jourSel && selDossiers.length>0 && (
-          <div style={{background:'#fff',border:'2px solid #2E7D32',borderRadius:12,padding:'12px 14px',marginTop:10}}>
-            <div style={{fontWeight:800,color:'#1B5E20',fontSize:13,marginBottom:10}}>
-              {new Date(jourSel+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
-              {' — '}{selDossiers.reduce((s,d)=>s+(parseInt(d.nombre_enfants_prevus)||0),0)} enfants
-            </div>
-            {selDossiers.map(d=>{
-              const c = couleurDossier(d);
-              return (
-                <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:9,padding:'8px 12px',marginBottom:7}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <span style={{width:8,height:8,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
-                    <span style={{fontSize:13,fontWeight:700,color:c.text,flex:1}}>{d.nom_structure_ou_client||d.numero_devis_ou_commande||'—'}</span>
-                    <span style={{fontSize:11,color:'#757575'}}>{d.creneau_horaire||''}</span>
-                    <span style={{fontSize:11,fontWeight:600,color:c.text,background:c.bg,padding:'2px 7px',borderRadius:10,border:'1px solid '+c.border}}>{d.statut_docs}</span>
-                    <span style={{fontSize:11,color:'#888'}}>{d.nombre_enfants_prevus||0} enf.</span>
-                    <button onClick={()=>{setFicheId(d.id);setView('fiche');}} style={{fontSize:10,background:'#fff',color:c.text,border:'1px solid '+c.border,borderRadius:5,cursor:'pointer',padding:'2px 8px',fontFamily:'inherit'}}>📋 Fiche</button>
-                    <button onClick={()=>ouvrirForm(d)} style={{fontSize:10,background:'#fff',color:'#555',border:'1px solid #DDD',borderRadius:5,cursor:'pointer',padding:'2px 8px',fontFamily:'inherit'}}>✏️</button>
-                  </div>
-                  {d.notes_equipe&&<div style={{fontSize:11,color:'#666',marginTop:5,paddingLeft:16}}>{d.notes_equipe.substring(0,80)}{d.notes_equipe.length>80?'…':''}</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+    return <CalendrierMensuel dossiers={dossiers} setView={setView} setFicheId={setFicheId} ouvrirForm={ouvrirForm} couleurDossier={couleurDossier}/>;
   }
 
-  // ── VUE LISTE (DÉFAUT) ──
+
+    // ── VUE LISTE (DÉFAUT) ──
   const today2 = new Date().toISOString().slice(0,10);
   const futurs = dossiersFiltrés.filter(d=>!d.date_souhaitee||d.date_souhaitee>=today2);
   const passes = dossiersFiltrés.filter(d=>d.date_souhaitee&&d.date_souhaitee<today2);
