@@ -4227,6 +4227,30 @@ function rv2AlerteCharge(dossiers){
   return byDate;
 }
 
+// ── Mapping statuts Sheet → RV2 (fonctions globales) ──────────────────────
+function _mapStatutDocs(s){
+  s = String(s||'').toUpperCase();
+  if(s.indexOf('DOSSIER OK')>=0||s.indexOf('OK')>=0) return 'DOSSIER OK';
+  if(s.indexOf('RELANCE BC')>=0) return 'RELANCE BC';
+  if(s.indexOf('RELANCER')>=0) return 'À RELANCER';
+  if(s.indexOf('ATTENTE')>=0) return 'EN ATTENTE';
+  return 'NOUVEAU';
+}
+function _mapStatutFact(s){
+  s = String(s||'').toUpperCase();
+  if(s.indexOf('FACTURÉ')>=0||s.indexOf('OUI')>=0) return 'FACTURÉ';
+  if(s.indexOf('ATTENTE PAIEMENT')>=0) return 'ATTENTE PAIEMENT';
+  if(s.indexOf('FACTURER')>=0) return 'À FACTURER';
+  return 'NON';
+}
+function _mapDecision(s){
+  s = String(s||'').toUpperCase();
+  if(s.indexOf('VALID')>=0) return 'VALIDÉ';
+  if(s.indexOf('REFUS')>=0) return 'REFUSÉ';
+  if(s.indexOf('ANNUL')>=0) return 'ANNULÉ';
+  return '';
+}
+
 // ── COMPOSANT CALENDRIER MENSUEL (hooks au bon niveau) ──────────────────────
 function CalendrierMensuel({ dossiers, setView, setFicheId, ouvrirForm, couleurDossier }) {
   const [calMois, setCalMois] = React.useState(()=>{
@@ -4478,29 +4502,7 @@ function ReservationsV2Tab(){
     }catch(e){ console.error('fbListen RV2:', e); }
   },[]);
 
-  // Mapping des statuts Sheet → RV2
-  function _mapStatutDocs(s){
-    s = String(s||'').toUpperCase();
-    if(s.indexOf('DOSSIER OK')>=0||s.indexOf('OK')>=0) return 'DOSSIER OK';
-    if(s.indexOf('RELANCE BC')>=0) return 'RELANCE BC';
-    if(s.indexOf('RELANCER')>=0) return 'À RELANCER';
-    if(s.indexOf('ATTENTE')>=0) return 'EN ATTENTE';
-    return 'NOUVEAU';
-  }
-  function _mapStatutFact(s){
-    s = String(s||'').toUpperCase();
-    if(s.indexOf('FACTURÉ')>=0||s.indexOf('OUI')>=0) return 'FACTURÉ';
-    if(s.indexOf('ATTENTE PAIEMENT')>=0) return 'ATTENTE PAIEMENT';
-    if(s.indexOf('FACTURER')>=0) return 'À FACTURER';
-    return 'NON';
-  }
-  function _mapDecision(s){
-    s = String(s||'').toUpperCase();
-    if(s.indexOf('VALID')>=0) return 'VALIDÉ';
-    if(s.indexOf('REFUS')>=0) return 'REFUSÉ';
-    if(s.indexOf('ANNUL')>=0) return 'ANNULÉ';
-    return '';
-  }
+
 
   const save = (list) => { setDossiers(list); };
 
