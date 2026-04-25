@@ -1953,6 +1953,34 @@ contact@abracadaparc.fr`;
       render();
     });
 
+    // ── Disponibilités par date (depuis Apps Script via Firebase) ──────────
+    listen('disponibilites', function(data) {
+      if (!data || typeof data !== 'object') return;
+      state.disponibilites = {};
+      Object.keys(data).forEach(function(k) {
+        var d = data[k];
+        if (!d) return;
+        // Clé format 2026_04_22 → 2026-04-22
+        var dateISO = k.replace(/_/g, '-');
+        state.disponibilites[dateISO] = {
+          date:     d.date || dateISO,
+          total:    parseInt(d.total) || 0,
+          restant:  parseInt(d.restant) || 150,
+          statut:   d.statut || 'OK',
+          nb_groupes: parseInt(d.nb_groupes) || 0,
+        };
+      });
+      try { localStorage.setItem('abr_disponibilites', JSON.stringify(state.disponibilites)); } catch(e) {}
+      render();
+    });
+
+    // ── Alertes calculées par Apps Script ──────────────────────────────────
+    listen('alertes', function(data) {
+      if (!data || typeof data !== 'object') return;
+      state.alertes_script = data;
+      render();
+    });
+
     listen('memos', data => {
       if (data) {
         state.memos = data;
@@ -2069,6 +2097,18 @@ const TEAM_INIT = [
     poste:"Polyvalente", actif:true, note:"Contrat court. Poser les CP avant le 21/06.",
     ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"",
     iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+  },
+  {
+    id:"t4", nom:"CAHRISSON-ETIENNE", prenom:"Belenz", color:"#BF360C",
+    type:"saisonnier", contrat:"CDD Saisonnier Modulable",
+    debut:"2026-04-20", fin:"2026-11-02", heures_mois:104, taux:12.02,
+    disponibilite:"POEI validé ✅ — Formation France Travail 1–19 avril. CDD démarré le 20 avril 2026. Disponible toute la saison. WE confirmés sept–oct. Toussaint confirmé.",
+    ecole_periodes:["1–19 avril (POEI — hors entreprise)"],
+    poste:"Polyvalent + Développement commercial", actif:true,
+    note:"✅ POEI confirmé. CDD modulable démarré le 20/04/2026. Email : cahrisson.pro@gmail.com",
+    ss:"", ddn:"", lieu_naissance:"", nationalite:"Française", adresse:"", cp_ville:"", tel:"", email:"cahrisson.pro@gmail.com",
+    iban:"", bic:"", urgence_nom:"", urgence_tel:"", urgence_lien:"", cp_ajustement:0,
+    poei_debut:"2026-04-01", poei_fin:"2026-04-19", poei_organisme:"France Travail",
   },
   {
     id:"t5", nom:"FLORENCE", prenom:"", color:"#AD1457",
@@ -2993,47 +3033,98 @@ ___________________________        ___________________________`
 // Returns typical hours worked per open day per employee based on their availability rules
 // We use NORMAL level as forecast basis (conservative, can be adjusted)
 function getEmpAvailability(emp, ds, dayType, isWE) {
-  if (ds < emp.debut || ds > emp.fin) return 0;
+  if (!ds || ds < emp.debut || ds > emp.fin) return 0;
   const d = new Date(ds + "T12:00");
   const dw = d.getDay(); // 0=Sun, 1=Mon, 6=Sat
   const m = d.getMonth() + 1;
 
-  if (emp.id === "t1") { // MYRON – apprenti, dispo tous les jours sauf école
-    // École périodes: 18-22 mai, 23 juin, 17-21 août → on exclut ces jours du prévisionnel
+  // MYRON (t1) – apprenti, dispo tous les jours sauf périodes école
+  if (emp.id === "t1") {
     const ecoleIntervals = [
-      ["2026-05-18","2026-05-22"], ["2026-06-23","2026-06-23"],
+      ["2026-05-18","2026-05-22"],
+      ["2026-06-23","2026-06-23"],
       ["2026-08-17","2026-08-21"],
     ];
     for (const [s,e] of ecoleIntervals) { if (ds >= s && ds <= e) return 0; }
-    return 1; // dispo
+    return 1;
   }
-  if (emp.id === "t2") { // AYTHANN – WE only Apr-May, full Jun-Jul, S1-S2 Aug, WE Sep-Nov
-    if (m <= 5) return isWE ? 1 : 0;
-    if (m <= 7) return 1;
-    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // S1+S2 = until Aug 16
-    return isWE ? 1 : 0; // Sep-Nov: WE only
+
+  // AYTHANN (t2) – WE seulement avr-mai, complet juin-juil, S1+S2 août uniquement
+  // Contrat se termine fin août — septembre non confirmé
+  if (emp.id === "t2") {
+    if (m <= 5) return isWE ? 1 : 0;   // avr-mai : WE uniquement
+    if (m <= 7) return 1;               // juin-juil : tous les jours
+    if (m === 8) return ds <= "2026-08-16" ? 1 : 0; // août S1+S2 seulement
+    return 0; // sept+ : non prévu (à confirmer séparément)
   }
-  if (emp.id === "t3") { // ALYSSA – MER + WE only, until Jun 21
+
+  // ALYSSA (t3) – MER + WE uniquement, jusqu'au 21 juin
+  if (emp.id === "t3") {
     if (ds > "2026-06-21") return 0;
     return (dw === 3 || isWE) ? 1 : 0;
   }
-  // FLORENCE – POEI validé : formation 1-19 avril, dispo à partir du 20 avril
+
+  // BELENZ (t4) – CDD modulable démarré le 21 avril, toute la saison
+  if (emp.id === "t4") {
+    if (ds < "2026-04-20") return 0;
+    return 1; // disponible tous les jours ouverts jusqu'en novembre
+  }
+
+  // FLORENCE (t5) – POEI 1-19 avril, dispo dès le 20 avril toute la saison
   if (emp.id === "t5") {
     if (ds < "2026-04-20") return 0;
     return 1;
   }
-  // SALLY – stagiaire : lun-ven uniquement, du 14/04 au 31/07
-  if (emp.id === "t7") {
-    if (dw === 0 || dw === 6) return 0; // pas le week-end
+
+  // SALLY (sally_s) – mar-sam, 14/04 au 31/07
+  // Mardi=2, Mercredi=3, Jeudi=4, Vendredi=5, Samedi=6
+  if (emp.id === "sally_s") {
+    if (dw === 0 || dw === 1) return 0; // pas dim ni lun
     return 1;
   }
+
+  // t6 NOUVEAU C – toute la saison, WE confirmés sept-oct
+  if (emp.id === "t6") {
+    if (m >= 9) return isWE ? 1 : 0;
+    return 1;
+  }
+
+  // Fallback générique : dispo sur toute la période de contrat
+  return 1;
 }
 
 // Average hours per day based on level and slot (spread across team positions)
 // We use a fair split: in NORMAL: positions alternate ~7-8h each
-const AVG_H_NORMAL = { wed:7.33, we:7.25, vacWD:7.33, vacWE:7.25 };
+// Heures réelles par salarié selon les créneaux définis dans le planning :
+// Myron (t1)      : 09:30-17:00 = 7h (tous types de jours)
+// Aythann (t2)    : 11:30-18:30 = 6.5h (tous ses jours)
+// Alyssa (t3)     : 09:30-18:30 = 8.5h (mer/vac), 09:30-16:30/17:30 = 7h (WE)
+// Belenz (t4)     : 09:30-17:30 = 7.5h (journée) ou 15:00-22:30 = 7h (fermeture) — moy 7.25h
+// Florence (t5)   : 09:30-18:30 = 8.5h (mer/vac), 11:30-18:30 = 6.5h (WE) — moy 7.5h
+// Sally (sally_s) : 11:30-18:30 = 7h (mar-sam)
+// Nouveau C (t6)  : 11:30-18:30 = 6.5h (fermeture)
+const AVG_H_BY_EMP = {
+  t1:      { wed:7.0,  we:7.0,  vacWD:7.0,  vacWE:7.0  },
+  t2:      { wed:6.5,  we:6.5,  vacWD:6.5,  vacWE:6.5  },
+  t3:      { wed:8.5,  we:7.0,  vacWD:8.5,  vacWE:7.0  },
+  t4:      { wed:7.25, we:7.25, vacWD:7.25, vacWE:7.25 },
+  t5:      { wed:8.5,  we:6.5,  vacWD:8.5,  vacWE:6.5  },
+  sally_s: { wed:7.0,  we:7.0,  vacWD:7.0,  vacWE:7.0  },
+  t6:      { wed:6.5,  we:6.5,  vacWD:6.5,  vacWE:6.5  },
+};
+// Fallback pour IDs inconnus
+const AVG_H_NORMAL = { wed:7.0, we:7.0, vacWD:7.0, vacWE:7.0 };
 
 function forecastMonthHours(emp, month, year) {
+  // Normaliser l'emp depuis TEAM_INIT si les données Firebase sont incomplètes
+  // Cela garantit que emp.id, emp.debut, emp.fin sont toujours fiables
+  const empRef = TEAM_INIT.find(e => e.id === emp.id || e.nom === emp.nom) || emp;
+  const empNorm = Object.assign({}, empRef, {
+    debut: emp.debut || empRef.debut,
+    fin:   emp.fin   || empRef.fin,
+    id:    emp.id    || empRef.id,
+  });
+
   let h = 0;
   const days_in_month = new Date(year, month, 0).getDate();
   for (let day = 1; day <= days_in_month; day++) {
@@ -3044,10 +3135,11 @@ function forecastMonthHours(emp, month, year) {
     const d = new Date(ds + "T12:00");
     const dw = d.getDay();
     const isWE = dw === 0 || dw === 6;
-    const avail = getEmpAvailability(emp, ds, dayType, isWE);
+    const avail = getEmpAvailability(empNorm, ds, dayType, isWE);
     if (!avail) continue;
     const sk = getSlotKey(ds, dayType, isWE);
-    h += AVG_H_NORMAL[sk] || 7;
+    const empHours = AVG_H_BY_EMP[empNorm.id] || AVG_H_NORMAL;
+    h += empHours[sk] || 7;
   }
   return Math.round(h * 10) / 10;
 }
@@ -3207,11 +3299,226 @@ function PlanningPrevTab({ team }) {
         🟠 <strong>Florence</strong> : POEI validé ✅ — CDD à signer avant le 1er avril, démarrage en entreprise le 20/04. Aucun bulletin AbracadaParc pendant la formation (1–19 avril).<br/>
         🔴 <strong>Joris</strong> : POEI en attente ⏳ — relancer rapidement. Si refus : CDD au 1er avril, mentionner tâches commerciales dans le contrat. Si accepté : même calendrier que Florence.
       </div>
+      {/* Section Google Form terrain */}
+      <div style={{ ...S.card, marginTop:18, background:'#E3F2FD', border:'1px solid #90CAF9' }}>
+        <div style={{ fontWeight:700, color:'#0D47A1', marginBottom:8, fontSize:13 }}>
+          Saisie terrain équipe
+        </div>
+        <div style={{ fontSize:12, color:'#1565C0', lineHeight:1.7, marginBottom:10 }}>
+          Après chaque sortie, l'équipe saisit l'effectif réel et la note satisfaction.<br/>
+          Les données remontent automatiquement dans le Sheet et Firebase.
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button
+            onClick={() => window.open('https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform', '_blank')}
+            style={{ ...S.btn, background:'#1565C0', color:'#fff', border:'none', fontSize:13, padding:'8px 18px' }}>
+            Ouvrir le formulaire terrain
+          </button>
+          <button
+            onClick={() => sendPrompt && sendPrompt('Donne-moi le code Google Form terrain à créer pour AbracadaParc avec les champs : N° dossier, effectif réel enfants, effectif réel accompagnateurs, note satisfaction 1-5, incidents, notes terrain, prénom animateur')}
+            style={{ ...S.btn, fontSize:12, padding:'8px 14px' }}>
+            Générer le Form ↗
+          </button>
+        </div>
+        <div style={{ marginTop:10, fontSize:11, color:'#1565C0', opacity:0.7 }}>
+          Remplacer YOUR_FORM_ID par l'ID réel après création du Google Form.
+        </div>
+      </div>
     </div>
   );
 }
 
 // ─── RÉCAP EXPERT-COMPTABLE TAB ───────────────────────────────────────────────
+
+// ─── DISPONIBILITÉS TEMPS RÉEL TAB ───────────────────────────────────────────
+function DispoTempsReelTab({ reservations, disponibilites, alertes_script }) {
+  const [dateCheck, setDateCheck] = React.useState('');
+  const [nbEnfants, setNbEnfants] = React.useState('');
+  const [resultCheck, setResultCheck] = React.useState(null);
+  const CAPACITE = 150;
+  const LIMITE   = 180;
+  const ALERTE   = 120;
+
+  // Calculer les dispos depuis les réservations Firebase
+  const dispoParDate = React.useMemo(() => {
+    const d = {};
+    // D'abord depuis le nœud disponibilites (Apps Script)
+    if (disponibilites && typeof disponibilites === 'object') {
+      Object.keys(disponibilites).forEach(k => {
+        const v = disponibilites[k];
+        if (v && v.date) d[v.date] = { ...v, source: 'script' };
+      });
+    }
+    // Compléter / recalculer depuis les réservations
+    if (reservations && typeof reservations === 'object') {
+      Object.values(reservations).forEach(r => {
+        if (!r) return;
+        const dec = (r.decision || r.statut || '').toString().toUpperCase();
+        if (dec.indexOf('REFUS') >= 0 || dec.indexOf('ANNUL') >= 0) return;
+        const dt = r.date || r.date_visite || '';
+        if (!dt || !/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
+        const enf = parseInt(r.nb_enfants || r.enfants || 0) || 0;
+        if (!d[dt]) d[dt] = { date: dt, total: 0, restant: CAPACITE, statut: 'OK', groupes: [] };
+        if (!d[dt].source) { // recalcul uniquement si pas déjà depuis script
+          d[dt].total = (d[dt].total || 0) + enf;
+          d[dt].restant = Math.max(0, CAPACITE - d[dt].total);
+          if (d[dt].total >= LIMITE)  d[dt].statut = 'COMPLET';
+          else if (d[dt].total >= CAPACITE) d[dt].statut = 'COMPLET';
+          else if (d[dt].total >= ALERTE) d[dt].statut = 'CHARGE';
+          else d[dt].statut = 'OK';
+        }
+        if (!d[dt].groupes) d[dt].groupes = [];
+        d[dt].groupes.push({
+          ref: r.id || r.devis || '',
+          client: r.organisation || r.nom || r.client || '',
+          enfants: enf,
+          creneau: r.heure_debut || '',
+        });
+      });
+    }
+    return d;
+  }, [reservations, disponibilites]);
+
+  const checkDispo = () => {
+    if (!dateCheck) return;
+    const nb = parseInt(nbEnfants) || 0;
+    const jour = dispoParDate[dateCheck] || { total: 0, restant: CAPACITE, statut: 'OK', groupes: [] };
+    const apres = jour.total + nb;
+    let statut, message, color;
+    if (apres >= LIMITE) {
+      statut = 'COMPLET'; color = '#C62828';
+      message = 'REFUSER — ' + apres + ' enfants dépasse la limite absolue (' + LIMITE + ')';
+    } else if (apres >= CAPACITE) {
+      statut = 'COMPLET'; color = '#C62828';
+      message = 'JOURNÉE COMPLÈTE — Total serait ' + apres + '/' + CAPACITE;
+    } else if (apres >= ALERTE) {
+      statut = 'CHARGÉ'; color = '#E65100';
+      message = 'JOURNÉE CHARGÉE — Total serait ' + apres + '/' + CAPACITE + ' (' + Math.max(0, CAPACITE - apres) + ' pl. restantes)';
+    } else {
+      statut = 'OK'; color = '#2E7D32';
+      message = 'OK — Total serait ' + apres + '/' + CAPACITE + ' (' + (jour.restant - nb) + ' pl. restantes après)';
+    }
+    setResultCheck({ statut, message, color, apres, restant: jour.restant, groupes: jour.groupes });
+  };
+
+  const statusColor = s => s === 'COMPLET' ? '#FFEBEE' : s === 'CHARGE' || s === 'CHARGÉ' ? '#FFF3E0' : '#E8F5E9';
+  const statusText  = s => s === 'COMPLET' ? '#C62828' : s === 'CHARGE' || s === 'CHARGÉ' ? '#E65100' : '#2E7D32';
+
+  // Jours à venir triés
+  const today = new Date().toISOString().slice(0, 10);
+  const joursVenir = Object.keys(dispoParDate)
+    .filter(d => d >= today)
+    .sort()
+    .slice(0, 40);
+
+  // Alertes depuis Apps Script
+  const alertes = alertes_script && typeof alertes_script === 'object' ? Object.values(alertes_script) : [];
+  const alertesUrgentes = alertes.filter(a => a && a.niveau === 'urgent');
+  const alertesWarning  = alertes.filter(a => a && a.niveau === 'warning');
+  const alertesInfo     = alertes.filter(a => a && a.niveau === 'info');
+
+  return (
+    <div>
+      {/* Alertes critiques */}
+      {alertesUrgentes.length > 0 && (
+        <div style={{ background:'#FFEBEE', border:'1px solid #EF9A9A', borderRadius:8, padding:'12px 16px', marginBottom:16 }}>
+          <div style={{ fontWeight:700, color:'#C62828', marginBottom:6, fontSize:13 }}>🔴 Alertes urgentes ({alertesUrgentes.length})</div>
+          {alertesUrgentes.map((a,i) => (
+            <div key={i} style={{ fontSize:12, color:'#B71C1C', marginBottom:3 }}>• {a.message}</div>
+          ))}
+        </div>
+      )}
+      {alertesWarning.length > 0 && (
+        <div style={{ background:'#FFF3E0', border:'1px solid #FFB74D', borderRadius:8, padding:'10px 16px', marginBottom:16 }}>
+          <div style={{ fontWeight:700, color:'#E65100', marginBottom:6, fontSize:13 }}>⚠️ BC manquants ({alertesWarning.length})</div>
+          {alertesWarning.map((a,i) => (
+            <div key={i} style={{ fontSize:12, color:'#BF360C', marginBottom:3 }}>• {a.message}</div>
+          ))}
+        </div>
+      )}
+      {alertesInfo.length > 0 && (
+        <div style={{ background:'#E8F5E9', border:'1px solid #A5D6A7', borderRadius:8, padding:'10px 16px', marginBottom:16 }}>
+          <div style={{ fontWeight:700, color:'#2E7D32', marginBottom:6, fontSize:13 }}>💶 À facturer ({alertesInfo.length})</div>
+          {alertesInfo.map((a,i) => (
+            <div key={i} style={{ fontSize:12, color:'#1B5E20', marginBottom:3 }}>• {a.message}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Vérificateur rapide */}
+      <div style={{ ...S.card, background:'#E8F5E9', border:'1px solid #A5D6A7', marginBottom:18 }}>
+        <div style={{ fontWeight:700, color:'#2E7D32', marginBottom:10, fontSize:13 }}>Vérifier une date</div>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          <input type="date" value={dateCheck} onChange={e=>setDateCheck(e.target.value)}
+            min="2026-04-01" max="2026-11-02"
+            style={{ height:34, padding:'0 10px', border:'1px solid #A5D6A7', borderRadius:6, fontSize:13, background:'#fff' }} />
+          <input type="number" value={nbEnfants} onChange={e=>setNbEnfants(e.target.value)}
+            placeholder="Nb enfants" min="1" max="180"
+            style={{ height:34, width:110, padding:'0 10px', border:'1px solid #A5D6A7', borderRadius:6, fontSize:13, background:'#fff' }} />
+          <button onClick={checkDispo}
+            style={{ ...S.btn, ...S.btnG, height:34, padding:'0 18px', fontSize:13 }}>
+            Vérifier
+          </button>
+        </div>
+        {resultCheck && (
+          <div style={{ marginTop:12, padding:'10px 14px', borderRadius:6,
+            background: statusColor(resultCheck.statut),
+            border: '1px solid ' + resultCheck.color }}>
+            <div style={{ fontWeight:700, color:resultCheck.color, fontSize:13, marginBottom:4 }}>
+              {resultCheck.statut} — {resultCheck.message}
+            </div>
+            {resultCheck.groupes && resultCheck.groupes.length > 0 && (
+              <div style={{ fontSize:11, color:'#555', marginTop:4 }}>
+                Groupes ce jour : {resultCheck.groupes.map(g => g.client + ' (' + g.enfants + ' enf.)').join(' · ')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Liste des jours */}
+      <div style={{ ...S.card }}>
+        <div style={{ fontWeight:700, color:'#2E7D32', marginBottom:12, fontSize:13 }}>
+          Planning des disponibilités — {joursVenir.length} jours à venir
+        </div>
+        {joursVenir.length === 0 && (
+          <div style={{ fontSize:12, color:'#999', textAlign:'center', padding:20 }}>
+            En attente des données Firebase (Apps Script sync à 8h + 18h)
+          </div>
+        )}
+        {joursVenir.map(d => {
+          const j = dispoParDate[d];
+          const pct = Math.min(100, Math.round((j.total / CAPACITE) * 100));
+          const bg  = statusColor(j.statut);
+          const tx  = statusText(j.statut);
+          const barC = j.statut === 'COMPLET' ? '#E24B4A' : j.statut === 'CHARGE' ? '#EF9F27' : '#97C459';
+          const joursAvant = Math.round((new Date(d+'T12:00') - new Date()) / 86400000);
+          return (
+            <div key={d} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px',
+              borderRadius:6, background:bg, marginBottom:5, border:'0.5px solid ' + barC + '44' }}>
+              <div style={{ fontSize:12, fontWeight:600, color:tx, minWidth:110 }}>
+                {new Date(d+'T12:00').toLocaleDateString('fr-FR', {weekday:'short',day:'numeric',month:'short'})}
+                <span style={{ fontWeight:400, color:'#888', fontSize:11 }}> J-{joursAvant}</span>
+              </div>
+              <div style={{ flex:1, height:6, background:'rgba(0,0,0,0.08)', borderRadius:3, overflow:'hidden' }}>
+                <div style={{ width:pct+'%', height:'100%', background:barC, borderRadius:3 }} />
+              </div>
+              <div style={{ fontSize:12, fontWeight:700, color:tx, minWidth:90, textAlign:'right' }}>
+                {j.total >= CAPACITE ? '🔴 COMPLET' : j.total + ' enf. · ' + j.restant + ' pl.'}
+              </div>
+              {j.groupes && j.groupes.length > 0 && (
+                <div style={{ fontSize:10, color:'#666', minWidth:200, maxWidth:250, overflow:'hidden',
+                  textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {j.groupes.map(g=>g.client).join(' · ')}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function RecapECTab({ team, shifts }) {
   const [generated, setGenerated] = useState("");
@@ -3287,13 +3594,19 @@ function RecapECTab({ team, shifts }) {
       const h = colTotals[i];
       const brutMois = Math.round(matrix.reduce((s,r) => {
         const mh = r.months[i] || 0;
-        return s + mh * (parseFloat(r.emp.taux)||0);
+        const empRef2 = TEAM_INIT.find(e => e.id === r.emp.id || e.nom === r.emp.nom) || r.emp;
+        const taux = parseFloat(r.emp.taux) || parseFloat(empRef2.taux) || 12.02;
+        return s + mh * taux;
       }, 0));
       const charged = Math.round(brutMois * CHARGES_PAT);
       lines.push(`  ${MOIS_FR[m].padEnd(12)} : ${String(h+"h").padStart(7)} — brut ${String(brutMois.toLocaleString("fr")+"€").padStart(8)} — chargé ~${String(charged.toLocaleString("fr")+"€").padStart(9)}`);
     });
 
-    const totalBrut = Math.round(matrix.reduce((s,r) => s + r.total * (parseFloat(r.emp.taux)||0), 0));
+    const totalBrut = Math.round(matrix.reduce((s,r) => {
+      const empRef3 = TEAM_INIT.find(e => e.id === r.emp.id || e.nom === r.emp.nom) || r.emp;
+      const taux = parseFloat(r.emp.taux) || parseFloat(empRef3.taux) || 12.02;
+      return s + r.total * taux;
+    }, 0));
     const totalCharged = Math.round(totalBrut * CHARGES_PAT);
     lines.push("  " + "─".repeat(55));
     lines.push(`  ${"TOTAL SAISON".padEnd(12)} : ${String(grandTotal+"h").padStart(7)} — brut ${String(totalBrut.toLocaleString("fr")+"€").padStart(8)} — chargé ~${String(totalCharged.toLocaleString("fr")+"€").padStart(9)}`);
@@ -3939,14 +4252,84 @@ function ReservationsV2Tab(){
   React.useEffect(()=>{
     try{
       if(typeof fbListen==="function"){
+        // Écouter les dossiers manuels (abr_rv2)
         fbListen("abr_rv2", data=>{
           if(data && typeof data==="object" && Array.isArray(data) && data.length>0){
-            setDossiers(data);
+            setDossiers(prev => {
+              // Fusionner : garder les dossiers manuels + les Sheet
+              const sheetIds = prev.filter(d=>d._from_sheet).map(d=>d.id);
+              const manuels  = prev.filter(d=>!d._from_sheet);
+              return [...manuels, ...data.filter(d=>!sheetIds.includes(d.id))];
+            });
+          }
+        });
+        // Écouter les réservations depuis le Sheet (abr26_groupes)
+        fbListen("abr26_groupes", data=>{
+          if(!data || typeof data!=="object") return;
+          const converted = Object.values(data)
+            .filter(r=>r && r.id)
+            .map(r => ({
+              ...RV2_EMPTY(),
+              id:                         r.id,
+              _from_sheet:                true,
+              type_demande:               r.type||"groupe",
+              numero_devis_ou_commande:   r.id,
+              reference_bc:               r.ref_bc||"",
+              nom_structure_ou_client:    r.client||r.structure||r.organisation||"",
+              email_contact:              r.contact_email||r.email||"",
+              date_souhaitee:             r.date||r.date_visite||"",
+              creneau_horaire:            r.creneau||"",
+              nombre_enfants_prevus:      r.enfants||r.nb_enfants||0,
+              nombre_adultes_prevus:      r.accompagnants||r.nb_adultes||0,
+              effectif_reel_jour_j:       r.nb_enfants_r||r.effectif_enfants_reel||null,
+              formule:                    r.formule||"",
+              total_ttc:                  r.montant_total||"",
+              montant_acompte:            r.acompte_recu||0,
+              mode_paiement_acompte:      r.reglement||r.mode_reglement||"",
+              statut_docs:                _mapStatutDocs(r.etape_dossier||r.statut||""),
+              statut_facture:             _mapStatutFact(r.etape_facture||""),
+              decision_client:            _mapDecision(r.decision||""),
+              bc_recu:                    r.bc_recu===true||r.bc_recu==="OUI",
+              acompte_recu:               r.acompte_ok===true,
+              notes_equipe:               r.note||r.notes||"",
+              lien_dossier_drive:         r.cal_id?""+r.cal_id:"",
+              alertes:                    r.alerte_bc?["BC manquant"]:[],
+              updated_at:                 r.updated_at||new Date().toISOString(),
+            }));
+          if(converted.length>0){
+            setDossiers(prev => {
+              const manuels = prev.filter(d=>!d._from_sheet);
+              return [...manuels, ...converted];
+            });
           }
         });
       }
-    }catch(e){}
+    }catch(e){ console.error('fbListen RV2:', e); }
   },[]);
+
+  // Mapping des statuts Sheet → RV2
+  function _mapStatutDocs(s){
+    s = String(s||'').toUpperCase();
+    if(s.indexOf('DOSSIER OK')>=0||s.indexOf('OK')>=0) return 'DOSSIER OK';
+    if(s.indexOf('RELANCE BC')>=0) return 'RELANCE BC';
+    if(s.indexOf('RELANCER')>=0) return 'À RELANCER';
+    if(s.indexOf('ATTENTE')>=0) return 'EN ATTENTE';
+    return 'NOUVEAU';
+  }
+  function _mapStatutFact(s){
+    s = String(s||'').toUpperCase();
+    if(s.indexOf('FACTURÉ')>=0||s.indexOf('OUI')>=0) return 'FACTURÉ';
+    if(s.indexOf('ATTENTE PAIEMENT')>=0) return 'ATTENTE PAIEMENT';
+    if(s.indexOf('FACTURER')>=0) return 'À FACTURER';
+    return 'NON';
+  }
+  function _mapDecision(s){
+    s = String(s||'').toUpperCase();
+    if(s.indexOf('VALID')>=0) return 'VALIDÉ';
+    if(s.indexOf('REFUS')>=0) return 'REFUSÉ';
+    if(s.indexOf('ANNUL')>=0) return 'ANNULÉ';
+    return '';
+  }
 
   const save = (list) => { setDossiers(list); };
 
@@ -4246,6 +4629,46 @@ function ReservationsV2Tab(){
           <button onClick={()=>setView("liste")} style={{background:"none",border:"none",cursor:"pointer",color:"#2E7D32",fontSize:13,fontFamily:"inherit"}}>← Retour</button>
           <span style={{fontSize:15,fontWeight:800,color:"#1B5E20"}}>📋 Fiche Jour J</span>
           <button onClick={()=>window.print()} style={{marginLeft:"auto",padding:"6px 14px",background:"#1565C0",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>🖨️ Imprimer</button>
+            <button onClick={()=>{
+              const d2 = dossiers.find(x=>x.id===ficheId);
+              if(!d2) return;
+              // Construire l'URL Google Calendar avec les données du dossier
+              const dateStr = d2.date_souhaitee||'';
+              // Parser la date française ex: "mercredi 22 avril 2026"
+              const moisMap = {'janvier':'01','février':'02','mars':'03','avril':'04','mai':'05','juin':'06','juillet':'07','août':'08','septembre':'09','octobre':'10','novembre':'11','décembre':'12'};
+              let gcDate = '';
+              const mD = dateStr.toLowerCase().match(/(\d{1,2})\s+([a-zéûô]+)\s+(\d{4})/);
+              if(mD && moisMap[mD[2]]) {
+                gcDate = mD[3]+moisMap[mD[2]]+String(mD[1]).padStart(2,'0');
+              }
+              // Heure depuis créneau ex: "10h - 17h00"
+              const crn = d2.creneau_horaire||'';
+              const mH = crn.match(/(\d{1,2})h(\d{0,2})\s*[-–]\s*(\d{1,2})h(\d{0,2})/);
+              let gcDates = '';
+              if(gcDate && mH) {
+                const hDeb = String(mH[1]).padStart(2,'0')+(mH[2]||'00');
+                const hFin = String(mH[3]).padStart(2,'0')+(mH[4]||'00');
+                gcDates = gcDate+'T'+hDeb+'00/'+gcDate+'T'+hFin+'00';
+              } else if(gcDate) {
+                gcDates = gcDate;
+              }
+              const titre = encodeURIComponent('🌿 AbracadaParc — '+(d2.nom_structure_ou_client||d2.numero_devis_ou_commande||'Réservation'));
+              const desc  = encodeURIComponent([
+                'Ref: '+(d2.numero_devis_ou_commande||'—'),
+                'Enfants: '+(d2.nombre_enfants_prevus||'—'),
+                'Accompagnants: '+(d2.nombre_adultes_prevus||'—'),
+                'Formule: '+(d2.formule||'—'),
+                'Créneau: '+(d2.creneau_horaire||'—'),
+                'Total TTC: '+(d2.total_ttc||'—'),
+                'Règlement: '+(d2.mode_paiement_acompte||'—'),
+                'BC reçu: '+(d2.bc_recu?'OUI':'NON'),
+                'Statut: '+(d2.statut_docs||'—'),
+                '',
+                'Notes: '+(d2.notes_equipe||'—'),
+              ].join('\n'));
+              const url = 'https://calendar.google.com/calendar/r/eventedit?text='+titre+'&dates='+gcDates+'&details='+desc+'&location=6+place+Hyacinthe+Drujon+95190+Goussainville';
+              window.open(url,'_blank');
+            }} style={{padding:"6px 14px",background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>📅 Agenda</button>
         </div>
         <div style={{background:"#fff",border:"2px solid #2E7D32",borderRadius:14,padding:"20px 22px"}}>
           <div style={{textAlign:"center",marginBottom:16}}>
@@ -4882,12 +5305,12 @@ function generateDefaultShifts(team) {
         const MAI_START = "2026-05-01";
         if (ds >= "2026-04-20" && ds < MAI_START) {
           // AVRIL : Joris journée, Myron soirée
-          assign("t4", ds, "09:30", "17:30", 7.5); // JORIS journée
+          assign("t4", ds, "09:30", "17:30", 7.5); // BELENZ journée
           assign("t1", ds, "15:00", "22:30", 7.0); // MYRON soirée fermeture
         } else if (ds >= MAI_START) {
           // MAI → : Myron journée, Joris soirée fermeture
           assign("t1", ds, "09:30", "17:00", 7.0); // MYRON journée
-          assign("t4", ds, "15:00", "22:30", 7.0); // JORIS soirée fermeture (anniversaires/escape)
+          assign("t4", ds, "15:00", "22:30", 7.0); // BELENZ soirée fermeture
           // Aythann soirée à partir de mai (13h-22h30) — non publié pour l'instant
           // assign("t2", ds, "13:00", "22:30", 9.0); // AYTHANN SOIR — à activer après communication
         }
@@ -4897,7 +5320,7 @@ function generateDefaultShifts(team) {
         if (ds >= "2026-04-20") assign("t5", ds, "11:30", "18:30", 6.5); // FLORENCE
       } else {
         // DIMANCHE
-        if (ds >= "2026-04-20") assign("t4", ds, "09:30", "17:30", 7.5); // JORIS
+        if (ds >= "2026-04-20") assign("t4", ds, "09:30", "17:30", 7.5); // BELENZ
         if (ds <= ALYSSA_END)  assign("t3", ds, "09:30", "17:30", 7.5); // ALYSSA dim → 17h30
         if (aythann && getEmpAvailability(aythann,ds,dayType,isWE)) assign("t2", ds, "11:30", "18:30", 6.5); // AYTHANN
         if (ds >= "2026-04-20") assign("t5", ds, "11:30", "18:30", 6.5); // FLORENCE
@@ -4984,13 +5407,8 @@ const STATUTS = {
 // SHIFT MODAL
 // ═══════════════════════════════════════════════════════════
 // Helper: effective hours for a shift (école = 7h, travail = actual h)
-function shH(sh, emp, dateStr) {
+function shH(sh) {
   if (!sh) return 0;
-  if (emp && dateStr) {
-    var _d = new Date(dateStr + "T12:00:00");
-    if (emp.debut && new Date(emp.debut + "T00:00:00") > _d) return 0;
-    if (emp.fin   && new Date(emp.fin   + "T23:59:59") < _d) return 0;
-  }
   if (sh.type === "travail")    return sh.h || 0;
   if (sh.type === "ecole")      return 7.0;  // ✅ école = 7h, salaire maintenu
   if (sh.type === "soir")       return sh.h || 7.0; // créneau soir
@@ -5663,7 +6081,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
 
   const getShift=(eid,ds)=>shifts[`${eid}_${ds}`];
   const putShift=(eid,ds,data)=>{if(readonly)return;setShifts(p=>{const n={...p};data===null?delete n[`${eid}_${ds}`]:(n[`${eid}_${ds}`]=data);return n;});};
-  const weekH=eid=>{const _e=team.find(function(e){return String(e.id)===String(eid);});return week.reduce(function(s,d){var _ds=fmtLocal(d);return s+shH(getShift(eid,_ds),_e,_ds);},0);};
+  const weekH=eid=>week.reduce((s,d)=>{return s+shH(getShift(eid,fmtLocal(d)));},0);
   const dayH=d=>displayTeam.reduce((s,e)=>{const sh=getShift(e.id,fmtLocal(d));return s+(sh?.type==="travail"?(sh.h||0):0);},0);
   const weekLabel=()=>{const a=safeMon.toLocaleDateString("fr-FR",{day:"2-digit",month:"long"});const b=addDaysLocal(safeMon,6).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});return `${a} → ${b}`;};
   const dtColor={mercredi:"#1565C0",weekend:"#BF360C",vacances:"#2E7D32"};
@@ -5694,7 +6112,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
             </tr></thead>
             <tbody>
               {displayTeam.map(emp=>{
-                const weekTotals=weeks.map(({days})=>days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)),emp,fmtLocal(d));},0));
+                const weekTotals=weeks.map(({days})=>days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)));},0));
                 const monthTotal=weekTotals.reduce((s,h)=>s+h,0);
                 return (<tr key={emp.id} style={{background:"#fff"}}>
                   <td style={{padding:"8px 8px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:9,height:9,borderRadius:"50%",background:emp.color,flexShrink:0}}/><div style={{fontSize:12,fontWeight:700,color:"#212121"}}>{emp.prenom?emp.prenom.split(" ")[0]:emp.nom}</div></div></td>
@@ -6501,7 +6919,7 @@ function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=
         const {acquis,pris,restants,deficit}=calcCP(emp,shifts,season);
         const monthH=weeks.flatMap(w=>w.days).reduce((s,d)=>{
           if(d.getMonth()!==m)return s;
-          return s+shH(getShift(emp.id,fmtLocal(d)),emp,fmtLocal(d));
+          return s+shH(getShift(emp.id,fmtLocal(d)));
         },0);
         const delta=monthH-emp.heures_mois;
 
@@ -6523,7 +6941,7 @@ function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=
 
             {/* Weeks */}
             {weeks.map(({mon:wm,days},wi)=>{
-              const wH=days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)),emp,fmtLocal(d));},0);
+              const wH=days.reduce((s,d)=>{if(d.getMonth()!==m)return s;return s+shH(getShift(emp.id,fmtLocal(d)));},0);
               const wDelta=wH-(emp.heures_mois/4.33);
               return (
                 <div key={wi} style={{marginBottom:8}}>
@@ -6998,6 +7416,25 @@ function App() {
   const [alertes,    setAlertes,    aReady] = useStorage("abr26_notes_v1", ALERTES_INIT);
   const [calEvents,  setCalEvents,  cReady] = useStorage("abr26_cal_events",  {});
   const [tab,          setTab]          = useState("equipe_planning");
+  // ── Réservations et disponibilités (lues depuis Firebase en temps réel) ──
+  const [reservations, setReservations] = useState({});
+  const [dispoFB,      setDispoFB]      = useState({});
+  const [alertesFB,    setAlertesFB]    = useState({});
+  useEffect(()=>{
+    if(typeof fbListen!=='function') return;
+    // Groupes depuis Apps Script → abr26_groupes
+    fbListen('abr26_groupes', data => {
+      if(data && typeof data==='object') setReservations(prev=>({...prev,...data}));
+    });
+    // Disponibilités calculées par Apps Script
+    fbListen('disponibilites', data => {
+      if(data && typeof data==='object') setDispoFB(data);
+    });
+    // Alertes calculées par Apps Script
+    fbListen('alertes', data => {
+      if(data && typeof data==='object') setAlertesFB(data);
+    });
+  },[]);
   const [empTab,       setEmpTab]       = useState("mon_planning");
   const [authMode,     setAuthMode]     = useState(()=>sessionStorage.getItem("abr_auth")||"login");
   const [currentEmpId, setCurrentEmpId] = useState(()=>sessionStorage.getItem("abr_emp")||null);
@@ -7121,6 +7558,7 @@ function App() {
     {id:"contrats",      icon:"📄",label:"Contrats"},
     {id:"dashboard",     icon:"📊",label:"Tableau de bord"},
     {id:"calendrier",    icon:"🗓", label:"Calendrier"},
+    {id:"dispo_temps_reel", icon:"🟢", label:"Disponibilités"},
     {id:"reservations",  icon:"📋",label:"Réservations"},
     {id:"reservations_v2",icon:"🆕",label:"Réservations V2"},
     {id:"equipe",        icon:"👥",label:"Équipe"},
@@ -7172,6 +7610,7 @@ function App() {
         {tab==="contrats"      &&<ContratsTabV2 team={team}/>}
         {tab==="dashboard"     &&<DashboardTab dayLevels={dayLevels}/>}
         {tab==="calendrier"    &&<CalendrierTab dayLevels={dayLevels} setDayLevels={setDayLevels}/>}
+        {tab==="dispo_temps_reel" &&<DispoTempsReelTab reservations={reservations} disponibilites={dispoFB} alertes_script={alertesFB}/>}
         {tab==="reservations"  &&<ReservationsTabWrapper/>}
         {tab==="reservations_v2"&&<ReservationsV2Tab/>}
         {tab==="equipe"        &&<EquipeTab team={team} setTeam={setTeam}/>}
