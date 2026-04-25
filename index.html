@@ -4227,6 +4227,24 @@ function rv2AlerteCharge(dossiers){
   return byDate;
 }
 
+function couleurDossier(d) {
+  var type = ((d.type_demande||d.type_evenement||'')).toLowerCase();
+  var dec  = (d.decision_client||'').toUpperCase();
+  var stat = (d.statut_docs||'').toUpperCase();
+  if (dec.indexOf('REFUS')>=0||dec.indexOf('ANNUL')>=0) return null;
+  if (type.indexOf('anniversaire')>=0||type.indexOf('anniv')>=0)
+    return {bg:'#FCE4EC',border:'#F48FB1',text:'#AD1457',dot:'#E91E63'};
+  if (type.indexOf('privati')>=0||type.indexOf('privé')>=0||type.indexOf('prive')>=0)
+    return {bg:'#EDE7F6',border:'#CE93D8',text:'#6A1B9A',dot:'#9C27B0'};
+  if (dec.indexOf('VALID')>=0||stat.indexOf('DOSSIER OK')>=0)
+    return {bg:'#E8F5E9',border:'#81C784',text:'#1B5E20',dot:'#4CAF50'};
+  if (stat.indexOf('RELANCER')>=0||stat.indexOf('RELANCE BC')>=0)
+    return {bg:'#FFEBEE',border:'#EF9A9A',text:'#C62828',dot:'#F44336'};
+  if (stat.indexOf('ATTENTE')>=0)
+    return {bg:'#FFF8E1',border:'#FFD54F',text:'#E65100',dot:'#FF9800'};
+  return {bg:'#E3F2FD',border:'#90CAF9',text:'#1565C0',dot:'#2196F3'};
+}
+
 // ── Mapping statuts Sheet → RV2 (fonctions globales) ──────────────────────
 function _mapStatutDocs(s){
   s = String(s||'').toUpperCase();
@@ -4252,7 +4270,7 @@ function _mapDecision(s){
 }
 
 // ── COMPOSANT CALENDRIER MENSUEL (hooks au bon niveau) ──────────────────────
-function CalendrierMensuel({ dossiers, setView, setFicheId, ouvrirForm, couleurDossier }) {
+function CalendrierMensuel({ dossiers, setView, setFicheId, ouvrirForm }) {
   const [calMois, setCalMois] = React.useState(()=>{
     const now = new Date();
     return { y: now.getFullYear(), m: now.getMonth() };
@@ -4894,7 +4912,7 @@ function ReservationsV2Tab(){
 
   // ── VUE PLANNING ──
   if(view==="planning"){
-    return <CalendrierMensuel dossiers={dossiers} setView={setView} setFicheId={setFicheId} ouvrirForm={ouvrirForm} couleurDossier={couleurDossier}/>;
+    return <CalendrierMensuel dossiers={dossiers} setView={setView} setFicheId={setFicheId} ouvrirForm={ouvrirForm}/>;
   }
 
 
