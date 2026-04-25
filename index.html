@@ -4465,74 +4465,67 @@ function ReservationsV2Tab(){
   React.useEffect(()=>{
     try{
       if(typeof fbListen==="function"){
-        // Écouter les dossiers manuels (abr_rv2)
-        fbListen("abr_rv2", data=>{
-          if(data && typeof data==="object" && Array.isArray(data) && data.length>0){
-            setDossiers(prev => {
-              // Fusionner : garder les dossiers manuels + les Sheet
-              const sheetIds = prev.filter(d=>d._from_sheet).map(d=>d.id);
-              const manuels  = prev.filter(d=>!d._from_sheet);
-              return [...manuels, ...data.filter(d=>!sheetIds.includes(d.id))];
-            });
-          }
-        });
-        // Écouter les réservations depuis le Sheet (abr26_groupes)
+        // SOURCE UNIQUE : abr26_groupes (données Sheet via Apps Script)
+        // Clé = N° devis, valeur = objet dossier
         fbListen("abr26_groupes", data=>{
           if(!data || typeof data!=="object") return;
-          // Accepter objet {DEV123:{...}} ou tableau
           const entries = Array.isArray(data)
             ? data.map((r,i)=>[String(i),r])
             : Object.entries(data);
           if(!entries.length) return;
-          const converted = entries
+          const fromSheet = entries
             .filter(([k,r])=> r && typeof r==="object")
             .map(([k,r]) => {
-              // La clé Firebase = le N° devis si r.id absent
               const rid = r.id || r.ref || k;
-              const dateBrute = r.date||r.date_visite||"";
-              // Normaliser la date vers ISO si c'est un objet Date JS
-              let dateNorm = dateBrute;
-              if(dateBrute && !/^\d{4}-\d{2}-\d{2}/.test(dateBrute)){
-                try{const d=new Date(dateBrute);if(!isNaN(d))dateNorm=d.toISOString().slice(0,10);}catch(e){}
+              let dateNorm = r.date||r.date_visite||"";
+              if(dateNorm && !/^\d{4}-\d{2}-\d{2}/.test(dateNorm)){
+                try{const d=new Date(dateNorm);if(!isNaN(d))dateNorm=d.toISOString().slice(0,10);}catch(e){}
               }
-              return ({
+              return {
                 ...RV2_EMPTY(),
-                id:                         rid,
-                _from_sheet:                true,
-                type_demande:               r.type||"groupe",
-                numero_devis_ou_commande:   rid,
-                reference_bc:               r.ref_bc||"",
-                nom_structure_ou_client:    r.client||r.structure||r.organisation||r.nom||"",
-                email_contact:              r.contact_email||r.email||"",
-                date_souhaitee:             dateNorm,
-                creneau_horaire:            r.creneau||r.heure_debut||"",
-                nombre_enfants_prevus:      parseInt(r.enfants||r.nb_enfants||0)||0,
-                nombre_adultes_prevus:      parseInt(r.accompagnants||r.nb_adultes||0)||0,
-                effectif_reel_jour_j:       parseInt(r.nb_enfants_r||r.effectif_enfants_reel||0)||null,
-                formule:                    r.formule||"",
-                total_ttc:                  String(r.montant_total||r.total||r.total_ttc||""),
-                montant_acompte:            r.acompte_recu||0,
-                mode_paiement_acompte:      r.reglement||r.mode_reglement||r.regl||"",
-                statut_docs:                _mapStatutDocs(r.etape_dossier||r.statut||""),
-                statut_facture:             _mapStatutFact(r.etape_facture||""),
-                decision_client:            _mapDecision(r.decision||""),
-                bc_recu:                    r.bc_recu===true||r.bc_recu==="OUI",
-                acompte_recu:               r.acompte_ok===true,
-                notes_equipe:               r.note||r.notes||"",
-                lien_dossier_drive:         r.cal_id?""+r.cal_id:"",
-                alertes:                    r.alerte_bc?["BC manquant"]:[],
-                updated_at:                 r.updated_at||new Date().toISOString(),
-              });
+                id:                       rid,
+                _from_sheet:              true,
+                type_demande:             r.type||"groupe",
+                numero_devis_ou_commande: rid,
+                reference_bc:             r.ref_bc||"",
+                nom_structure_ou_client:  r.client||r.structure||r.organisation||r.nom||"",
+                email_contact:            r.contact_email||r.email||"",
+                date_souhaitee:           dateNorm,
+                creneau_horaire:          r.creneau||r.heure_debut||"",
+                nombre_enfants_prevus:    parseInt(r.enfants||r.nb_enfants||0)||0,
+                nombre_adultes_prevus:    parseInt(r.accompagnants||r.nb_adultes||0)||0,
+                effectif_reel_jour_j:     parseInt(r.nb_enfants_r||0)||null,
+                formule:                  r.formule||"",
+                total_ttc:                String(r.montant_total||r.total||r.total_ttc||""),
+                montant_acompte:          r.acompte_recu||0,
+                mode_paiement_acompte:    r.reglement||r.mode_reglement||r.regl||"",
+                statut_docs:              _mapStatutDocs(r.etape_dossier||r.statut||""),
+                statut_facture:           _mapStatutFact(r.etape_facture||""),
+                decision_client:          _mapDecision(r.decision||""),
+                bc_recu:                  r.bc_recu===true||r.bc_recu==="OUI",
+                acompte_recu:             r.acompte_ok===true,
+                notes_equipe:             r.note||r.notes||"",
+                lien_dossier_drive:       r.cal_id?""+r.cal_id:"",
+                alertes:                  r.alerte_bc?["BC manquant"]:[],
+                updated_at:               r.updated_at||new Date().toISOString(),
+              };
             })
-            .filter(r=>r.nom_structure_ou_client||r.numero_devis_ou_commande);
-          if(converted.length>0){
-            setDossiers(prev => {
-              const manuels = prev.filter(d=>!d._from_sheet);
-              return [...manuels, ...converted];
+            .filter(r=> r.nom_structure_ou_client||r.numero_devis_ou_commande);
+
+          if(!fromSheet.length) return;
+
+          setDossiers(prev => {
+            // Garder les dossiers manuels (créés dans l'app, pas du Sheet)
+            const manuels = prev.filter(d=>!d._from_sheet);
+            // Dédupliquer par id au cas où
+            const seen = new Set();
+            const dedup = [...manuels, ...fromSheet].filter(d=>{
+              if(seen.has(d.id)) return false;
+              seen.add(d.id); return true;
             });
-          }
+            return dedup;
+          });
         });
-      }
     }catch(e){ console.error('fbListen RV2:', e); }
   },[]);
 
