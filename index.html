@@ -5381,6 +5381,9 @@ function ParametresTab({onChangePwd,team}) {
           <button onClick={()=>{if(window.confirm("Supprimer TOUT le planning (shifts) ? Action irréversible.")){localStorage.removeItem("abr26_shifts_v4");window.location.reload();}}} style={{...S.btn,...S.btnD}}>
             🗑 Réinitialiser le planning
           </button>
+          <button onClick={()=>setShowHistorique(true)} style={{...S.btn,background:"#E3F2FD",color:"#1565C0",border:"1px solid #BBDEFB"}}>
+            📜 Historique planning
+          </button>
           <button onClick={()=>{if(window.confirm("Remettre l'équipe par défaut ? Action irréversible.")){localStorage.removeItem("abr26_team_v2");window.location.reload();}}} style={{...S.btn,background:"#FFEBEE",color:"#C62828",border:"1px solid #FFCDD2"}}>
             🗑 Réinitialiser l'équipe
           </button>
@@ -6796,10 +6799,23 @@ function App() {
     // Calculer le nouvel état
     const prev = window._shiftsRef ? window._shiftsRef.current : {};
     const next = typeof updater === "function" ? updater(prev) : updater;
-    // Sauvegarder dans l'historique Ctrl+Z
+    // Sauvegarder dans l'historique Ctrl+Z (mémoire session)
     shiftsHistory.current = [...shiftsHistory.current.slice(-19), JSON.stringify(prev)];
     // setShiftsRaw = save() de useStorage → sauvegarde localStorage + Firebase immédiatement
     setShiftsRaw(next);
+    // ✅ Sauvegarder un snapshot horodaté dans Firebase (historique permanent)
+    try {
+      const db = getFbDb();
+      if (db) {
+        const ts = new Date().toISOString();
+        const snapshot = { ts: ts, shifts: next, nb: Object.keys(next).length };
+        db.ref("abracadaparc/abr26_shifts_history/" + ts.replace(/[:.]/g,'-')).set(snapshot);
+        // Garder seulement les 50 derniers snapshots
+        db.ref("abracadaparc/abr26_shifts_history").orderByKey().limitToFirst(1).once("value", function(snap) {
+          if (snap.val()) { var keys = Object.keys(snap.val()); if (keys.length > 0) db.ref("abracadaparc/abr26_shifts_history/" + keys[0]).remove(); }
+        });
+      }
+    } catch(e) {}
   }, [setShiftsRaw]);
   const undoShift = useCallback(() => {
     if (shiftsHistory.current.length === 0) return;
@@ -6811,6 +6827,7 @@ function App() {
   const [alertes,    setAlertes,    aReady] = useStorage("abr26_notes_v1", ALERTES_INIT);
   const [calEvents,  setCalEvents,  cReady] = useStorage("abr26_cal_events",  {});
   const [tab,          setTab]          = useState("equipe_planning");
+  const [showHistorique, setShowHistorique] = useState(false);
   // ── Réservations et disponibilités (lues depuis Firebase en temps réel) ──
   const [reservations, setReservations] = useState({});
   const [dispoFB,      setDispoFB]      = useState({});
@@ -7009,11 +7026,78 @@ function App() {
         {tab==="reservations"  &&<ReservationsTabWrapper/>}
         {tab==="equipe"        &&<EquipeTab team={team} setTeam={setTeam}/>}
         {tab==="parametres"    &&<ParametresTab onChangePwd={async()=>{}} team={team}/>}
+      {showHistorique && <HistoriquePlanningModal onClose={()=>setShowHistorique(false)} onRestore={(s)=>{if(window.confirm("Restaurer cette version ? Le planning actuel sera remplacé.")){setShifts(s);setShowHistorique(false);}}} />}
       </div>
     </div>
   );
 }
 
+
+function HistoriquePlanningModal({onClose, onRestore}) {
+  const [snapshots, setSnapshots] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(function() {
+    try {
+      var db = getFbDb();
+      if (!db) { setLoading(false); return; }
+      db.ref("abracadaparc/abr26_shifts_history").orderByKey().limitToLast(50).once("value", function(snap) {
+        var data = snap.val();
+        if (!data) { setLoading(false); return; }
+        var list = Object.keys(data).map(function(k) {
+          return { key: k, ts: data[k].ts, nb: data[k].nb, shifts: data[k].shifts };
+        }).reverse();
+        setSnapshots(list);
+        setLoading(false);
+      });
+    } catch(e) { setLoading(false); }
+  }, []);
+
+  return (
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:16,padding:24,width:480,maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontWeight:800,fontSize:18,color:"#1565C0"}}>📜 Historique du planning</div>
+          <button onClick={onClose} style={{border:"none",background:"none",fontSize:20,cursor:"pointer",color:"#666"}}>✕</button>
+        </div>
+        {loading && <div style={{textAlign:"center",padding:32,color:"#999"}}>Chargement...</div>}
+        {!loading && snapshots.length === 0 && (
+          <div style={{textAlign:"center",padding:32,color:"#999"}}>
+            <div style={{fontSize:40,marginBottom:8}}>📭</div>
+            <div>Aucun historique disponible</div>
+            <div style={{fontSize:12,marginTop:8,color:"#bbb"}}>L'historique se construit à chaque modification du planning</div>
+          </div>
+        )}
+        {!loading && snapshots.length > 0 && (
+          <div style={{overflowY:"auto",flex:1}}>
+            {snapshots.map(function(snap, i) {
+              var d = new Date(snap.ts);
+              var label = d.toLocaleDateString("fr-FR", {weekday:"short",day:"2-digit",month:"2-digit"}) + " à " + d.toLocaleTimeString("fr-FR", {hour:"2-digit",minute:"2-digit"});
+              return (
+                <div key={snap.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",borderRadius:8,marginBottom:6,background:i===0?"#E3F2FD":"#F5F5F5",border:i===0?"1px solid #90CAF9":"1px solid #E0E0E0"}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13,color:i===0?"#1565C0":"#333"}}>
+                      {i===0?"🟢 Version actuelle — ":""}{label}
+                    </div>
+                    <div style={{fontSize:11,color:"#888",marginTop:2}}>{snap.nb} shifts enregistrés</div>
+                  </div>
+                  {i > 0 && (
+                    <button onClick={function(){onRestore(snap.shifts);}} style={{background:"#1565C0",color:"#fff",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>
+                      ↩ Restaurer
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{marginTop:12,fontSize:11,color:"#bbb",textAlign:"center"}}>
+          50 dernières versions conservées · Sauvegarde automatique à chaque modification
+        </div>
+      </div>
+    </div>
+  );
+}
 
 var _fbDomEl = document.getElementById('fallback-loader');
 if (_fbDomEl) _fbDomEl.style.display = 'none';
