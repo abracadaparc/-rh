@@ -4485,7 +4485,7 @@ function ReservationsV2Tab(){
                 ...RV2_EMPTY(),
                 id:                       rid,
                 _from_sheet:              true,
-                type_demande:             r.type||"groupe",
+                type_demande:             r.type||r.segment||r.type_demande||"groupe",
                 numero_devis_ou_commande: rid,
                 reference_bc:             r.ref_bc||"",
                 nom_structure_ou_client:  r.client||r.structure||r.organisation||r.nom||"",
