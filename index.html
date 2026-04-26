@@ -4457,10 +4457,6 @@ function fbSave(path, data) {
       }
       return;
     }
-    // Chemins RH locaux uniquement — ne jamais ecrire dans Firebase
-    var LOCAL_ONLY = ['abr26_shifts_v4','abr26_team_v2','abr26_levels_v1',
-                      'abr26_planning_updated','abr26_notes_v1','abr_reservations'];
-    if (LOCAL_ONLY.indexOf(path) >= 0) return;
     db.ref("abracadaparc/" + path).set(obj);
   } catch (e) {
     console.error('fbSave error:', e);
@@ -5638,7 +5634,7 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
                   <td style={{padding:"4px 8px",fontSize:10,color:"#1565C0",fontWeight:700,whiteSpace:"nowrap"}}>🏕️ GROUPES</td>
                   {week.map((d,i)=>{
                     var ds = fmtLocal(d);
-                    var groupesJour = resas.filter(r => r && r.date===ds && parseInt(r.statut||"1") >= 3 && r.segment !== "anniversaire");
+                    var groupesJour = resas.filter(r => r && r.date===ds && parseInt(r.statut||"1") >= 1 && r.segment !== "anniversaire");
                     var annivJour = resas.filter(r => r && r.date===ds && (r.segment==="anniversaire" || (r.id&&r.id.indexOf("CMD")===0)));
                     return (
                       <td key={i} style={{padding:"3px 4px",verticalAlign:"top"}}>
@@ -6792,13 +6788,18 @@ function App() {
   const [shifts,    setShiftsRaw, sReady] = useStorage("abr26_shifts_v4", {});
   // Historique Ctrl+Z — jusqu'à 20 états précédents (mémoire session uniquement)
   const shiftsHistory = useRef([]);
+  // Ref pour accéder aux shifts courants dans setShifts
+  const _shiftsRef = useRef(shifts); 
+  _shiftsRef.current = shifts;
+  if (typeof window !== "undefined") window._shiftsRef = _shiftsRef;
   const setShifts = useCallback((updater) => {
-    setShiftsRaw(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      // Sauvegarder l'état précédent dans l'historique
-      shiftsHistory.current = [...shiftsHistory.current.slice(-19), JSON.stringify(prev)];
-      return next;
-    });
+    // Calculer le nouvel état
+    const prev = window._shiftsRef ? window._shiftsRef.current : {};
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    // Sauvegarder dans l'historique Ctrl+Z
+    shiftsHistory.current = [...shiftsHistory.current.slice(-19), JSON.stringify(prev)];
+    // setShiftsRaw = save() de useStorage → sauvegarde localStorage + Firebase immédiatement
+    setShiftsRaw(next);
   }, [setShiftsRaw]);
   const undoShift = useCallback(() => {
     if (shiftsHistory.current.length === 0) return;
