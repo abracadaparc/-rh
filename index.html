@@ -1797,7 +1797,7 @@ contact@abracadaparc.fr`;
             body: emailBody,
             ts: r.modified_at
           });
-        } catch(e) {}
+        } catch (e) {}
       }
     }
 
@@ -1872,7 +1872,7 @@ contact@abracadaparc.fr`;
         // Fusionner avec les groupes déjà chargés
         var groupes = state._groupes || {};
         state.reservations = Object.assign({}, groupes, data);
-        try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch(e) {}
+        try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch (e) {}
         render();
       }
     });
@@ -1927,7 +1927,7 @@ contact@abracadaparc.fr`;
         if(rv&&rv.source!=='abr26_groupes') anniv[k]=rv;
       });
       state.reservations=Object.assign({},anniv,gNorm);
-      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));} catch(e){}
+      try {localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));} catch (e) {}
       render();
     });
     // ── Anniversaires WooCommerce ──
@@ -1949,7 +1949,7 @@ contact@abracadaparc.fr`;
         if(rv&&rv.source!=='abr26_groupes'&&rv.source!=='abr26_reservations') ancResas[k]=rv;
       });
       state.reservations=Object.assign({},groupes,ancResas,anniversaires);
-      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));} catch(e){}
+      try {localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));} catch (e) {}
       render();
     });
 
@@ -1970,7 +1970,7 @@ contact@abracadaparc.fr`;
           nb_groupes: parseInt(d.nb_groupes) || 0,
         };
       });
-      try { localStorage.setItem('abr_disponibilites', JSON.stringify(state.disponibilites)); } catch(e) {}
+      try { localStorage.setItem('abr_disponibilites', JSON.stringify(state.disponibilites)); } catch (e) {}
       render();
     });
 
@@ -1984,7 +1984,7 @@ contact@abracadaparc.fr`;
     listen('memos', data => {
       if (data) {
         state.memos = data;
-        try { localStorage.setItem('abr_memos', JSON.stringify(data)); } catch(e) {}
+        try { localStorage.setItem('abr_memos', JSON.stringify(data)); } catch (e) {}
         render();
       }
     });
@@ -2007,6 +2007,7 @@ contact@abracadaparc.fr`;
 
 </script>
 <script type="text/babel">
+
 const { useState, useEffect, useRef, useCallback } = React;
 
 
@@ -4270,832 +4271,40 @@ function _mapDecision(s){
 }
 
 // ── COMPOSANT CALENDRIER MENSUEL (hooks au bon niveau) ──────────────────────
-function CalendrierMensuel({ dossiers, setView, setFicheId, ouvrirForm }) {
-  const [calMois, setCalMois] = React.useState(()=>{
-    const now = new Date();
-    return { y: now.getFullYear(), m: now.getMonth() };
-  });
-  const [jourSel, setJourSel] = React.useState(null);
-
-  // Normaliser une date vers ISO YYYY-MM-DD
-  const normDate = (raw) => {
-    if (!raw) return '';
-    const s = String(raw);
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-    const mD = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (mD) return mD[0];
-    try { const d = new Date(s); if(!isNaN(d)) return d.toISOString().slice(0,10); } catch(e){}
-    return '';
-  };
-
-  // Index date → dossiers (sans refusés/annulés)
-  const byDate = {};
-  dossiers.forEach(d => {
-    const iso = normDate(d.date_souhaitee);
-    if (!iso) return;
-    const dec = (d.decision_client||'').toUpperCase();
-    if (dec.indexOf('REFUS')>=0 || dec.indexOf('ANNUL')>=0) return;
-    if (!byDate[iso]) byDate[iso] = [];
-    byDate[iso].push(d);
-  });
-
-  const { y, m } = calMois;
-  const premierJour = new Date(y, m, 1).getDay();
-  const nbJours = new Date(y, m+1, 0).getDate();
-  const decalage = premierJour === 0 ? 6 : premierJour - 1;
-  const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  const jourNoms = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-  const today = new Date().toISOString().slice(0,10);
-
-  let totalEnfMois = 0;
-  Object.keys(byDate).forEach(k => {
-    if (k.startsWith(y+'-'+String(m+1).padStart(2,'0'))) {
-      byDate[k].forEach(d => { totalEnfMois += parseInt(d.nombre_enfants_prevus)||0; });
-    }
-  });
-
-  const cellules = [];
-  for (let i = 0; i < decalage; i++) cellules.push(null);
-  for (let d = 1; d <= nbJours; d++) {
-    const iso = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    cellules.push({ d, iso, dossiers: byDate[iso]||[] });
-  }
-
-  const selDossiers = jourSel ? (byDate[jourSel]||[]) : [];
-
-  return (
-    <div>
-      {/* En-tête navigation */}
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-        <button onClick={()=>setView('liste')} style={{background:'none',border:'none',cursor:'pointer',color:'#2E7D32',fontSize:13,fontFamily:'inherit'}}>← Liste</button>
-        <button onClick={()=>setCalMois(prev=>{const nm=prev.m-1<0?11:prev.m-1,ny=prev.m-1<0?prev.y-1:prev.y;return{y:ny,m:nm};})}
-          style={{background:'#F5F5F5',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>‹</button>
-        <span style={{fontSize:15,fontWeight:800,color:'#1B5E20',flex:1,textAlign:'center'}}>
-          📅 {moisNoms[m]} {y} — {totalEnfMois} enfants
-        </span>
-        <button onClick={()=>setCalMois(prev=>{const nm=prev.m+1>11?0:prev.m+1,ny=prev.m+1>11?prev.y+1:prev.y;return{y:ny,m:nm};})}
-          style={{background:'#F5F5F5',border:'none',borderRadius:6,padding:'4px 10px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>›</button>
-      </div>
-
-      {/* Légende */}
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10,fontSize:11}}>
-        {[
-          {c:'#4CAF50',bg:'#E8F5E9',l:'Validé'},
-          {c:'#FF9800',bg:'#FFF8E1',l:'En attente'},
-          {c:'#F44336',bg:'#FFEBEE',l:'À relancer'},
-          {c:'#2196F3',bg:'#E3F2FD',l:'Nouveau'},
-          {c:'#E91E63',bg:'#FCE4EC',l:'🎂 Anniversaire'},
-          {c:'#9C27B0',bg:'#EDE7F6',l:'🎪 Privatisation'},
-        ].map(leg=>(
-          <span key={leg.l} style={{display:'flex',alignItems:'center',gap:4,background:leg.bg,padding:'3px 8px',borderRadius:12,color:leg.c,fontWeight:600}}>
-            <span style={{width:8,height:8,borderRadius:'50%',background:leg.c,display:'inline-block'}}/>
-            {leg.l}
-          </span>
-        ))}
-      </div>
-
-      {/* Grille calendrier */}
-      <div style={{background:'#fff',borderRadius:12,border:'1px solid #E8F5E9',overflow:'hidden',marginBottom:10}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',borderBottom:'2px solid #E8F5E9'}}>
-          {jourNoms.map(j=>(
-            <div key={j} style={{textAlign:'center',padding:'7px 0',fontSize:11,fontWeight:700,color:'#2E7D32',background:'#F1F8E9'}}>{j}</div>
-          ))}
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)'}}>
-          {cellules.map((cel,idx)=>{
-            if (!cel) return <div key={'e'+idx} style={{minHeight:64,borderRight:'1px solid #F5F5F5',borderBottom:'1px solid #F5F5F5'}}/>;
-            const isToday = cel.iso === today;
-            const isSel   = cel.iso === jourSel;
-            const totalEnf= cel.dossiers.reduce((s,d)=>s+(parseInt(d.nombre_enfants_prevus)||0),0);
-            const bgCell  = isSel?'#F1F8E9':isToday?'#FFFDE7':'#fff';
-            return (
-              <div key={cel.iso} onClick={()=>setJourSel(cel.iso===jourSel?null:cel.iso)}
-                style={{minHeight:64,padding:'4px 3px',borderRight:'1px solid #F5F5F5',borderBottom:'1px solid #F5F5F5',
-                  background:bgCell,cursor:cel.dossiers.length>0?'pointer':'default',
-                  outline:isSel?'2px solid #2E7D32':'none',outlineOffset:-2}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-                  <span style={{
-                    fontSize:12,fontWeight:isToday?800:500,
-                    background:isToday?'#2E7D32':'transparent',
-                    color:isToday?'#fff':'#555',
-                    borderRadius:isToday?'50%':'0',
-                    width:isToday?20:undefined,height:isToday?20:undefined,
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                  }}>{cel.d}</span>
-                  {totalEnf>0&&<span style={{fontSize:9,fontWeight:700,color:totalEnf>=150?'#C62828':totalEnf>=120?'#E65100':'#2E7D32'}}>{totalEnf}</span>}
-                </div>
-                {cel.dossiers.slice(0,3).map(d=>{
-                  const c = couleurDossier(d);
-                  if(!c) return null;
-                  const nom = (d.nom_structure_ou_client||d.numero_devis_ou_commande||'').split(' ').slice(0,2).join(' ');
-                  return (
-                    <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:4,padding:'1px 4px',marginBottom:2,
-                      fontSize:9,fontWeight:600,color:c.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
-                      display:'flex',alignItems:'center',gap:3}}>
-                      <span style={{width:5,height:5,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
-                      {nom||'—'}
-                    </div>
-                  );
-                })}
-                {cel.dossiers.length>3&&<div style={{fontSize:9,color:'#9E9E9E',textAlign:'center'}}>+{cel.dossiers.length-3}</div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Détail du jour sélectionné */}
-      {jourSel && selDossiers.length>0 && (
-        <div style={{background:'#fff',border:'2px solid #2E7D32',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontWeight:800,color:'#1B5E20',fontSize:13,marginBottom:10}}>
-            {new Date(jourSel+'T12:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
-            {' — '}{selDossiers.reduce((s,d)=>s+(parseInt(d.nombre_enfants_prevus)||0),0)} enfants
-          </div>
-          {selDossiers.map(d=>{
-            const c = couleurDossier(d);
-            if (!c) return null;
-            return (
-              <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:9,padding:'8px 12px',marginBottom:7}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                  <span style={{width:8,height:8,borderRadius:'50%',background:c.dot,flexShrink:0}}/>
-                  <span style={{fontSize:13,fontWeight:700,color:c.text,flex:1}}>{d.nom_structure_ou_client||d.numero_devis_ou_commande||'—'}</span>
-                  <span style={{fontSize:11,color:'#757575'}}>{d.creneau_horaire||''}</span>
-                  <span style={{fontSize:11,fontWeight:600,color:c.text,background:c.bg,padding:'2px 7px',borderRadius:10,border:'1px solid '+c.border}}>{d.statut_docs}</span>
-                  <span style={{fontSize:11,color:'#888'}}>{d.nombre_enfants_prevus||0} enf.</span>
-                  <button onClick={()=>{setFicheId(d.id);setView('fiche');}} style={{fontSize:10,background:'#fff',color:c.text,border:'1px solid '+c.border,borderRadius:5,cursor:'pointer',padding:'2px 8px',fontFamily:'inherit'}}>📋 Fiche</button>
-                  <button onClick={()=>ouvrirForm(d)} style={{fontSize:10,background:'#fff',color:'#555',border:'1px solid #DDD',borderRadius:5,cursor:'pointer',padding:'2px 8px',fontFamily:'inherit'}}>✏️</button>
-                </div>
-                {d.notes_equipe&&<div style={{fontSize:11,color:'#666',marginTop:5,paddingLeft:16}}>{d.notes_equipe.substring(0,80)}{d.notes_equipe.length>80?'…':''}</div>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+</script>
+<script type="text/babel">
+function CalendrierMensuel({dossiers,setView,setFicheId,ouvrirForm}) {
+  return <div style={{padding:20,textAlign:'center',color:'#9E9E9E'}}>Calendrier en cours de chargement...</div>;
 }
-
-function ReservationsV2Tab(){
-  const [dossiers, setDossiers] = React.useState(()=>{
-    try{ const s=localStorage.getItem("abr_rv2"); return s?JSON.parse(s):[]; }catch{ return []; }
-  });
-  const [view, setView]         = React.useState("liste"); // liste | planning | fiche | nouveau
-  const [editId, setEditId]     = React.useState(null);
-  const [form, setForm]         = React.useState(null);
-  const [filtreStatut, setFiltreStatut] = React.useState("tous");
-  const [filtreDecision, setFiltreDecision] = React.useState("tous");
-  const [search, setSearch]     = React.useState("");
-  const [ficheId, setFicheId]   = React.useState(null);
-  const [jsonImport, setJsonImport] = React.useState("");
-  const [showImport, setShowImport] = React.useState(false);
-  const [showExport, setShowExport] = React.useState(false);
-  const [msg, setMsg]           = React.useState("");
-
-  // Persistance locale uniquement — Firebase est en lecture seule depuis l'app
-  // (seul Apps Script écrit dans Firebase)
-  React.useEffect(()=>{
-    try{
-      // Sauvegarder uniquement les dossiers manuels (pas ceux du Sheet)
-      const manuels = dossiers.filter(d=>!d._from_sheet);
-      localStorage.setItem("abr_rv2", JSON.stringify(manuels));
-    } catch(e){}
-    // NE PAS écrire dans Firebase abr_rv2 — permission refusée volontairement
-  },[dossiers]);
-
-  React.useEffect(function() {
-    if (typeof fbListen !== "function") return;
-    fbListen("abr26_groupes", function(data) {
-      if (!data || typeof data !== "object") return;
-      var entries = Array.isArray(data)
-        ? data.map(function(r, i) { return [String(i), r]; })
-        : Object.entries(data);
-      if (!entries.length) return;
-      var fromSheet = entries
-        .filter(function(pair) { return pair[1] && typeof pair[1] === "object"; })
-        .map(function(pair) {
-          var k = pair[0], r = pair[1];
-          var rid = r.id || r.ref || k;
-          var dateNorm = r.date || r.date_visite || "";
-          if (dateNorm && !/^\d{4}-\d{2}-\d{2}/.test(dateNorm)) {
-            try { var d = new Date(dateNorm); if (!isNaN(d)) dateNorm = d.toISOString().slice(0,10); } catch(ex) {}
-          }
-          return Object.assign({}, RV2_EMPTY(), {
-            id:                       rid,
-            _from_sheet:              true,
-            type_demande:             r.type || r.segment || "groupe",
-            numero_devis_ou_commande: rid,
-            nom_structure_ou_client:  r.client || r.structure || r.organisation || r.nom || "",
-            email_contact:            r.contact_email || r.email || "",
-            date_souhaitee:           dateNorm,
-            creneau_horaire:          r.creneau || r.heure_debut || "",
-            nombre_enfants_prevus:    parseInt(r.enfants || r.nb_enfants || 0) || 0,
-            nombre_adultes_prevus:    parseInt(r.accompagnants || r.nb_adultes || 0) || 0,
-            formule:                  r.formule || "",
-            total_ttc:                String(r.montant_total || r.total || ""),
-            montant_acompte:          r.acompte_recu || 0,
-            mode_paiement_acompte:    r.reglement || r.mode_reglement || "",
-            statut_docs:              _mapStatutDocs(r.etape_dossier || r.statut || ""),
-            statut_facture:           _mapStatutFact(r.etape_facture || ""),
-            decision_client:          _mapDecision(r.decision || ""),
-            bc_recu:                  r.bc_recu === true || r.bc_recu === "OUI",
-            acompte_recu:             r.acompte_ok === true,
-            notes_equipe:             r.note || r.notes || "",
-            alertes:                  r.alerte_bc ? ["BC manquant"] : [],
-            updated_at:               r.updated_at || new Date().toISOString(),
-          });
-        })
-        .filter(function(r) { return r.nom_structure_ou_client || r.numero_devis_ou_commande; });
-
-      if (!fromSheet.length) return;
-
-      setDossiers(function(prev) {
-        var manuels = prev.filter(function(d) { return !d._from_sheet; });
-        var seen = {};
-        return manuels.concat(fromSheet).filter(function(d) {
-          if (seen[d.id]) return false;
-          seen[d.id] = true;
-          return true;
-        });
-      });
-    });
-  }, []);
-
-
-
-  const save = (list) => { setDossiers(list); };
-
-  const ouvrirForm = (d) => {
-    setForm(d ? JSON.parse(JSON.stringify(d)) : RV2_EMPTY());
-    setEditId(d ? d.id : null);
-    setView("nouveau");
-  };
-
-  const sauvegarderForm = () => {
-    if(!form.nom_structure_ou_client && !form.numero_devis_ou_commande){
-      setMsg("⚠️ Au moins un nom client ou un numéro de devis est requis."); return;
-    }
-    form.updated_at = new Date().toISOString();
-    // Calcul solde
-    const ttc = parseFloat(form.total_ttc)||0;
-    const ac  = parseFloat(form.montant_acompte)||0;
-    if(ttc>0) form.solde_a_encaisser = (ttc-ac).toFixed(2);
-    // Drive suggéré
-    if(!form.lien_dossier_drive && form.date_souhaitee){
-      const mm = form.date_souhaitee.slice(0,7);
-      const cl = (form.nom_structure_ou_client||"CLIENT").toUpperCase().replace(/\s+/g,"-").replace(/[^A-Z0-9\-]/g,"");
-      const nv = (form.numero_devis_ou_commande||"").replace(/\//g,"-");
-      form.lien_dossier_drive = `/AbracadaParc/Devis/2026/${mm}/${cl}/${nv}`;
-    }
-    const idx = dossiers.findIndex(d=>d.id===form.id);
-    let next;
-    if(idx>=0){ next=[...dossiers]; next[idx]=form; }
-    else { next=[form,...dossiers]; }
-    save(next);
-    setMsg("✅ Dossier sauvegardé !");
-    setTimeout(()=>{setMsg("");setView("liste");},1000);
-  };
-
-  const supprimerDossier = (id) => {
-    if(!confirm("Supprimer ce dossier ?")) return;
-    save(dossiers.filter(d=>d.id!==id));
-  };
-
-  const importerJSON = () => {
-    try{
-      const data = JSON.parse(jsonImport);
-      const liste = Array.isArray(data) ? data : (data.suivi_consolide||[]);
-      const norm = liste.map(d=>({...RV2_EMPTY(),...d,id:d.id||Date.now().toString(36)+Math.random().toString(36).slice(2,6)}));
-      save([...dossiers,...norm]);
-      setJsonImport(""); setShowImport(false);
-      setMsg(`✅ ${norm.length} dossier(s) importé(s) !`);
-      setTimeout(()=>setMsg(""),2000);
-    } catch(e){ setMsg("❌ JSON invalide : "+e.message); }
-  };
-
-  const exporterJSON = () => {
-    const blob = new Blob([JSON.stringify({suivi_consolide:dossiers},null,2)],{type:"application/json"});
-    const a = document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=`reservations_abracadaparc_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-  };
-
-  // Filtrage
-  const dossiersFiltrés = dossiers.filter(d=>{
-    if(filtreStatut!=="tous" && d.statut_docs!==filtreStatut) return false;
-    if(filtreDecision!=="tous" && d.decision_client!==filtreDecision) return false;
-    if(search){
-      const q=search.toLowerCase();
-      return (d.nom_structure_ou_client||"").toLowerCase().includes(q)
-          || (d.numero_devis_ou_commande||"").toLowerCase().includes(q)
-          || (d.nom_contact||"").toLowerCase().includes(q)
-          || (d.date_souhaitee||"").includes(q);
-    }
-    return true;
-  }).sort((a,b)=>(a.date_souhaitee||"").localeCompare(b.date_souhaitee||""));
-
-  const alertesCharge = rv2AlerteCharge(dossiers);
-  const joursAlerte = Object.keys(alertesCharge).filter(k=>alertesCharge[k].enfants>=150);
-
-  // ── VUE FORMULAIRE ──
-  if(view==="nouveau" && form) return (
-    <div style={{maxWidth:780,margin:"0 auto"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-        <button onClick={()=>setView("liste")} style={{background:"none",border:"none",cursor:"pointer",color:"#2E7D32",fontSize:13,fontFamily:"inherit"}}>← Retour</button>
-        <span style={{fontSize:15,fontWeight:800,color:"#1B5E20"}}>{editId?"✏️ Modifier le dossier":"➕ Nouveau dossier"}</span>
-      </div>
-      {msg&&<div style={{background:msg.startsWith("✅")?"#E8F5E9":"#FFEBEE",color:msg.startsWith("✅")?"#1B5E20":"#C62828",padding:"8px 12px",borderRadius:8,marginBottom:12,fontSize:12,fontWeight:700}}>{msg}</div>}
-
-      {/* Identité */}
-      <div style={{background:"#fff",border:"1px solid #E8F5E9",borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10}}>📋 Identification</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {[
-            ["Nº Devis / Commande","numero_devis_ou_commande"],
-            ["Référence BC","reference_bc"],
-            ["Structure / Client *","nom_structure_ou_client"],
-            ["Type client","type_client"],
-            ["Nom contact","nom_contact"],
-            ["Email contact","email_contact"],
-            ["Téléphone","telephone_contact"],
-            ["Source demande","source_demande"],
-          ].map(([lbl,key])=>(
-            <div key={key}>
-              <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>{lbl}</label>
-              <input value={form[key]||""} onChange={e=>setForm({...form,[key]:e.target.value})}
-                style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Dates & Horaires */}
-      <div style={{background:"#fff",border:"1px solid #E8F5E9",borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10}}>📅 Dates & Logistique</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Date demande</label>
-            <input type="date" value={form.date_demande||""} onChange={e=>setForm({...form,date_demande:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Date sortie *</label>
-            <input type="date" value={form.date_souhaitee||""} onChange={e=>setForm({...form,date_souhaitee:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #E65100",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Créneau horaire</label>
-            <input value={form.creneau_horaire||""} onChange={e=>setForm({...form,creneau_horaire:e.target.value})}
-              placeholder="10h - 17h00" style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Formule parc</label>
-            <select value={form.formule||""} onChange={e=>setForm({...form,formule:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-              <option value="">—</option>
-              {RV2_FORMULES.map(f=><option key={f}>{f}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Enfants prévus</label>
-            <input type="number" value={form.nombre_enfants_prevus||""} onChange={e=>setForm({...form,nombre_enfants_prevus:parseInt(e.target.value)||null})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Accompagnants prévus</label>
-            <input type="number" value={form.nombre_adultes_prevus||""} onChange={e=>setForm({...form,nombre_adultes_prevus:parseInt(e.target.value)||null})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-        </div>
-        <div style={{marginTop:10}}>
-          <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Type demande</label>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            {RV2_TYPES.map(t=>(
-              <button key={t} onClick={()=>setForm({...form,type_demande:t})}
-                style={{padding:"4px 10px",borderRadius:20,border:`1.5px solid ${form.type_demande===t?"#2E7D32":"#E0E0E0"}`,background:form.type_demande===t?"#E8F5E9":"#fff",color:form.type_demande===t?"#2E7D32":"#757575",fontSize:11,fontWeight:form.type_demande===t?700:400,cursor:"pointer",fontFamily:"inherit"}}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Financier */}
-      <div style={{background:"#fff",border:"1px solid #E8F5E9",borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10}}>💶 Financier</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Total TTC (€)</label>
-            <input type="number" step="0.01" value={form.total_ttc||""} onChange={e=>setForm({...form,total_ttc:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none",fontWeight:700,color:"#1B5E20"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Montant acompte (€)</label>
-            <input type="number" step="0.01" value={form.montant_acompte||""} onChange={e=>setForm({...form,montant_acompte:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#C62828",textTransform:"uppercase",marginBottom:3}}>Solde à encaisser (€)</label>
-            <input value={form.solde_a_encaisser||((parseFloat(form.total_ttc)||0)-(parseFloat(form.montant_acompte)||0)||"")} readOnly
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #FFCDD2",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",background:"#FFEBEE",fontWeight:700,color:"#C62828"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Mode règlement acompte</label>
-            <select value={form.mode_paiement_acompte||""} onChange={e=>setForm({...form,mode_paiement_acompte:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-              <option value="">—</option>
-              {RV2_REGLEMENTS.map(r=><option key={r}>{r}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Mode règlement solde</label>
-            <select value={form.mode_paiement_solde||""} onChange={e=>setForm({...form,mode_paiement_solde:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-              <option value="">—</option>
-              {RV2_REGLEMENTS.map(r=><option key={r}>{r}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Date paiement</label>
-            <input type="date" value={form.date_paiement||""} onChange={e=>setForm({...form,date_paiement:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:16,marginTop:10}}>
-          {[["bc_recu","📋 BC reçu"],["acompte_recu","💳 Acompte reçu"]].map(([k,lbl])=>(
-            <label key={k} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,fontWeight:700,color:form[k]?"#1B5E20":"#9E9E9E"}}>
-              <input type="checkbox" checked={!!form[k]} onChange={e=>setForm({...form,[k]:e.target.checked})} style={{accentColor:"#2E7D32",width:16,height:16}}/>
-              {lbl}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Statuts */}
-      <div style={{background:"#fff",border:"1px solid #E8F5E9",borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10}}>🏷️ Statuts & Décision</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Statut dossier</label>
-            <select value={form.statut_docs||"NOUVEAU"} onChange={e=>setForm({...form,statut_docs:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none",fontWeight:700,...rv2StatutDocColor(form.statut_docs)}}>
-              {RV2_STATUTS_DOCS.map(s=><option key={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Statut facture</label>
-            <select value={form.statut_facture||"NON"} onChange={e=>setForm({...form,statut_facture:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-              {RV2_STATUTS_FACT.map(s=><option key={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Décision client</label>
-            <select value={form.decision_client||""} onChange={e=>setForm({...form,decision_client:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",outline:"none",fontWeight:700,...rv2DecisionColor(form.decision_client)}}>
-              {RV2_DECISIONS.map(s=><option key={s} value={s}>{s||"— En attente"}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Date validation</label>
-            <input type="date" value={form.date_validation||""} onChange={e=>setForm({...form,date_validation:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Date annulation</label>
-            <input type="date" value={form.date_annulation||""} onChange={e=>setForm({...form,date_annulation:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Motif annulation / refus</label>
-            <input value={form.motif_annulation_ou_refus||""} onChange={e=>setForm({...form,motif_annulation_ou_refus:e.target.value})}
-              style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-          </div>
-        </div>
-      </div>
-
-      {/* Notes & Drive */}
-      <div style={{background:"#fff",border:"1px solid #E8F5E9",borderRadius:12,padding:"14px 16px",marginBottom:10}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:10}}>📁 Drive & Notes</div>
-        <div style={{marginBottom:8}}>
-          <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Dossier Drive suggéré</label>
-          <input value={form.lien_dossier_drive||""} onChange={e=>setForm({...form,lien_dossier_drive:e.target.value})}
-            placeholder="/AbracadaParc/Devis/2026/MM/CLIENT/DEVIS_xxx.pdf"
-            style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:11,fontFamily:"monospace",boxSizing:"border-box",outline:"none"}}/>
-        </div>
-        <div style={{marginBottom:8}}>
-          <label style={{display:"block",fontSize:10,fontWeight:700,color:"#AD1457",textTransform:"uppercase",marginBottom:3}}>Infos anniversaire (résumé terrain)</label>
-          <input value={form.infos_anniv||""} onChange={e=>setForm({...form,infos_anniv:e.target.value})}
-            placeholder="Anniv Emma – 8 ans – 10 enfants – formule Pirate – gâteau chocolat – solde 85 € à encaisser"
-            style={{width:"100%",padding:"7px 10px",border:"1.5px solid #F8BBD0",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-        </div>
-        <div>
-          <label style={{display:"block",fontSize:10,fontWeight:700,color:"#558B2F",textTransform:"uppercase",marginBottom:3}}>Notes équipe</label>
-          <textarea value={form.notes_equipe||""} onChange={e=>setForm({...form,notes_equipe:e.target.value})}
-            placeholder="Notes terrain, remarques, incidents…"
-            style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:7,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none",resize:"vertical",minHeight:60}}/>
-        </div>
-      </div>
-
-      <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button onClick={sauvegarderForm} style={{flex:1,padding:"12px",background:"#2E7D32",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"inherit"}}>
-          ✅ {editId?"Mettre à jour":"Créer le dossier"}
-        </button>
-        <button onClick={()=>setView("liste")} style={{padding:"12px 20px",background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:10,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>
-          Annuler
-        </button>
-        {editId&&<button onClick={()=>supprimerDossier(editId)} style={{padding:"12px 16px",background:"#FFEBEE",color:"#C62828",border:"none",borderRadius:10,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>🗑 Supprimer</button>}
-      </div>
-    </div>
-  );
-
-  // ── VUE FICHE JOUR J ──
-  if(view==="fiche" && ficheId){
-    const d = dossiers.find(x=>x.id===ficheId);
-    if(!d) return null;
-    const solde = d.solde_a_encaisser || ((parseFloat(d.total_ttc)||0)-(parseFloat(d.montant_acompte)||0)||"");
-    return (
-      <div style={{maxWidth:600,margin:"0 auto"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <button onClick={()=>setView("liste")} style={{background:"none",border:"none",cursor:"pointer",color:"#2E7D32",fontSize:13,fontFamily:"inherit"}}>← Retour</button>
-          <span style={{fontSize:15,fontWeight:800,color:"#1B5E20"}}>📋 Fiche Jour J</span>
-          <button onClick={()=>window.print()} style={{marginLeft:"auto",padding:"6px 14px",background:"#1565C0",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>🖨️ Imprimer</button>
-            <button onClick={()=>{
-              const d2 = dossiers.find(x=>x.id===ficheId);
-              if(!d2) return;
-              // Construire l'URL Google Calendar avec les données du dossier
-              const dateStr = d2.date_souhaitee||'';
-              // Parser la date française ex: "mercredi 22 avril 2026"
-              const moisMap = {'janvier':'01','février':'02','mars':'03','avril':'04','mai':'05','juin':'06','juillet':'07','août':'08','septembre':'09','octobre':'10','novembre':'11','décembre':'12'};
-              let gcDate = '';
-              const mD = dateStr.toLowerCase().match(/(\d{1,2})\s+([a-zéûô]+)\s+(\d{4})/);
-              if(mD && moisMap[mD[2]]) {
-                gcDate = mD[3]+moisMap[mD[2]]+String(mD[1]).padStart(2,'0');
-              }
-              // Heure depuis créneau ex: "10h - 17h00"
-              const crn = d2.creneau_horaire||'';
-              const mH = crn.match(/(\d{1,2})h(\d{0,2})\s*[-–]\s*(\d{1,2})h(\d{0,2})/);
-              let gcDates = '';
-              if(gcDate && mH) {
-                const hDeb = String(mH[1]).padStart(2,'0')+(mH[2]||'00');
-                const hFin = String(mH[3]).padStart(2,'0')+(mH[4]||'00');
-                gcDates = gcDate+'T'+hDeb+'00/'+gcDate+'T'+hFin+'00';
-              } else if(gcDate) {
-                gcDates = gcDate;
-              }
-              const titre = encodeURIComponent('🌿 AbracadaParc — '+(d2.nom_structure_ou_client||d2.numero_devis_ou_commande||'Réservation'));
-              const desc  = encodeURIComponent([
-                'Ref: '+(d2.numero_devis_ou_commande||'—'),
-                'Enfants: '+(d2.nombre_enfants_prevus||'—'),
-                'Accompagnants: '+(d2.nombre_adultes_prevus||'—'),
-                'Formule: '+(d2.formule||'—'),
-                'Créneau: '+(d2.creneau_horaire||'—'),
-                'Total TTC: '+(d2.total_ttc||'—'),
-                'Règlement: '+(d2.mode_paiement_acompte||'—'),
-                'BC reçu: '+(d2.bc_recu?'OUI':'NON'),
-                'Statut: '+(d2.statut_docs||'—'),
-                '',
-                'Notes: '+(d2.notes_equipe||'—'),
-              ].join('\n'));
-              const url = 'https://calendar.google.com/calendar/r/eventedit?text='+titre+'&dates='+gcDates+'&details='+desc+'&location=6+place+Hyacinthe+Drujon+95190+Goussainville';
-              window.open(url,'_blank');
-            }} style={{padding:"6px 14px",background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>📅 Agenda</button>
-        </div>
-        <div style={{background:"#fff",border:"2px solid #2E7D32",borderRadius:14,padding:"20px 22px"}}>
-          <div style={{textAlign:"center",marginBottom:16}}>
-            <div style={{fontSize:22,marginBottom:4}}>🌿</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#1B5E20"}}>AbracadaParc — Fiche Jour J</div>
-            <div style={{fontSize:13,color:"#9E9E9E"}}>{d.date_souhaitee ? new Date(d.date_souhaitee+"T12:00").toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}) : "—"}</div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-            {[
-              ["Client / Structure",d.nom_structure_ou_client],
-              ["Référence devis",d.numero_devis_ou_commande],
-              ["Contact",d.nom_contact],
-              ["Téléphone",d.telephone_contact],
-              ["Créneau",d.creneau_horaire],
-              ["Formule",d.formule],
-              ["Enfants prévus",d.nombre_enfants_prevus],
-              ["Accompagnants",d.nombre_adultes_prevus],
-              ["Total TTC",d.total_ttc?parseFloat(d.total_ttc).toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"—"],
-              ["Acompte payé",d.montant_acompte?parseFloat(d.montant_acompte).toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"—"],
-            ].map(([lbl,val])=>(
-              <div key={lbl} style={{background:"#F9F9F9",borderRadius:8,padding:"8px 10px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#9E9E9E",textTransform:"uppercase",marginBottom:2}}>{lbl}</div>
-                <div style={{fontSize:13,fontWeight:600,color:"#212121"}}>{val||"—"}</div>
-              </div>
-            ))}
-            <div style={{background:"#FFEBEE",borderRadius:8,padding:"8px 10px",border:"2px solid #FFCDD2"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#C62828",textTransform:"uppercase",marginBottom:2}}>💰 Solde à encaisser</div>
-              <div style={{fontSize:18,fontWeight:900,color:"#C62828"}}>{solde?parseFloat(solde).toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"—"}</div>
-            </div>
-            <div style={{background:"#F9F9F9",borderRadius:8,padding:"8px 10px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#9E9E9E",textTransform:"uppercase",marginBottom:2}}>Mode paiement solde</div>
-              <div style={{fontSize:13,fontWeight:600,color:"#212121"}}>{d.mode_paiement_solde||"—"}</div>
-            </div>
-          </div>
-          {d.infos_anniv&&<div style={{background:"#FCE4EC",border:"1px solid #F8BBD0",borderRadius:8,padding:"10px 12px",marginBottom:10,fontSize:12,color:"#AD1457",fontWeight:600}}>🎂 {d.infos_anniv}</div>}
-          {d.notes_equipe&&<div style={{background:"#FFF8E1",border:"1px solid #FFD54F",borderRadius:8,padding:"10px 12px",marginBottom:14,fontSize:12,color:"#F57F17"}}>📝 {d.notes_equipe}</div>}
-          <div style={{borderTop:"1px solid #E8F5E9",paddingTop:14}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#2E7D32",marginBottom:8}}>✅ Checklist équipe</div>
-            {["Dossier complet vérifié","Contact arrivé","Effectif réel compté","Options prêtes","Encaissement acompte vérifié","Solde encaissé","Incident signalé","Départ terminé"].map(item=>(
-              <label key={item} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer",fontSize:12}}>
-                <input type="checkbox" style={{accentColor:"#2E7D32",width:16,height:16}}/>
-                {item}
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── VUE PLANNING ──
-  if(view==="planning"){
-    return <CalendrierMensuel dossiers={dossiers} setView={setView} setFicheId={setFicheId} ouvrirForm={ouvrirForm}/>;
-  }
-
-
-    // ── VUE LISTE (DÉFAUT) ──
-  const today2 = new Date().toISOString().slice(0,10);
-  const futurs = dossiersFiltrés.filter(d=>!d.date_souhaitee||d.date_souhaitee>=today2);
-  const passes = dossiersFiltrés.filter(d=>d.date_souhaitee&&d.date_souhaitee<today2);
-
-  const totalCA = dossiers.filter(d=>d.decision_client==="VALIDÉ").reduce((s,d)=>s+(parseFloat(d.total_ttc)||0),0);
-  const totalAtt = dossiers.filter(d=>!d.decision_client||d.decision_client==="").reduce((s,d)=>s+(parseFloat(d.total_ttc)||0),0);
-  const nbDossierOk = dossiers.filter(d=>d.statut_docs==="DOSSIER OK").length;
-  const nbRelancer = dossiers.filter(d=>d.statut_docs==="À RELANCER"||d.statut_docs==="EN ATTENTE").length;
-
-  return (
-    <div>
-      {msg&&<div style={{background:msg.startsWith("✅")?"#E8F5E9":"#FFEBEE",color:msg.startsWith("✅")?"#1B5E20":"#C62828",padding:"8px 12px",borderRadius:8,marginBottom:10,fontSize:12,fontWeight:700}}>{msg}</div>}
-
-      {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:12}}>
-        {[
-          {l:"Dossiers total",v:dossiers.length,c:"#1565C0",bg:"#E3F2FD"},
-          {l:"CA validé",v:totalCA.toLocaleString("fr-FR")+" €",c:"#1B5E20",bg:"#E8F5E9"},
-          {l:"Pipeline",v:totalAtt.toLocaleString("fr-FR")+" €",c:"#E65100",bg:"#FFF3E0"},
-          {l:"Dossiers OK",v:nbDossierOk,c:"#1B5E20",bg:"#E8F5E9"},
-          {l:"À relancer",v:nbRelancer,c:"#C62828",bg:"#FFEBEE"},
-          {l:"⚠️ Jours chargés",v:joursAlerte.length,c:joursAlerte.length>0?"#C62828":"#2E7D32",bg:joursAlerte.length>0?"#FFEBEE":"#E8F5E9"},
-        ].map(k=>(
-          <div key={k.l} style={{background:k.bg,borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
-            <div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:10,color:k.c,opacity:0.8,marginTop:2}}>{k.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Alertes charge */}
-      {joursAlerte.length>0&&(
-        <div style={{background:"#FFEBEE",border:"1.5px solid #FFAB91",borderRadius:10,padding:"10px 14px",marginBottom:10,fontSize:12,color:"#C62828",fontWeight:600}}>
-          ⚠️ Jours à risque surcharge : {joursAlerte.map(d=>new Date(d+"T12:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"short"})).join(" · ")} — vérifiez la capacité (jauge 150 enfants / max 180)
-        </div>
-      )}
-
-      {/* Barre d'actions */}
-      <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-        <button onClick={()=>ouvrirForm(null)} style={{padding:"8px 14px",background:"#2E7D32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit"}}>➕ Nouveau dossier</button>
-        <button onClick={()=>setView("planning")} style={{padding:"8px 14px",background:"#E3F2FD",color:"#1565C0",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit"}}>📅 Planning</button>
-        <button onClick={exporterJSON} style={{padding:"8px 14px",background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>⬇️ Export JSON</button>
-        <button onClick={()=>setShowImport(!showImport)} style={{padding:"8px 14px",background:"#FFF3E0",color:"#E65100",border:"1px solid #FFCC80",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>⬆️ Import JSON</button>
-        <div style={{flex:1,minWidth:160}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher client, devis, date…"
-            style={{width:"100%",padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:8,fontSize:12,fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
-        </div>
-        <select value={filtreStatut} onChange={e=>setFiltreStatut(e.target.value)}
-          style={{padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-          <option value="tous">Tous statuts</option>
-          {RV2_STATUTS_DOCS.map(s=><option key={s}>{s}</option>)}
-        </select>
-        <select value={filtreDecision} onChange={e=>setFiltreDecision(e.target.value)}
-          style={{padding:"7px 10px",border:"1.5px solid #C8E6C9",borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}>
-          <option value="tous">Toutes décisions</option>
-          {RV2_DECISIONS.map(s=><option key={s} value={s}>{s||"En attente"}</option>)}
-        </select>
-      </div>
-
-      {/* Import JSON */}
-      {showImport&&(
-        <div style={{background:"#FFF8E1",border:"1px solid #FFD54F",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#E65100",marginBottom:6}}>⬆️ Coller votre JSON ici (format suivi_consolide ou tableau direct)</div>
-          <textarea value={jsonImport} onChange={e=>setJsonImport(e.target.value)} rows={5}
-            placeholder='[{"nom_structure_ou_client":"...", "numero_devis_ou_commande":"...", ...}]'
-            style={{width:"100%",padding:"8px 10px",border:"1px solid #FFD54F",borderRadius:7,fontSize:11,fontFamily:"monospace",boxSizing:"border-box",outline:"none",resize:"vertical"}}/>
-          <div style={{display:"flex",gap:7,marginTop:7}}>
-            <button onClick={importerJSON} style={{padding:"7px 14px",background:"#E65100",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit"}}>Importer</button>
-            <button onClick={()=>setShowImport(false)} style={{padding:"7px 14px",background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:7,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Annuler</button>
-          </div>
-        </div>
-      )}
-
-      {/* Compteur */}
-      <div style={{fontSize:11,color:"#9E9E9E",marginBottom:6}}>{dossiersFiltrés.length} dossier(s) affiché(s)</div>
-
-      {/* Liste futurs */}
-      {futurs.length===0&&passes.length===0&&(
-        <div style={{textAlign:"center",padding:"50px 20px",color:"#9E9E9E"}}>
-          <div style={{fontSize:40,marginBottom:12}}>📋</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Aucun dossier</div>
-          <div style={{fontSize:12}}>Cliquez sur "Nouveau dossier" ou importez votre JSON depuis Google Sheets.</div>
-        </div>
-      )}
-
-      <div style={{display:"flex",flexDirection:"column",gap:7}}>
-        {futurs.map(d=><RV2Card key={d.id} d={d} onEdit={()=>ouvrirForm(d)} onFiche={()=>{setFicheId(d.id);setView("fiche");}}/>)}
-      </div>
-
-      {passes.length>0&&(
-        <>
-          <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 8px"}}>
-            <div style={{flex:1,height:1,background:"#E0E0E0"}}/>
-            <span style={{fontSize:11,fontWeight:700,color:"#BDBDBD",whiteSpace:"nowrap"}}>— {passes.length} sortie(s) passée(s) —</span>
-            <div style={{flex:1,height:1,background:"#E0E0E0"}}/>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>
-            {passes.map(d=><RV2Card key={d.id} d={d} onEdit={()=>ouvrirForm(d)} onFiche={()=>{setFicheId(d.id);setView("fiche");}} past/>)}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function RV2Card({d, onEdit, onFiche, past}){
-  const sd = rv2StatutDocColor(d.statut_docs);
-  const sf = rv2StatutFactColor(d.statut_facture);
-  const dec = rv2DecisionColor(d.decision_client);
-  const ttc = parseFloat(d.total_ttc)||0;
-  const ac  = parseFloat(d.montant_acompte)||0;
-  const solde = ttc-ac;
-  const today2 = new Date().toISOString().slice(0,10);
-  // Alerte J-7
-  const j7 = d.date_souhaitee && !past && (new Date(d.date_souhaitee+"T12:00")-new Date())/(1000*60*60*24) < 7;
-
-  return (
-    <div style={{background:past?"#FAFAFA":"#fff",border:`1px solid ${j7?"#FFAB91":past?"#EEEEEE":"#E8F5E9"}`,borderRadius:12,padding:"12px 14px",borderLeft:`4px solid ${d.decision_client==="VALIDÉ"?"#2E7D32":d.decision_client==="REFUSÉ"||d.decision_client==="ANNULÉ"?"#BDBDBD":"#90CAF9"}`,opacity:past?0.65:1}}>
-      <div style={{display:"flex",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
-        <div style={{flex:1,minWidth:180}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
-            <span style={{fontSize:13,fontWeight:800,color:"#212121"}}>{d.nom_structure_ou_client||d.numero_devis_ou_commande||"—"}</span>
-            {d.numero_devis_ou_commande&&<span style={{fontSize:10,color:"#9E9E9E",background:"#F5F5F5",padding:"1px 6px",borderRadius:10}}>{d.numero_devis_ou_commande}</span>}
-            {j7&&<span style={{fontSize:10,fontWeight:700,background:"#FFEBEE",color:"#C62828",padding:"2px 7px",borderRadius:20}}>⚠️ J-7</span>}
-            {d.bc_recu&&<span style={{fontSize:10,fontWeight:700,background:"#E8F5E9",color:"#1B5E20",padding:"2px 7px",borderRadius:20}}>📋 BC</span>}
-            {d.acompte_recu&&<span style={{fontSize:10,fontWeight:700,background:"#E3F2FD",color:"#1565C0",padding:"2px 7px",borderRadius:20}}>💳 Acompte</span>}
-          </div>
-          <div style={{fontSize:11,color:"#616161",display:"flex",gap:10,flexWrap:"wrap"}}>
-            {d.date_souhaitee&&<span>📅 {new Date(d.date_souhaitee+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</span>}
-            {d.creneau_horaire&&<span>⏰ {d.creneau_horaire}</span>}
-            {d.nombre_enfants_prevus&&<span>👶 {d.nombre_enfants_prevus} enf.</span>}
-            {d.nombre_adultes_prevus&&<span>👤 {d.nombre_adultes_prevus} acc.</span>}
-            {d.formule&&<span>📋 {d.formule}</span>}
-          </div>
-          {d.notes_equipe&&<div style={{fontSize:10,color:"#9E9E9E",marginTop:3,fontStyle:"italic"}}>💬 {d.notes_equipe.slice(0,80)}{d.notes_equipe.length>80?"…":""}</div>}
-          {d.infos_anniv&&<div style={{fontSize:10,color:"#AD1457",marginTop:3,fontWeight:600}}>🎂 {d.infos_anniv.slice(0,80)}</div>}
-          {d.alertes&&d.alertes.length>0&&<div style={{fontSize:10,color:"#E65100",marginTop:3}}>⚠️ {d.alertes.join(" · ")}</div>}
-        </div>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,...sd}}>{d.statut_docs||"NOUVEAU"}</span>
-            <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,...sf}}>{d.statut_facture||"NON"}</span>
-            {d.decision_client&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20,...dec}}>{d.decision_client}</span>}
-          </div>
-          {ttc>0&&(
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:14,fontWeight:800,color:"#1B5E20"}}>{ttc.toLocaleString("fr-FR",{style:"currency",currency:"EUR"})}</div>
-              {ac>0&&<div style={{fontSize:10,color:"#9E9E9E"}}>Acompte : {ac.toLocaleString("fr-FR",{style:"currency",currency:"EUR"})}</div>}
-              {solde>0&&<div style={{fontSize:11,fontWeight:700,color:"#C62828"}}>Solde : {solde.toLocaleString("fr-FR",{style:"currency",currency:"EUR"})}</div>}
-            </div>
-          )}
-          <div style={{display:"flex",gap:4}}>
-            <button onClick={onEdit} style={{padding:"4px 8px",background:"#F1F8E9",color:"#2E7D32",border:"1px solid #C8E6C9",borderRadius:6,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>✏️ Modifier</button>
-            <button onClick={onFiche} style={{padding:"4px 8px",background:"#E3F2FD",color:"#1565C0",border:"none",borderRadius:6,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>📋 Fiche J</button>
-            {d.lien_dossier_drive&&<span title={d.lien_dossier_drive} style={{padding:"4px 8px",background:"#F1F8E9",color:"#2E7D32",borderRadius:6,fontSize:11,cursor:"default"}}>📁</span>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ReservationsTabWrapper() {
-  React.useEffect(() => {
-    const tryInit = () => {
-      const el = document.getElementById("tab-reservations");
-      if (el && typeof window.ReservationsTab !== "undefined") {
-        window.ReservationsTab.state.currentUser = "Admin";
-        window.ReservationsTab.init(true);
-      } else {
-        setTimeout(tryInit, 100);
-      }
-    };
-    tryInit();
-    return () => {
-      try { const el = document.getElementById("tab-reservations"); if (el) el.innerHTML = ""; } catch(e) {}
-    };
+  var [dossiers, setDossiers] = React.useState([]);
+  React.useEffect(function() {
+    if (typeof fbListen === 'function') {
+      fbListen('abr26_groupes', function(data) {
+        if (!data || typeof data !== 'object') return;
+        var arr = Object.values(data).filter(function(r) { return r && r.id; });
+        setDossiers(arr);
+      });
+    }
   }, []);
-  return <div id="tab-reservations" style={{minHeight:200}}/>;
+  return (
+    <div style={{padding:16}}>
+      <div style={{marginBottom:12,fontWeight:800,color:'#1B5E20',fontSize:15}}>
+        📅 Réservations — {dossiers.length} dossiers
+      </div>
+      {dossiers.filter(function(d){return(d.decision||'').indexOf('REFUS')<0;}).sort(function(a,b){return(a.date||'').localeCompare(b.date||'');}).map(function(d) {
+        var c = couleurDossier(d) || {bg:'#F5F5F5',border:'#DDD',text:'#555',dot:'#999'};
+        return (
+          <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:8,padding:'8px 12px',marginBottom:6,display:'flex',alignItems:'center',gap:8}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:c.dot,flexShrink:0}} />
+            <span style={{fontWeight:600,color:c.text,flex:1,fontSize:13}}>{d.client||d.structure||d.id}</span>
+            <span style={{fontSize:12,color:'#757575'}}>{d.date||''}</span>
+            <span style={{fontSize:11,color:'#888'}}>{d.nb_enfants||d.enfants||0} enf.</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5120,7 +4329,7 @@ function getFbDb() {
     if (!firebase.apps?.length) firebase.initializeApp(cfg);
     _fbDb = firebase.database();
     return _fbDb;
-  } catch(e) { return null; }
+  } catch (e) { return null; }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5141,7 +4350,7 @@ function getFbAuth() {
     };
     if (!firebase.apps?.length) firebase.initializeApp(cfg);
     return firebase.auth();
-  } catch(e) { return null; }
+  } catch (e) { return null; }
 }
 
 // Envoyer un lien magique par email (Email Link / Passwordless)
@@ -5158,7 +4367,7 @@ async function envoyerLienMagique(email, nomSalarie) {
     localStorage.setItem('abr_invite_email', email);
     localStorage.setItem('abr_invite_nom', nomSalarie || '');
     return { ok: true };
-  } catch(e) {
+  } catch (e) {
     return { ok: false, err: e.message || "Erreur envoi" };
   }
 }
@@ -5179,7 +4388,7 @@ async function verifierLienMagiqueURL() {
     // Nettoyer l'URL
     window.history.replaceState({}, document.title, window.location.pathname);
     return result.user;
-  } catch(e) { return null; }
+  } catch (e) { return null; }
 }
 
 // Exposer pour utilisation dans React
@@ -5218,7 +4427,7 @@ function fbSave(path, data) {
       return;
     }
     db.ref("abracadaparc/" + path).set(obj);
-  } catch(e) {
+  } catch (e) {
     console.error('fbSave error:', e);
   }
 }
@@ -6385,9 +5594,9 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
               // Ligne groupes du jour — lecture localStorage sans try/catch inline
               var resas = [];
               var _stored = localStorage.getItem("abr_reservations");
-              if (_stored) { try { resas = Object.values(JSON.parse(_stored)); } catch(_e){} }
+              if (_stored) { try { resas = Object.values(JSON.parse(_stored)); } catch (_e) {} }
               var _grp = localStorage.getItem("abr26_groupes_cache");
-              if (_grp) { try { resas = resas.concat(Object.values(JSON.parse(_grp))); } catch(_e){} }
+              if (_grp) { try { resas = resas.concat(Object.values(JSON.parse(_grp))); } catch (_e) {} }
               if (resas.length === 0) return null;
               return (
                 <tr style={{borderTop:"2px solid #E8F5E9"}}>
@@ -7107,7 +6316,7 @@ function AdminMonthView({team, shifts, setShifts, calEvents={}, setCalEvents=()=
                       const ds=fmtLocal(d);const sh=getShift(emp.id,ds);const st=sh?STATUTS[sh.type]:null;
                       const isToday=ds===todayStr;const dow=d.getDay();const isWE=dow===0||dow===6;
                       const effD2=(emp.poei_debut&&emp.poei_debut<emp.debut)?emp.poei_debut:emp.debut;const hors=ds<effD2||ds>emp.fin;const wrongM=d.getMonth()!==m;
-                      const ptg=(() => {try{return sh?.pointage?JSON.parse(sh.pointage):null;}catch{return null;}})();
+                      const ptg=(() => {try {return sh?.pointage?JSON.parse(sh.pointage):null;}catch{return null;}})();
                       return (
                         <div key={di} onClick={()=>!hors&&!wrongM&&setEditing({empId:emp.id,date:ds})}
                           style={{borderRadius:7,padding:"4px 2px",textAlign:"center",
@@ -7243,7 +6452,7 @@ function ValidationPaieTab({team, shifts, setShifts}) {
       const sh = shifts[`${emp.id}_${ds}`];
       if (!sh || sh.type==="repos") continue;
       const planned_h = sh.type==="travail"?(sh.h||0):sh.type==="ecole"?7:0;
-      let ptg=null; try{ptg=sh.pointage?JSON.parse(sh.pointage):null;}catch{}
+      let ptg=null; try {ptg=sh.pointage?JSON.parse(sh.pointage):null;}catch{}
       const actual_deb=ptg?.arrivee||"", actual_fin=ptg?.depart||"";
       const actual_h = (() => {
         if (!actual_deb||!actual_fin) return null;
@@ -7822,9 +7031,9 @@ function getEmp(id){ return EQUIPE.find(e=>e.id===id||e.email===id); }
 function haversine(a,b,c,d){ const R=6371000,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2; return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)); }
 
 // ── firebase ─────────────────────────────────────────────────────────────────
-function fbWrite(path,data){ try{if(typeof fbSave==='function')fbSave(path,data);} catch(e){} try{localStorage.setItem('abr_'+path,JSON.stringify(data));} catch(e){} }
-function fbGet(path){ try{const s=localStorage.getItem('abr_'+path);return s?JSON.parse(s):null;} catch(e){return null;} }
-function fbListen2(path,cb){ try{if(typeof fbListen==='function')fbListen(path,cb);} catch(e){} }
+function fbWrite(path,data){ try {if(typeof fbSave==='function')fbSave(path,data);} catch (e) {} try {localStorage.setItem('abr_'+path,JSON.stringify(data));} catch (e) {} }
+function fbGet(path){ try {const s=localStorage.getItem('abr_'+path);return s?JSON.parse(s):null;} catch (e) {return null;} }
+function fbListen2(path,cb){ try {if(typeof fbListen==='function')fbListen(path,cb);} catch (e) {} }
 
 // ── état ─────────────────────────────────────────────────────────────────────
 const S = {
