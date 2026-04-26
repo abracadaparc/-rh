@@ -5581,7 +5581,15 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
                   const effD=(emp.poei_debut&&emp.poei_debut<emp.debut)?emp.poei_debut:emp.debut;const hors=ds<effD||ds>emp.fin;const isOuvert=!!getDayType(ds);const is1Mai=ds==="2026-05-01";
                   return <td key={i} style={{padding:2,verticalAlign:"top"}}>
                     {hors?(<div style={{minHeight:52,borderRadius:7,background:"#FAFAFA",border:"1px dashed #EEEEEE",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:10,color:"#E0E0E0"}}>—</span></div>):(
-                      <div onClick={()=>!readonly&&setEditing({empId:emp.id,date:ds})}
+                      <div onClick={(ev)=>{
+                          // Sélectionner la case pour Ctrl+C/X/V
+                          document.querySelectorAll("[data-shift-selected]").forEach(el=>el.removeAttribute("data-shift-selected"));
+                          ev.currentTarget.setAttribute("data-shift-selected","true");
+                          if(!readonly) setEditing({empId:emp.id,date:ds});
+                        }}
+                        onMouseEnter={(ev)=>ev.currentTarget.setAttribute("data-shift-hover","true")}
+                        onMouseLeave={(ev)=>ev.currentTarget.removeAttribute("data-shift-hover")}
+                        data-shift-key={emp.id+"_"+ds}
                         style={{minHeight:52,padding:"4px 3px",cursor:readonly?"default":"pointer",borderRadius:7,background:st?st.bg:isOuvert?"#F9FBE7":"#FAFAFA",border:`1.5px solid ${st?st.border:isOuvert?"#EDF5C2":"#EEEEEE"}`,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}
                         onMouseEnter={e=>!readonly&&(e.currentTarget.style.filter="brightness(0.94)")}
                         onMouseLeave={e=>e.currentTarget.style.filter=""}>
@@ -6859,20 +6867,101 @@ function App() {
     if(sReady&&tReady&&Object.keys(shifts).length===0&&team.length>0) setShifts(generateDefaultShifts(team));
   }, [sReady, tReady]);
 
-  // Ctrl+Z global pour annuler la dernière modification de planning
+  // Ctrl+Z / Ctrl+C / Ctrl+X / Ctrl+V sur le planning
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        // Ne pas interférer si un champ texte est actif
-        const tag = document.activeElement?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // Ne pas interférer si un champ texte est actif
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const ctrl  = e.ctrlKey || e.metaKey;
+
+      // ── Ctrl+Z / ⌘+Z : Annuler ──────────────────────────────────────────
+      if (ctrl && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undoShift();
+        _showToast("↩ Annulé");
+        return;
+      }
+
+      // ── Ctrl+C / ⌘+C : Copier la case sélectionnée ──────────────────────
+      if (ctrl && e.key === "c") {
+        const sel = document.querySelector("[data-shift-selected='true']");
+        if (sel) {
+          e.preventDefault();
+          const shiftKey = sel.getAttribute("data-shift-key");
+          if (shiftKey && shifts[shiftKey]) {
+            window._shiftClipboard = JSON.parse(JSON.stringify(shifts[shiftKey]));
+            window._shiftClipboardMode = "copy";
+            _showToast("📋 Copié : " + (shifts[shiftKey].deb||shifts[shiftKey].debut||"") + " → " + (shifts[shiftKey].fin||""));
+          }
+        }
+        return;
+      }
+
+      // ── Ctrl+X / ⌘+X : Couper la case sélectionnée ──────────────────────
+      if (ctrl && e.key === "x") {
+        const sel = document.querySelector("[data-shift-selected='true']");
+        if (sel) {
+          e.preventDefault();
+          const shiftKey = sel.getAttribute("data-shift-key");
+          if (shiftKey && shifts[shiftKey]) {
+            window._shiftClipboard = JSON.parse(JSON.stringify(shifts[shiftKey]));
+            window._shiftClipboardMode = "cut";
+            window._shiftClipboardKey = shiftKey;
+            sel.style.opacity = "0.4";
+            _showToast("✂️ Coupé : " + (shifts[shiftKey].deb||shifts[shiftKey].debut||"") + " → " + (shifts[shiftKey].fin||""));
+          }
+        }
+        return;
+      }
+
+      // ── Ctrl+V / ⌘+V : Coller sur la case survolée ──────────────────────
+      if (ctrl && e.key === "v") {
+        const hov = document.querySelector("[data-shift-hover='true']");
+        if (hov && window._shiftClipboard) {
+          e.preventDefault();
+          const targetKey = hov.getAttribute("data-shift-key");
+          if (targetKey) {
+            const newShift = JSON.parse(JSON.stringify(window._shiftClipboard));
+            // Si couper : supprimer la source
+            if (window._shiftClipboardMode === "cut" && window._shiftClipboardKey) {
+              setShifts(prev => {
+                const next = {...prev};
+                delete next[window._shiftClipboardKey];
+                next[targetKey] = newShift;
+                return next;
+              });
+              window._shiftClipboardMode = "copy"; // après coller, redevient copie
+            } else {
+              setShifts(prev => ({...prev, [targetKey]: newShift}));
+            }
+            _showToast("📌 Collé");
+          }
+        }
+        return;
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undoShift]);
+  }, [undoShift, shifts, setShifts]);
+
+  // Fonction toast légère
+  function _showToast(msg) {
+    var t = document.getElementById("_kbToast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "_kbToast";
+      t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:99999;pointer-events:none;transition:opacity 0.3s";
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = "1";
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = "0"; }, 1800);
+  }
 
 
   // Migration: convert old ecole shifts during POEI periods to poei type
