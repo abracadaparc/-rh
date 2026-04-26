@@ -1927,7 +1927,7 @@ contact@abracadaparc.fr`;
         if(rv&&rv.source!=='abr26_groupes') anniv[k]=rv;
       });
       state.reservations=Object.assign({},anniv,gNorm);
-      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
+      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));} catch(e){}
       render();
     });
     // ── Anniversaires WooCommerce ──
@@ -1949,7 +1949,7 @@ contact@abracadaparc.fr`;
         if(rv&&rv.source!=='abr26_groupes'&&rv.source!=='abr26_reservations') ancResas[k]=rv;
       });
       state.reservations=Object.assign({},groupes,ancResas,anniversaires);
-      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));}catch(e){}
+      try{localStorage.setItem('abr_reservations',JSON.stringify(state.reservations));} catch(e){}
       render();
     });
 
@@ -4458,7 +4458,7 @@ function ReservationsV2Tab(){
       // Sauvegarder uniquement les dossiers manuels (pas ceux du Sheet)
       const manuels = dossiers.filter(d=>!d._from_sheet);
       localStorage.setItem("abr_rv2", JSON.stringify(manuels));
-    }catch(e){}
+    } catch(e){}
     // NE PAS écrire dans Firebase abr_rv2 — permission refusée volontairement
   },[dossiers]);
 
@@ -4479,7 +4479,7 @@ function ReservationsV2Tab(){
               const rid = r.id || r.ref || k;
               let dateNorm = r.date||r.date_visite||"";
               if(dateNorm && !/^\d{4}-\d{2}-\d{2}/.test(dateNorm)){
-                try{const d=new Date(dateNorm);if(!isNaN(d))dateNorm=d.toISOString().slice(0,10);}catch(e){}
+                try{const d=new Date(dateNorm);if(!isNaN(d))dateNorm=d.toISOString().slice(0,10);} catch(e){}
               }
               return {
                 ...RV2_EMPTY(),
@@ -4526,7 +4526,7 @@ function ReservationsV2Tab(){
             return dedup;
           });
         });
-    }catch(e){ console.error('fbListen RV2:', e); }
+    } catch(e){ console.error('fbListen RV2:', e); }
   },[]);
 
 
@@ -4578,7 +4578,7 @@ function ReservationsV2Tab(){
       setJsonImport(""); setShowImport(false);
       setMsg(`✅ ${norm.length} dossier(s) importé(s) !`);
       setTimeout(()=>setMsg(""),2000);
-    }catch(e){ setMsg("❌ JSON invalide : "+e.message); }
+    } catch(e){ setMsg("❌ JSON invalide : "+e.message); }
   };
 
   const exporterJSON = () => {
@@ -7831,9 +7831,9 @@ function getEmp(id){ return EQUIPE.find(e=>e.id===id||e.email===id); }
 function haversine(a,b,c,d){ const R=6371000,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2; return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)); }
 
 // ── firebase ─────────────────────────────────────────────────────────────────
-function fbWrite(path,data){ try{if(typeof fbSave==='function')fbSave(path,data);}catch(e){} try{localStorage.setItem('abr_'+path,JSON.stringify(data));}catch(e){} }
-function fbGet(path){ try{const s=localStorage.getItem('abr_'+path);return s?JSON.parse(s):null;}catch(e){return null;} }
-function fbListen2(path,cb){ try{if(typeof fbListen==='function')fbListen(path,cb);}catch(e){} }
+function fbWrite(path,data){ try{if(typeof fbSave==='function')fbSave(path,data);} catch(e){} try{localStorage.setItem('abr_'+path,JSON.stringify(data));} catch(e){} }
+function fbGet(path){ try{const s=localStorage.getItem('abr_'+path);return s?JSON.parse(s):null;} catch(e){return null;} }
+function fbListen2(path,cb){ try{if(typeof fbListen==='function')fbListen(path,cb);} catch(e){} }
 
 // ── état ─────────────────────────────────────────────────────────────────────
 const S = {
