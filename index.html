@@ -4457,6 +4457,10 @@ function fbSave(path, data) {
       }
       return;
     }
+    // Chemins RH locaux uniquement — ne jamais ecrire dans Firebase
+    var LOCAL_ONLY = ['abr26_shifts_v4','abr26_team_v2','abr26_levels_v1',
+                      'abr26_planning_updated','abr26_notes_v1','abr_reservations'];
+    if (LOCAL_ONLY.indexOf(path) >= 0) return;
     db.ref("abracadaparc/" + path).set(obj);
   } catch (e) {
     console.error('fbSave error:', e);
