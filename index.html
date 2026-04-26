@@ -1906,18 +1906,30 @@ contact@abracadaparc.fr`;
         var tot=parseFloat(g.montant_total||g.total||g.montant||g.totalTTC||0);
         var ac=parseFloat(g.acompte_paye||g.acompte_verse||g.acompte||0);
         var sol=parseFloat(g.solde_restant||g.solde||(tot-ac)||0);
+        var isAnniv = (g.type||g.segment||'').toLowerCase().indexOf('anniv')>=0 || key.indexOf('CMD')===0;
         gNorm[key]={
-          id:key, segment:g.segment||'alsh', statut:String(st),
+          id:key, segment:isAnniv?'anniversaire':(g.segment||'alsh'), statut:String(st),
           nom:g.client||g.nom||key,
           nom_contact:g.client||g.nom||key,
           organisation:g.client||g.nom||key,
-          prenom_enfant:'', date:dv, heure_debut:heure,
-          nb_enfants:parseInt(g.enfants)||0,
-          nb_adultes:parseInt(g.accompagnants)||0,
+          prenom_enfant:g.prenom_enfant||g.enfant||'',
+          date:dv, heure_debut:heure,
+          nb_enfants:parseInt(g.enfants||g.nb_enfants)||0,
+          nb_adultes:parseInt(g.accompagnants||g.nb_adultes)||0,
           total:tot, montant_total:tot,
           acompte_paye:ac, acompte_verse:ac, solde_restant:sol,
           notes:g.note||g.notes||'',
-          devis:key, source:'abr26_groupes'
+          devis:key, source:'abr26_groupes',
+          // Champs anniversaire
+          gateau_nacima: isAnniv && g.gateau ? g.gateau : '',
+          gateau: g.gateau||'',
+          animateur: g.animateur||'',
+          invites: g.invites||'',
+          email_contact: g.email||g.contact_email||'',
+          tel_contact: g.tel||'',
+          acompte_recu: !!g.acompte_ok || !!g.acompte_recu,
+          bc_recu: !!g.bc_recu,
+          decision:(g.decision||g.etape_dossier||'').toString(),
         };
       });
       state._groupes=gNorm;
@@ -4277,34 +4289,18 @@ function CalendrierMensuel({dossiers,setView,setFicheId,ouvrirForm}) {
   return <div style={{padding:20,textAlign:'center',color:'#9E9E9E'}}>Calendrier en cours de chargement...</div>;
 }
 function ReservationsTabWrapper() {
-  var [dossiers, setDossiers] = React.useState([]);
   React.useEffect(function() {
-    if (typeof fbListen === 'function') {
-      fbListen('abr26_groupes', function(data) {
-        if (!data || typeof data !== 'object') return;
-        var arr = Object.values(data).filter(function(r) { return r && r.id; });
-        setDossiers(arr);
-      });
+    function tryMount() {
+      var el = document.getElementById('tab-reservations');
+      if (!el) { setTimeout(tryMount, 100); return; }
+      if (typeof window.ReservationsTab !== 'undefined') {
+        window.ReservationsTab.state.currentUser = 'Admin';
+        window.ReservationsTab.init(true);
+      }
     }
+    tryMount();
   }, []);
-  return (
-    <div style={{padding:16}}>
-      <div style={{marginBottom:12,fontWeight:800,color:'#1B5E20',fontSize:15}}>
-        📅 Réservations — {dossiers.length} dossiers
-      </div>
-      {dossiers.filter(function(d){return(d.decision||'').indexOf('REFUS')<0;}).sort(function(a,b){return(a.date||'').localeCompare(b.date||'');}).map(function(d) {
-        var c = couleurDossier(d) || {bg:'#F5F5F5',border:'#DDD',text:'#555',dot:'#999'};
-        return (
-          <div key={d.id} style={{background:c.bg,border:'1px solid '+c.border,borderRadius:8,padding:'8px 12px',marginBottom:6,display:'flex',alignItems:'center',gap:8}}>
-            <span style={{width:8,height:8,borderRadius:'50%',background:c.dot,flexShrink:0}} />
-            <span style={{fontWeight:600,color:c.text,flex:1,fontSize:13}}>{d.client||d.structure||d.id}</span>
-            <span style={{fontSize:12,color:'#757575'}}>{d.date||''}</span>
-            <span style={{fontSize:11,color:'#888'}}>{d.nb_enfants||d.enfants||0} enf.</span>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <div id='tab-reservations' style={{minHeight:400}} />;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -6971,7 +6967,7 @@ function App() {
         {tab==="calendrier"    &&<CalendrierTab dayLevels={dayLevels} setDayLevels={setDayLevels}/>}
         {tab==="dispo_temps_reel" &&<DispoTempsReelTab reservations={reservations} disponibilites={dispoFB} alertes_script={alertesFB}/>}
         {tab==="reservations"  &&<ReservationsTabWrapper/>}
-        {tab==="reservations_v2"&&<ReservationsV2Tab/>}
+        {tab==="reservations_v2"&&<ReservationsTabWrapper/>}
         {tab==="equipe"        &&<EquipeTab team={team} setTeam={setTeam}/>}
         {tab==="parametres"    &&<ParametresTab onChangePwd={async()=>{}} team={team}/>}
       </div>
