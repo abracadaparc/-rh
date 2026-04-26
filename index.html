@@ -1844,6 +1844,41 @@ contact@abracadaparc.fr`;
     state.showMemoForm = false;
     saveAll();
     render();
+
+    // ── Email auto à Vanessa pour les nouveaux leads ──────────
+    if (!state.editMemoId) {
+      try {
+        var types = { anniversaire:'🎂 Anniversaire', privatisation:'🏡 Privatisation', groupe:'👨‍👩‍👧 Groupe', scolaire:'🏫 Scolaire', autre:'📋 Autre' };
+        var typeLabel = types[m.type_event] || m.type_event || 'Demande';
+        var sujet = '[AbracadaParc] Nouveau lead sur place — ' + typeLabel + ' · ' + m.nom;
+        var corps = [
+          '🌿 Nouveau contact enregistré sur place',
+          '',
+          'Nom    : ' + (m.prenom ? m.prenom + ' ' : '') + m.nom,
+          'Tél    : ' + (m.tel || '—'),
+          'Email  : ' + (m.email || '—'),
+          'Type   : ' + typeLabel,
+          'Date   : ' + (m.date_souhaitee || 'à définir'),
+          'Pers.  : ' + (m.nb_personnes || '—'),
+          'Note   : ' + (m.note || '—'),
+          '',
+          '→ App RH : https://abracadaparc.github.io/-rh/',
+          '→ Onglet Mémos pour relancer',
+        ].join('\n');
+        // Ouvrir Gmail pré-rempli vers contact@abracadaparc.fr
+        var url = 'https://mail.google.com/mail/?view=cm&fs=1'
+          + '&to=' + encodeURIComponent('contact@abracadaparc.fr')
+          + '&su=' + encodeURIComponent(sujet)
+          + '&body=' + encodeURIComponent(corps);
+        // Notification discrète (pas de popup intrusif)
+        var notif = document.createElement('div');
+        notif.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1B5E20;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,0.2);cursor:pointer;';
+        notif.innerHTML = '✅ Lead enregistré — <u>Envoyer email</u>';
+        notif.onclick = function() { window.open(url, '_blank'); document.body.removeChild(notif); };
+        document.body.appendChild(notif);
+        setTimeout(function() { if (notif.parentNode) document.body.removeChild(notif); }, 8000);
+      } catch(e) {}
+    }
   }
 
   // ─── PERSISTANCE ─────────────────────────────────────────────────────────────
@@ -6915,7 +6950,7 @@ function App() {
     {id:"calendrier",    icon:"🗓", label:"Calendrier"},
     {id:"dispo_temps_reel", icon:"🟢", label:"Disponibilités"},
     {id:"reservations",  icon:"📋",label:"Réservations"},
-    {id:"reservations_v2",icon:"🆕",label:"Réservations V2"},
+
     {id:"equipe",        icon:"👥",label:"Équipe"},
     {id:"parametres",    icon:"⚙️", label:"Paramètres"},
   ];
@@ -6967,7 +7002,6 @@ function App() {
         {tab==="calendrier"    &&<CalendrierTab dayLevels={dayLevels} setDayLevels={setDayLevels}/>}
         {tab==="dispo_temps_reel" &&<DispoTempsReelTab reservations={reservations} disponibilites={dispoFB} alertes_script={alertesFB}/>}
         {tab==="reservations"  &&<ReservationsTabWrapper/>}
-        {tab==="reservations_v2"&&<ReservationsTabWrapper/>}
         {tab==="equipe"        &&<EquipeTab team={team} setTeam={setTeam}/>}
         {tab==="parametres"    &&<ParametresTab onChangePwd={async()=>{}} team={team}/>}
       </div>
