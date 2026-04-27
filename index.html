@@ -5456,9 +5456,9 @@ function exportPaie(team, shifts, year, month) {
 
   // ── Pour chaque salarié : calcul mensuel + détail par semaine ──────────────
   function calcEmpMois(emp) {
-    let totalH=0, totalJ=0, reposJ=0, congesJ=0, absJ=0, malJ=0, retardH=0;
+    let totalH=0, totalJ=0, reposJ=0, congesJ=0, absJ=0, malJ=0, retardH=0, ecoleJ=0, ecoleH=0;
     const detailSem = semaines.map(sem => {
-      let semH=0, semJ=0, semConges=0, semAbs=0, semMal=0;
+      let semH=0, semJ=0, semConges=0, semAbs=0, semMal=0, semEcole=0, semEcoleH=0;
       // Itérer jour par jour dans la semaine
       let d = new Date(sem.lundi + "T12:00");
       const fin = new Date(sem.dimanche + "T12:00");
@@ -5470,6 +5470,15 @@ function exportPaie(team, shifts, year, month) {
             const sh = shifts[`${emp.id}_${ds}`];
             if (sh) {
               if (sh.type === "travail") { semH += sh.h||0; semJ++; }
+              // École CFA / POEI = temps de travail effectif (IDCC 1790 apprentis)
+              // → compte dans les heures rémunérées au taux normal
+              else if (sh.type === "ecole" || sh.type === "poei") {
+                const hEcole = sh.h || 7.0; // 7h par défaut si non renseigné
+                semEcole++;
+                semEcoleH += hEcole;
+                semH += hEcole; // inclus dans le total heures rémunérées
+                semJ++;
+              }
               else if (sh.type === "repos") {} // non comptabilisé
               else if (sh.type === "conges") semConges++;
               else if (sh.type === "absent" || sh.type === "absent_inj") semAbs++;
@@ -5480,8 +5489,8 @@ function exportPaie(team, shifts, year, month) {
         d.setDate(d.getDate() + 1);
       }
       totalH += semH; totalJ += semJ; congesJ += semConges;
-      absJ += semAbs; malJ += semMal;
-      return { num: sem.num, lundi: sem.lundi, dimanche: sem.dimanche, h: semH, j: semJ, conges: semConges, abs: semAbs, mal: semMal };
+      absJ += semAbs; malJ += semMal; ecoleJ += semEcole; ecoleH += semEcoleH;
+      return { num: sem.num, lundi: sem.lundi, dimanche: sem.dimanche, h: semH, j: semJ, conges: semConges, abs: semAbs, mal: semMal, ecole: semEcole, ecoleH: semEcoleH };
     });
 
     // Repos (jours dans le contrat mais sans shift)
@@ -5492,7 +5501,7 @@ function exportPaie(team, shifts, year, month) {
       if (sh && sh.type === "repos") reposJ++;
     }
 
-    return { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, detailSem };
+    return { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, ecoleJ, ecoleH, detailSem };
   }
 
   // ── Générer les colonnes semaines pour le header ───────────────────────────
@@ -5502,7 +5511,7 @@ function exportPaie(team, shifts, year, month) {
 
   // ── Ligne par salarié ──────────────────────────────────────────────────────
   const rows = activeTeam.map(emp => {
-    const { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, detailSem } = calcEmpMois(emp);
+    const { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, ecoleJ, ecoleH, detailSem } = calcEmpMois(emp);
     const taux  = parseFloat(emp.taux) || 0;
     const brut  = Math.round(totalH * taux * 100) / 100;
     const ddn   = emp.ddn ? new Date(emp.ddn + "T12:00").toLocaleDateString("fr-FR") : "—";
@@ -5521,7 +5530,8 @@ function exportPaie(team, shifts, year, month) {
       if (s.conges > 0) extras.push(`<span style="color:#E65100;font-size:8px">${s.conges}j CP</span>`);
       if (s.abs > 0)    extras.push(`<span style="color:#C62828;font-size:8px">${s.abs}j ABS</span>`);
       if (s.mal > 0)    extras.push(`<span style="color:#6A1B9A;font-size:8px">${s.mal}j MAL</span>`);
-      return `<td style="text-align:center;padding:3px 4px">${hStr}${extras.length ? "<br/>" + extras.join(" ") : ""}</td>`;
+      if (s.ecole > 0)  extras.push(`<span style="color:#1565C0;font-size:8px">${s.ecole}j CFA</span>`);
+      return `<td style="text-align:center;padding:3px 4px;background:${s.ecole>0?'#F3F8FF':'inherit'}">${hStr}${extras.length ? "<br/>" + extras.join(" ") : ""}</td>`;
     }).join("");
 
     const inContract = (emp.debut||"") <= `${year}-${mStr}-01` && (emp.fin||"9999-12-31") >= `${year}-${mStr}-${String(days).padStart(2,"0")}`;
@@ -5540,6 +5550,7 @@ function exportPaie(team, shifts, year, month) {
       <td style="text-align:center;color:${congesJ>0?"#E65100":"#ccc"}">${congesJ > 0 ? congesJ+"j" : "—"}</td>
       <td style="text-align:center;color:${malJ>0?"#6A1B9A":"#ccc"}">${malJ > 0 ? malJ+"j" : "—"}</td>
       <td style="text-align:center;color:${absJ>0?"#C62828":"#ccc"}">${absJ > 0 ? absJ+"j" : "—"}</td>
+      <td style="text-align:center;color:${ecoleJ>0?"#1565C0":"#ccc"};background:${ecoleJ>0?"#E3F2FD":"inherit"}">${ecoleJ > 0 ? ecoleJ+"j / "+ecoleH.toFixed(1)+"h" : "—"}</td>
       <td style="text-align:right;font-weight:900;color:#1B5E20;background:#F1F8E9">${brut.toFixed(2)} €</td>
       <td style="font-size:9px;color:#555">${emp.iban || "<span style='color:orange'>IBAN manquant</span>"}</td>
       <td style="font-size:8px;color:#999">${!inContract ? "Hors période" : ""}</td>
@@ -5602,6 +5613,7 @@ function exportPaie(team, shifts, year, month) {
         <th rowspan="2" style="text-align:center;color:#E65100">CP</th>
         <th rowspan="2" style="text-align:center;color:#6A1B9A">Mal.</th>
         <th rowspan="2" style="text-align:center;color:#C62828">Abs.</th>
+        <th rowspan="2" style="text-align:center;color:#1565C0;background:#E3F2FD">École CFA</th>
         <th rowspan="2" style="text-align:right;background:#F1F8E9">Brut calculé</th>
         <th rowspan="2">IBAN</th>
         <th rowspan="2">Note</th>
@@ -5640,7 +5652,8 @@ function exportPaie(team, shifts, year, month) {
 
   <p style="margin-top:16px;font-size:8px;color:#999;border-top:1px solid #eee;padding-top:6px">
     Document généré le ${new Date().toLocaleDateString("fr-FR")} · AbracadaParc - Goussainville (95) ·
-    Bruts indicatifs avant charges sociales, primes et CP — À valider avec votre gestionnaire de paie
+    Bruts indicatifs avant charges sociales, primes et CP — À valider avec votre gestionnaire de paie<br/>
+    Apprentis (IDCC 1790) : jours CFA/école inclus dans les heures rémunérées (temps de travail effectif — Code du travail art. L6221-1)
   </p>
   <script>window.onload=function(){window.print();}<\/script>
   </body></html>`;
