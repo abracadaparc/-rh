@@ -1223,7 +1223,7 @@ contact@abracadaparc.fr`;
     return '<div>' +
       '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:12px;padding:12px 16px;margin-bottom:14px;">' +
         '<div style="font-size:13px;font-weight:700;color:#1B5E20;">📍 Vue Terrain — ' + visites.length + ' visite(s) dans les 7 prochains jours</div>' +
-        '<div style="font-size:11px;color:#2E7D32;margin-top:3px;">Saisir l'effectif réel · Le calcul CGV s'affiche automatiquement · Ajustement sur demande uniquement</div>' +
+        '<div style="font-size:11px;color:#2E7D32;margin-top:3px;">Saisir l\'effectif réel · Le calcul CGV s\'affiche automatiquement · Ajustement sur demande uniquement</div>' +
       '</div>' +
       rows +
     '</div>';
@@ -1884,55 +1884,37 @@ contact@abracadaparc.fr`;
         // Générer brouillon Gmail si ajustement ou supplément
         if (ajust === 'oui' || ajust === 'supplement') {
           var sujet = '[AbracadaParc] Ajustement facturation — ' + nomGroupe + ' — ' + (r.date || '');
-          var corps = 'Bonjour,
-
-' +
-            'Suite à la visite du ' + dateVisite + ', voici le récapitulatif pour facturation :
-
-' +
-            '═══════════════════════════════════
-' +
-            'GROUPE : ' + nomGroupe + '
-' +
-            'DATE   : ' + dateVisite + '
-' +
-            'CRÉNEAU: ' + (r.creneau || r.heure_debut || '') + '
-' +
-            '═══════════════════════════════════
-
-' +
-            '📋 EFFECTIFS
-' +
-            '  Prévu au devis   : ' + enf_p + ' enfants
-' +
-            '  Présents réels   : ' + enfR + ' enfants / ' + accR + ' accompagnants
-' +
-            '  Écart            : ' + (enfR - enf_p > 0 ? '+' : '') + (enfR - enf_p) + ' enfants
-
-' +
-            '💶 FACTURATION
-' +
-            '  Montant devis    : ' + montant.toFixed(2) + ' €
-' +
-            '  Acompte reçu     : ' + acompte.toFixed(2) + ' €
-' +
-            '  ' + labelAction + '
-' +
-            '  ─────────────────────────────────
-' +
-            '  MONTANT FINAL    : ' + montantFinal.toFixed(2) + ' €
-' +
-            '  SOLDE À FACTURER : ' + soldeFinal.toFixed(2) + ' €
-
-' +
-            (notes ? '📝 Notes terrain : ' + notes + '
-
-' : '') +
-            '→ À saisir dans MEG / Pennylane pour établir la facture.
-
-' +
-            'Cordialement,
-AbracadaParc';
+          var corps = [
+            'Bonjour,',
+            '',
+            'Suite a la visite du ' + dateVisite + ', voici le recapitulatif pour facturation :',
+            '',
+            '===================================',
+            'GROUPE  : ' + nomGroupe,
+            'DATE    : ' + dateVisite,
+            'CRENEAU : ' + (r.creneau || r.heure_debut || ''),
+            '===================================',
+            '',
+            'EFFECTIFS',
+            '  Prevu au devis   : ' + enf_p + ' enfants',
+            '  Presents reels   : ' + enfR + ' enfants / ' + accR + ' accompagnants',
+            '  Ecart            : ' + (enfR - enf_p > 0 ? '+' : '') + (enfR - enf_p) + ' enfants',
+            '',
+            'FACTURATION',
+            '  Montant devis    : ' + montant.toFixed(2) + ' EUR',
+            '  Acompte recu     : ' + acompte.toFixed(2) + ' EUR',
+            '  ' + labelAction,
+            '  ---------------------------------',
+            '  MONTANT FINAL    : ' + montantFinal.toFixed(2) + ' EUR',
+            '  SOLDE A FACTURER : ' + soldeFinal.toFixed(2) + ' EUR',
+            '',
+            (notes ? 'Notes terrain : ' + notes : ''),
+            '',
+            'A saisir dans MEG / Pennylane pour etablir la facture.',
+            '',
+            'Cordialement,',
+            'AbracadaParc'
+          ].join('\n');
 
           // Ouvrir Gmail avec brouillon pré-rempli
           var gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1' +
