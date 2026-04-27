@@ -637,74 +637,159 @@ contact@abracadaparc.fr`;
   function buildResaDetailModal(r) {
     var seg = getSegment(r.segment);
     var st = getStatut(r.statut || '1');
-    var nom = esc(r.prenom_enfant || r.organisation || r.nom_contact || '—');
+    var isAnniv = r.segment === 'anniversaire' || (r.id && r.id.indexOf('CMD') === 0);
+    var nom = esc(r.prenom_enfant || r.organisation || r.nom_contact || r.client || '—');
     var dateStr = r.date ? new Date(r.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '—';
     var total = calcTotal(r);
-    var solde = Math.max(0, total - (parseFloat(r.acompte_paye) || 0));
-    var modePay = {internet_cb:'CB en ligne',virement:'Virement',especes:'Espèces',cheque:'Chèque',cheque_vacances:'Chèques vacances',bon_commande:'Bon de commande',cb:'CB sur place',Carte:'Carte',Virement:'Virement'};
-
-    var lignesInfos = '';
-    lignesInfos += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">';
-    lignesInfos += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + seg.color + '18;color:' + seg.color + ';">' + seg.label + '</span>';
-    lignesInfos += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + st.bg + ';color:' + st.color + ';">' + st.label + '</span>';
-    if (r.ref) lignesInfos += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;background:#F5F5F5;color:#757575;">' + esc(r.ref) + '</span>';
-    lignesInfos += '</div>';
-
-    lignesInfos += '<div style="font-size:13px;color:#424242;line-height:2.2;border-top:1px solid #E8F5E9;padding-top:12px;">';
-    lignesInfos += '📅 <strong>' + dateStr + '</strong><br/>';
-    var hFin = r.heure_fin || '';
+    var acompte = parseFloat(r.acompte_paye || r.acompte_recu || 0);
+    var solde = Math.max(0, total - acompte);
+    var soldeColor = solde > 0 ? '#C62828' : '#1B5E20';
+    var hFin = r.heure_fin || r.creneau_fin || '';
     if (!hFin) {
-      var cr = (r.creneau || r.formule || '').toLowerCase();
-      if (cr.includes('matin') || cr.includes('12h30') || cr.includes('12:30')) hFin = '12:30';
-      else if (cr.includes('après-midi') || cr.includes('apres-midi') || cr.includes('standard')) hFin = '17:00';
-      else if (r.heure_debut === '10:00' || r.heure_debut === '10h') hFin = '17:00';
-      else if (r.heure_debut === '14:00' || r.heure_debut === '14h') hFin = '17:00';
+      var crLow = (r.creneau || r.formule || '').toLowerCase();
+      if (r.creneau && r.creneau.indexOf(' - ') >= 0) {
+        hFin = r.creneau.split(' - ')[1] || '';
+      } else if (crLow.indexOf('13h') >= 0 || crLow.indexOf('13:') >= 0) { hFin = '13:00'; }
+      else if (crLow.indexOf('17h30') >= 0) { hFin = '17:30'; }
+      else if (r.heure_debut === '10:00' || r.heure_debut === '10h') { hFin = '17:00'; }
+      else if (r.heure_debut === '14:00' || r.heure_debut === '14h' || r.heure_debut === '14:30') { hFin = '17:00'; }
     }
-    lignesInfos += '⏰ ' + (r.heure_debut || '—') + ' → ' + (hFin || '—') + '<br/>';
-    if (r.effectif_enfants) lignesInfos += '👶 ' + r.effectif_enfants + ' enfant' + (r.effectif_enfants > 1 ? 's' : '') + (r.effectif_adultes > 0 ? ' · ' + r.effectif_adultes + ' adulte' + (r.effectif_adultes > 1 ? 's' : '') : '') + '<br/>';
-    if (r.prenom_enfant && r.age_enfant) lignesInfos += '🎂 ' + esc(r.prenom_enfant) + ' · ' + r.age_enfant + ' ans<br/>';
-    if (r.organisation) lignesInfos += '🏫 ' + esc(r.organisation) + (r.ville ? ' · ' + esc(r.ville) : '') + '<br/>';
-    if (r.formule_id && r.formule_id !== 'mesure') lignesInfos += '📋 Formule : ' + r.formule_id + '<br/>';
-    if (r.option_animateur) lignesInfos += '🎭 Animateur inclus<br/>';
-    if (r.gateau_nacima) {
-      lignesInfos += '🎂 Gâteau : ' + esc(r.gateau_type || '') + (r.gateau_inscription ? ' · "' + esc(r.gateau_inscription) + '"' : '');
-      if (r.gateau_allergies && r.gateau_allergies !== 'aucune') lignesInfos += ' · <strong style="color:#C62828;">⚠️ Allergies : ' + esc(r.gateau_allergies) + '</strong>';
-      lignesInfos += ' · ' + (r.gateau_commande === 'livre' ? '🎂 Réceptionné ✅' : r.gateau_commande ? '✅ Commandé' : '⏳ À commander') + '<br/>';
-    }
-    if (r.nom_contact) lignesInfos += '👤 ' + esc(r.nom_contact) + '<br/>';
-    if (r.tel) lignesInfos += '📞 <a href="tel:' + r.tel + '" style="color:#1565C0;">' + esc(r.tel) + '</a><br/>';
-    if (r.email_contact) lignesInfos += '📧 ' + esc(r.email_contact) + '<br/>';
-    if (r.notes) lignesInfos += '💬 ' + esc(r.notes.slice(0, 150)) + '<br/>';
-    lignesInfos += '</div>';
 
-    if (total > 0) {
-      var soldeColor = solde > 0 ? '#C62828' : '#1B5E20';
-      lignesInfos += '<div style="margin-top:12px;padding:10px 14px;background:#E8F5E9;border-radius:10px;font-size:12px;">';
-      lignesInfos += '💶 Total : <strong>' + total.toLocaleString('fr') + ' €</strong>';
-      lignesInfos += ' · Acompte : ' + ((parseFloat(r.acompte_paye) || 0)).toLocaleString('fr') + ' €';
-      lignesInfos += ' · <span style="color:' + soldeColor + ';font-weight:700;">Solde : ' + solde.toLocaleString('fr') + ' €</span>';
-      if (r.acompte_paye && modePay[r.mode_paiement]) lignesInfos += ' (' + modePay[r.mode_paiement] + ')';
-      lignesInfos += '</div>';
+    // ── LIGNE TAGS ──────────────────────────────────────────────────────────────
+    var tagsHtml = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;">';
+    tagsHtml += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + seg.color + '18;color:' + seg.color + ';">' + seg.label + '</span>';
+    tagsHtml += '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:' + st.bg + ';color:' + st.color + ';">' + st.label + '</span>';
+    if (r.ref || r.id) tagsHtml += '<span style="padding:3px 10px;border-radius:20px;font-size:10px;background:#F5F5F5;color:#9E9E9E;">' + esc(r.ref || r.id) + '</span>';
+    if (r.formule || r.formule_id) tagsHtml += '<span style="padding:3px 10px;border-radius:20px;font-size:10px;background:#E8F5E9;color:#2E7D32;">' + esc(r.formule || r.formule_id || '') + '</span>';
+    tagsHtml += '</div>';
+
+    // ── SECTION DATE / HORAIRES ─────────────────────────────────────────────────
+    var dateHtml = '<div style="background:#F1F8E9;border-radius:10px;padding:10px 14px;margin-bottom:10px;">';
+    dateHtml += '<div style="font-size:13px;font-weight:800;color:#1B5E20;margin-bottom:4px;">📅 ' + dateStr + '</div>';
+    dateHtml += '<div style="font-size:12px;color:#424242;">⏰ ' + (r.heure_debut || r.creneau || '—') + (hFin ? ' → ' + hFin : '') + '</div>';
+    dateHtml += '</div>';
+
+    // ── SECTION PARTICIPANTS ─────────────────────────────────────────────────────
+    var nbEnf = parseInt(r.enfants || r.nb_enfants || r.effectif_enfants || 0);
+    var nbAduInclus = parseInt(r.adultes_inclus || 2);
+    var nbAduSupp = parseInt(r.adultes_supp || r.effectif_adultes_supp || 0);
+    var nbAduTotal = nbAduInclus + nbAduSupp;
+    var participantsHtml = '';
+    if (isAnniv && (nbEnf > 0 || nbAduTotal > 0)) {
+      participantsHtml = '<div style="background:#FFF8E1;border-radius:10px;padding:10px 14px;margin-bottom:10px;">';
+      participantsHtml += '<div style="font-size:11px;font-weight:700;color:#E65100;text-transform:uppercase;margin-bottom:6px;">👥 Participants</div>';
+      participantsHtml += '<div style="font-size:13px;color:#424242;">';
+      if (nbEnf > 0) participantsHtml += '👶 <strong>' + nbEnf + ' enfant' + (nbEnf > 1 ? 's' : '') + '</strong>';
+      if (nbAduTotal > 0) participantsHtml += ' · 👨‍👩‍👧 ' + nbAduInclus + ' adulte' + (nbAduInclus > 1 ? 's' : '') + ' inclus' + (nbAduSupp > 0 ? ' + ' + nbAduSupp + ' supp.' : '');
+      participantsHtml += '</div>';
+      // Enfant star
+      if (r.prenom_enfant || r.enfant) {
+        participantsHtml += '<div style="margin-top:5px;font-size:12px;color:#424242;">🎂 <strong>' + esc(r.prenom_enfant || r.enfant || '') + '</strong>';
+        if (r.age_enfant || r.age) participantsHtml += ' · ' + (r.age_enfant || r.age) + ' ans';
+        if (r.ddn) participantsHtml += ' · né(e) le ' + new Date(r.ddn).toLocaleDateString('fr-FR');
+        participantsHtml += '</div>';
+      }
+      // Liste invités
+      if (r.invites) {
+        participantsHtml += '<div style="margin-top:5px;font-size:11px;color:#757575;">🎈 <em>' + esc(r.invites) + '</em></div>';
+      }
+      participantsHtml += '</div>';
+    } else if (!isAnniv) {
+      var nbGroupe = parseInt(r.enfants || r.nb_enfants || r.effectif_total || 0);
+      if (nbGroupe > 0) {
+        participantsHtml = '<div style="background:#FFF8E1;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13px;color:#424242;">';
+        participantsHtml += '👥 <strong>' + nbGroupe + ' enfant' + (nbGroupe > 1 ? 's' : '') + '</strong>';
+        if (r.organisation || r.client) participantsHtml += ' · ' + esc(r.organisation || r.client);
+        participantsHtml += '</div>';
+      }
     }
+
+    // ── SECTION GÂTEAU ──────────────────────────────────────────────────────────
+    var gateauHtml = '';
+    var gateauVal = r.gateau || r.gateau_nacima || r.gateau_type || '';
+    if (isAnniv && gateauVal) {
+      gateauHtml = '<div style="background:#FCE4EC;border-radius:10px;padding:10px 14px;margin-bottom:10px;">';
+      gateauHtml += '<div style="font-size:11px;font-weight:700;color:#AD1457;text-transform:uppercase;margin-bottom:4px;">🎂 Gâteau Nacima</div>';
+      gateauHtml += '<div style="font-size:13px;color:#424242;">' + esc(gateauVal) + '</div>';
+      if (r.gateau_inscription) gateauHtml += '<div style="font-size:11px;color:#757575;margin-top:2px;">✏️ Inscription : "' + esc(r.gateau_inscription) + '"</div>';
+      if (r.gateau_allergies && r.gateau_allergies !== 'aucune' && r.gateau_allergies !== '') {
+        gateauHtml += '<div style="margin-top:4px;font-size:12px;font-weight:700;color:#C62828;">⚠️ Allergies : ' + esc(r.gateau_allergies) + '</div>';
+      }
+      var gcmd = r.gateau_commande;
+      var gcmdLabel = gcmd === 'livre' ? '🎂 Réceptionné ✅' : gcmd === 'prevu' ? '📅 Livraison prévue' : gcmd ? '✅ Commandé' : '⏳ À commander chez Nacima';
+      gateauHtml += '<div style="margin-top:4px;font-size:11px;color:' + (gcmd ? '#2E7D32' : '#E65100') + ';">' + gcmdLabel + '</div>';
+      gateauHtml += '</div>';
+    }
+
+    // ── SECTION ANIMATEUR ───────────────────────────────────────────────────────
+    var animHtml = '';
+    if (isAnniv && (r.animateur || r.option_animateur)) {
+      animHtml = '<div style="background:#E8EAF6;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#3949AB;">🎭 <strong>Animateur</strong> inclus</div>';
+    }
+
+    // ── SECTION CONTACT ─────────────────────────────────────────────────────────
+    var contactHtml = '';
+    var clientNom = r.nom_contact || r.client || r.structure || '';
+    var tel = r.tel || r.tel_contact || r.tel_client || '';
+    var email = r.email_contact || r.email || r.email_client || '';
+    var adresse = r.adresse || r.adresse_facturation || '';
+    if (clientNom || tel || email) {
+      contactHtml = '<div style="border-top:1px solid #E8F5E9;padding-top:10px;margin-bottom:10px;">';
+      if (clientNom) contactHtml += '<div style="font-size:12px;color:#424242;margin-bottom:2px;">👤 ' + esc(clientNom) + '</div>';
+      if (tel) contactHtml += '<div style="font-size:12px;"><a href="tel:' + esc(tel) + '" style="color:#1565C0;text-decoration:none;">📞 ' + esc(tel) + '</a></div>';
+      if (email) contactHtml += '<div style="font-size:11px;color:#757575;">📧 ' + esc(email) + '</div>';
+      if (adresse) contactHtml += '<div style="font-size:11px;color:#9E9E9E;margin-top:2px;">📍 ' + esc(adresse) + '</div>';
+      contactHtml += '</div>';
+    }
+
+    // ── SECTION PAIEMENT ────────────────────────────────────────────────────────
+    var payHtml = '';
+    if (total > 0) {
+      var modePay = r.mode_paiement || r.mode_reglement || '';
+      payHtml = '<div style="background:' + (solde > 0 ? '#FFF8E1' : '#E8F5E9') + ';border-radius:10px;padding:12px 14px;margin-bottom:10px;">';
+      payHtml += '<div style="font-size:11px;font-weight:700;color:' + (solde > 0 ? '#E65100' : '#2E7D32') + ';text-transform:uppercase;margin-bottom:8px;">💶 Paiement</div>';
+      payHtml += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">';
+      payHtml += '<div><div style="font-size:10px;color:#9E9E9E;">Total</div><div style="font-size:14px;font-weight:800;color:#1B5E20;">' + total.toLocaleString('fr') + ' €</div></div>';
+      payHtml += '<div><div style="font-size:10px;color:#9E9E9E;">Acompte payé</div><div style="font-size:14px;font-weight:700;color:#1565C0;">' + acompte.toLocaleString('fr') + ' €</div></div>';
+      payHtml += '<div><div style="font-size:10px;color:#9E9E9E;">Solde à encaisser</div><div style="font-size:15px;font-weight:900;color:' + soldeColor + ';">' + solde.toLocaleString('fr') + ' €</div></div>';
+      payHtml += '</div>';
+      if (modePay) payHtml += '<div style="margin-top:6px;font-size:11px;color:#757575;text-align:center;">💳 ' + esc(modePay) + '</div>';
+      payHtml += '</div>';
+    }
+
+    // ── NOTES ────────────────────────────────────────────────────────────────────
+    var notesHtml = '';
+    if (r.notes || r.note) {
+      notesHtml = '<div style="font-size:11px;color:#757575;font-style:italic;margin-bottom:8px;padding:6px 10px;background:#F5F5F5;border-radius:6px;">💬 ' + esc((r.notes || r.note || '').slice(0, 200)) + '</div>';
+    }
+
+    // ── ALERTE SOLDE EN ROUGE SI FUTUR ──────────────────────────────────────────
+    var alertHtml = '';
+    if (solde > 0 && r.date && r.date >= new Date().toISOString().slice(0,10)) {
+      alertHtml = '<div style="background:#FFEBEE;border:2px solid #EF9A9A;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;font-weight:700;color:#C62828;text-align:center;">💰 ENCAISSER ' + solde.toLocaleString('fr') + ' € SUR PLACE</div>';
+    }
+
+    var lignesInfos = tagsHtml + alertHtml + dateHtml + participantsHtml + gateauHtml + animHtml + payHtml + contactHtml + notesHtml;
 
     if (r.modified_by) {
-      lignesInfos += '<div style="margin-top:8px;font-size:10px;color:#BDBDBD;">Modifié par ' + esc(r.modified_by) + ' le ' + (r.modified_at ? new Date(r.modified_at).toLocaleDateString('fr-FR') : '') + '</div>';
+      lignesInfos += '<div style="margin-top:4px;font-size:10px;color:#BDBDBD;">Modifié par ' + esc(r.modified_by) + ' le ' + (r.modified_at ? new Date(r.modified_at).toLocaleDateString('fr-FR') : '') + '</div>';
     }
 
     return '<div id="resa-detail-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px">' +
-      '<div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:85vh;overflow-y:auto">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">' +
-          '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + nom + '</div>' +
+      '<div style="background:#fff;border-radius:16px;padding:20px 24px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">' +
+          '<div><div style="font-size:17px;font-weight:800;color:#1B5E20;">' + nom + '</div>' +
+          (r.client && r.client !== nom ? '<div style="font-size:12px;color:#9E9E9E;margin-top:1px;">Contact : ' + esc(r.client || r.nom_contact || '') + '</div>' : '') +
+          '</div>' +
           '<button id="close-resa-detail" style="background:none;border:none;font-size:26px;cursor:pointer;color:#9E9E9E;line-height:1;padding:0;margin-left:10px;">×</button>' +
         '</div>' +
         lignesInfos +
-        '<div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E8F5E9;">' +
-          '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
-          '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
-          (r.date ? '<a href="' + buildGCalUrl(r, hFin) + '" target="_blank" style="padding:10px 14px;background:#F3E5F5;color:#6A1B9A;border-radius:8px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ajouter à Google Agenda">📅 Agenda</a>' : '') +
-          (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Dossier Drive">📁 Drive</a>' : '') +
-          (r.gmail_devis_url ? '<a href="' + r.gmail_devis_url + '" target="_blank" style="padding:10px 14px;background:#FFF3E0;color:#E65100;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir devis Gmail">📧 Devis</a>' : '') +
-          (r.gmail_bc_url ? '<a href="' + r.gmail_bc_url + '" target="_blank" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir BC Gmail">📋 BC</a>' : '') +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #E8F5E9;">' +
+          '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;min-width:80px;padding:9px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
+          '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:9px 12px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;">📋</button>' +
+          (r.date ? '<a href="' + buildGCalUrl(r, hFin) + '" target="_blank" style="padding:9px 12px;background:#F3E5F5;color:#6A1B9A;border-radius:8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;" title="Agenda">📅</a>' : '') +
+          (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:9px 12px;background:#E8F5E9;color:#2E7D32;border-radius:8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;">📁</a>' : '') +
+          (tel ? '<a href="tel:' + esc(tel) + '" style="flex:1;min-width:80px;padding:9px;background:#FFF3E0;color:#E65100;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px;">📞 Appeler</a>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
