@@ -2314,262 +2314,6 @@ contact@abracadaparc.fr`;
 
 const { useState, useEffect, useRef, useCallback } = React;
 
-// ── EXPORT PAIE (service social / comptable, 5 du mois) ─────────────────────
-function exportPaie(team, shifts, year, month) {
-  const MOIS_NOMS = ["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
-  const days      = new Date(year, month, 0).getDate();
-  const mStr      = String(month).padStart(2,"0");
-  const activeTeam = team.filter(e => e.actif);
-
-  // ── Calcul des semaines du mois (lundi→dimanche, ISO) ──────────────────────
-  function getSemainesDuMois(y, m) {
-    const semaines = [];
-    let d = new Date(y, m-1, 1);
-    // Reculer au lundi de la semaine contenant le 1er
-    const jourSemaine = d.getDay() === 0 ? 7 : d.getDay();
-    d.setDate(d.getDate() - (jourSemaine - 1));
-
-    const finMois = new Date(y, m, 0);
-    while (d <= finMois) {
-      const lundi    = new Date(d);
-      const dimanche = new Date(d);
-      dimanche.setDate(dimanche.getDate() + 6);
-      const luStr = lundi.toISOString().slice(0,10);
-      const diStr = dimanche.toISOString().slice(0,10);
-      // Calculer numéro ISO de semaine
-      const tmp = new Date(Date.UTC(lundi.getFullYear(), lundi.getMonth(), lundi.getDate()));
-      const dayNb = tmp.getUTCDay() || 7;
-      tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNb);
-      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
-      const wkNum = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
-      semaines.push({ lundi: luStr, dimanche: diStr, num: wkNum });
-      d.setDate(d.getDate() + 7);
-    }
-    return semaines;
-  }
-
-  const semaines = getSemainesDuMois(year, month);
-
-  // ── Pour chaque salarié : calcul mensuel + détail par semaine ──────────────
-  function calcEmpMois(emp) {
-    let totalH=0, totalJ=0, reposJ=0, congesJ=0, absJ=0, malJ=0, retardH=0, ecoleJ=0, ecoleH=0;
-    const detailSem = semaines.map(sem => {
-      let semH=0, semJ=0, semConges=0, semAbs=0, semMal=0, semEcole=0, semEcoleH=0;
-      // Itérer jour par jour dans la semaine
-      let d = new Date(sem.lundi + "T12:00");
-      const fin = new Date(sem.dimanche + "T12:00");
-      while (d <= fin) {
-        const ds = d.toISOString().slice(0,10);
-        // Uniquement les jours du mois en cours
-        if (ds.slice(0,7) === `${year}-${mStr}`) {
-          if (ds >= (emp.debut||"") && ds <= (emp.fin||"9999-12-31")) {
-            const sh = shifts[`${emp.id}_${ds}`];
-            if (sh) {
-              if (sh.type === "travail") { semH += sh.h||0; semJ++; }
-              // École CFA / POEI = temps de travail effectif (IDCC 1790 apprentis)
-              // → 7h par défaut si non renseigné, salaire maintenu au taux normal
-              else if (sh.type === "ecole" || sh.type === "poei") {
-                const hEcole = (sh.h && sh.h > 0) ? sh.h : 7.0;
-                semEcole++;
-                semEcoleH += hEcole;
-                semH += hEcole; // inclus dans le total heures rémunérées
-                semJ++;
-              }
-              else if (sh.type === "repos") {} // non comptabilisé
-              else if (sh.type === "conges") semConges++;
-              else if (sh.type === "absent" || sh.type === "absent_inj") semAbs++;
-              else if (sh.type === "malade") semMal++;
-            }
-          }
-        }
-        d.setDate(d.getDate() + 1);
-      }
-      totalH += semH; totalJ += semJ; congesJ += semConges;
-      absJ += semAbs; malJ += semMal; ecoleJ += semEcole; ecoleH += semEcoleH;
-      return { num: sem.num, lundi: sem.lundi, dimanche: sem.dimanche, h: semH, j: semJ, conges: semConges, abs: semAbs, mal: semMal, ecole: semEcole, ecoleH: semEcoleH };
-    });
-
-    // Repos (jours dans le contrat mais sans shift)
-    for (let i=1; i<=days; i++) {
-      const ds = `${year}-${mStr}-${String(i).padStart(2,"0")}`;
-      if (ds < (emp.debut||"") || ds > (emp.fin||"9999-12-31")) continue;
-      const sh = shifts[`${emp.id}_${ds}`];
-      if (sh && sh.type === "repos") reposJ++;
-    }
-
-    return { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, ecoleJ, ecoleH, detailSem };
-  }
-
-  // ── Générer les colonnes semaines pour le header ───────────────────────────
-  const semCols = semaines.map(s =>
-    `<th style="text-align:center;min-width:48px;background:#E8F5E9">S${s.num}<br/><span style="font-size:8px;font-weight:normal">${s.lundi.slice(5).replace("-","/")}→${s.dimanche.slice(5).replace("-","/")} </span></th>`
-  ).join("");
-
-  // ── Ligne par salarié ──────────────────────────────────────────────────────
-  const rows = activeTeam.map(emp => {
-    const { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, ecoleJ, ecoleH, detailSem } = calcEmpMois(emp);
-    const taux  = parseFloat(emp.taux) || 0;
-    const brut  = Math.round(totalH * taux * 100) / 100;
-    const ddn   = emp.ddn ? new Date(emp.ddn + "T12:00").toLocaleDateString("fr-FR") : "—";
-    const hContrat = emp.heures_mois || "—";
-
-    // Diff heures : réel vs contrat
-    const hCtr = parseFloat(emp.heures_mois) || 0;
-    const diff = hCtr > 0 ? Math.round((totalH - hCtr) * 100) / 100 : null;
-    const diffStyle = diff === null ? "" : diff > 0 ? "color:#1565C0;font-weight:700" : diff < 0 ? "color:#C62828;font-weight:700" : "color:#2E7D32";
-    const diffStr  = diff === null ? "—" : (diff > 0 ? "+" : "") + diff.toFixed(2) + "h";
-    // Pour les apprentis : ventilation terrain/école visible
-    const isApprenti = (emp.type === "apprenti" || emp.contrat || "").toLowerCase().indexOf("apprent") >= 0;
-    const hTerrain   = totalH - ecoleH; // heures terrain seules
-    const brutNote   = isApprenti
-      ? `${hTerrain.toFixed(2)}h terrain + ${ecoleH.toFixed(2)}h CFA = ${totalH.toFixed(2)}h × ${(parseFloat(emp.taux)||0).toFixed(4)} €`
-      : "";
-
-    // Cellules semaines
-    const semCells = detailSem.map(s => {
-      const hStr = s.h > 0 ? `<span style="font-weight:700;color:#1B5E20">${s.h.toFixed(2)}h</span>` : `<span style="color:#ccc">—</span>`;
-      const extras = [];
-      if (s.conges > 0) extras.push(`<span style="color:#E65100;font-size:8px">${s.conges}j CP</span>`);
-      if (s.abs > 0)    extras.push(`<span style="color:#C62828;font-size:8px">${s.abs}j ABS</span>`);
-      if (s.mal > 0)    extras.push(`<span style="color:#6A1B9A;font-size:8px">${s.mal}j MAL</span>`);
-      if (s.ecole > 0)  extras.push(`<span style="color:#1565C0;font-size:8px">${s.ecole}j CFA</span>`);
-      return `<td style="text-align:center;padding:3px 4px;background:${s.ecole>0?'#F3F8FF':'inherit'}">${hStr}${extras.length ? "<br/>" + extras.join(" ") : ""}</td>`;
-    }).join("");
-
-    const inContract = (emp.debut||"") <= `${year}-${mStr}-01` && (emp.fin||"9999-12-31") >= `${year}-${mStr}-${String(days).padStart(2,"0")}`;
-
-    return `<tr style="${!inContract ? "background:#FFF9C4" : ""}">
-      <td style="font-weight:700;white-space:nowrap">${emp.prenom ? emp.prenom+" " : ""}${emp.nom}</td>
-      <td style="font-size:9px">${emp.ss || "<span style='color:red'>MANQUANT</span>"}</td>
-      <td style="font-size:9px;white-space:nowrap">${ddn}</td>
-      <td style="font-size:9px">${emp.contrat||"—"}</td>
-      <td style="text-align:center">${taux.toFixed(2)} €</td>
-      <td style="text-align:center">${hContrat}h</td>
-      ${semCells}
-      <td style="text-align:center;font-weight:900;color:#1B5E20;background:#F1F8E9">${totalH.toFixed(2)}h</td>
-      <td style="text-align:center">${totalJ}j</td>
-      <td style="text-align:center;${diffStyle}">${diffStr}</td>
-      <td style="text-align:center;color:${congesJ>0?"#E65100":"#ccc"}">${congesJ > 0 ? congesJ+"j" : "—"}</td>
-      <td style="text-align:center;color:${malJ>0?"#6A1B9A":"#ccc"}">${malJ > 0 ? malJ+"j" : "—"}</td>
-      <td style="text-align:center;color:${absJ>0?"#C62828":"#ccc"}">${absJ > 0 ? absJ+"j" : "—"}</td>
-      <td style="text-align:center;color:${ecoleJ>0?"#1565C0":"#ccc"};background:${ecoleJ>0?"#E3F2FD":"inherit"}">${ecoleJ > 0 ? ecoleJ+"j / "+ecoleH.toFixed(1)+"h" : "—"}</td>
-      <td style="text-align:right;font-weight:900;color:#1B5E20;background:#F1F8E9">${brut.toFixed(2)} €${brutNote ? `<br/><span style="font-size:8px;color:#555;font-weight:normal">${brutNote}</span>` : ""}</td>
-      <td style="font-size:9px;color:#555">${emp.iban || "<span style='color:orange'>IBAN manquant</span>"}</td>
-      <td style="font-size:8px;color:#999">${!inContract ? "Hors période" : ""}</td>
-    </tr>`;
-  }).join("");
-
-  // ── Total masse salariale ──────────────────────────────────────────────────
-  const totalBrut = activeTeam.reduce((s, emp) => {
-    const { totalH } = calcEmpMois(emp);
-    return s + totalH * (parseFloat(emp.taux) || 0);
-  }, 0);
-
-  // ── Total semaines (ligne de cumul) ──────────────────────────────────────
-  const totalsSem = semaines.map((sem, idx) => {
-    let h = 0;
-    activeTeam.forEach(emp => {
-      const { detailSem } = calcEmpMois(emp);
-      h += detailSem[idx] ? detailSem[idx].h : 0;
-    });
-    return `<td style="text-align:center;font-weight:700;background:#c8e6c9">${h > 0 ? h.toFixed(2)+"h" : "—"}</td>`;
-  }).join("");
-
-  const totalH_all = activeTeam.reduce((s, emp) => s + calcEmpMois(emp).totalH, 0);
-
-  const htmlP = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-  <title>Export Paie ${MOIS_NOMS[month]} ${year} — AbracadaParc</title>
-  <style>
-    body { font-family: Arial, sans-serif; font-size: 10px; margin: 1cm; }
-    h2 { font-size: 13px; margin: 0 0 4px; color: #1B5E20; }
-    h3 { font-size: 11px; margin: 12px 0 4px; color: #555; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-    th, td { border: 1px solid #ccc; padding: 4px 5px; }
-    th { background: #E8F5E9; font-weight: bold; font-size: 9px; text-align: left; }
-    .sem-th { background: #C8E6C9; text-align: center; font-size: 9px; }
-    tfoot td { background: #c8e6c9; font-weight: bold; }
-    @media print { @page { size: A3 landscape; margin: 8mm; } body { font-size: 9px; } }
-  </style>
-  </head><body>
-
-  <h2>🌿 AbracadaParc — Export Paie ${MOIS_NOMS[month]} ${year}</h2>
-  <p style="font-size:9px;color:#666;margin-bottom:12px">
-    SIREN : 979 489 929 · IDCC 1790 · Gérante : Vanessa Schweitzer ·
-    À transmettre au cabinet avant le 5 du mois suivant
-  </p>
-
-  <h3>📊 Détail des heures par semaine — ${MOIS_NOMS[month]} ${year}</h3>
-  <table>
-    <thead>
-      <tr>
-        <th rowspan="2">Salarié·e</th>
-        <th rowspan="2">N° SS</th>
-        <th rowspan="2">Né(e) le</th>
-        <th rowspan="2">Contrat</th>
-        <th rowspan="2">Taux/h</th>
-        <th rowspan="2">H contrat</th>
-        ${semCols}
-        <th class="sem-th" rowspan="2">TOTAL H<br/>travaillées</th>
-        <th rowspan="2" style="text-align:center">J trav.</th>
-        <th rowspan="2" style="text-align:center">Écart<br/>contrat</th>
-        <th rowspan="2" style="text-align:center;color:#E65100">CP</th>
-        <th rowspan="2" style="text-align:center;color:#6A1B9A">Mal.</th>
-        <th rowspan="2" style="text-align:center;color:#C62828">Abs.</th>
-        <th rowspan="2" style="text-align:center;color:#1565C0;background:#E3F2FD">École CFA</th>
-        <th rowspan="2" style="text-align:right;background:#F1F8E9">Brut calculé</th>
-        <th rowspan="2">IBAN</th>
-        <th rowspan="2">Note</th>
-      </tr>
-      <tr></tr>
-    </thead>
-    <tbody>${rows}</tbody>
-    <tfoot>
-      <tr>
-        <td colspan="6" style="font-weight:bold">TOTAUX</td>
-        ${totalsSem}
-        <td style="text-align:center;font-weight:900">${totalH_all.toFixed(2)}h</td>
-        <td colspan="7"></td>
-        <td style="text-align:right;font-weight:900">${totalBrut.toFixed(2)} €</td>
-        <td colspan="2"></td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <h3>⚠️ Absences et situations particulières</h3>
-  <table style="width:60%">
-    <thead><tr>
-      <th>Salarié·e</th><th>Type</th><th>Nb jours</th><th>Commentaire</th>
-    </tr></thead>
-    <tbody>
-      ${activeTeam.flatMap(emp => {
-        const { congesJ, absJ, malJ } = calcEmpMois(emp);
-        const lignes = [];
-        if (congesJ > 0) lignes.push(`<tr><td>${emp.prenom||""} ${emp.nom}</td><td style="color:#E65100">Congés payés</td><td style="text-align:center">${congesJ}j</td><td></td></tr>`);
-        if (malJ   > 0) lignes.push(`<tr><td>${emp.prenom||""} ${emp.nom}</td><td style="color:#6A1B9A">Arrêt maladie</td><td style="text-align:center">${malJ}j</td><td>Justificatif requis</td></tr>`);
-        if (absJ   > 0) lignes.push(`<tr><td>${emp.prenom||""} ${emp.nom}</td><td style="color:#C62828">Absence</td><td style="text-align:center">${absJ}j</td><td></td></tr>`);
-        return lignes;
-      }).join("") || "<tr><td colspan='4' style='color:#999;text-align:center'>Aucune absence ce mois</td></tr>"}
-    </tbody>
-  </table>
-
-  <p style="margin-top:16px;font-size:8px;color:#999;border-top:1px solid #eee;padding-top:6px">
-    Document généré le ${new Date().toLocaleDateString("fr-FR")} · AbracadaParc - Goussainville (95) ·
-    Bruts indicatifs avant charges sociales, primes et CP — À valider avec votre gestionnaire de paie<br/>
-    Apprentis (IDCC 1790) : jours CFA/école = temps de travail effectif, salaire maintenu (C. trav. art. L6221-1)<br/>
-    Myron CANDUN : 151.67h × 6.1302 €/h = 929.77 € brut/mois (51% SMIC 2026) — Exonération charges patronales apprentissage
-  </p>
-  <script>window.onload=function(){window.print();}<\/script>
-  </body></html>`;
-
-  const blob = new Blob([htmlP], {type:"text/html"});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href = url; a.target = "_blank"; a.rel = "noopener";
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-}
-// Rendre accessible globalement
-if (typeof window !== "undefined") window.exportPaie = exportPaie;
 
 
 // ═══════════════════════════════════════════════════════════
@@ -7227,6 +6971,264 @@ function DispoTempsReelTab({ reservations, disponibilites, alertes_script }) {
     </div>
   );
 }
+
+// ── EXPORT PAIE (service social / comptable, 5 du mois) ─────────────────────
+function exportPaie(team, shifts, year, month) {
+  const MOIS_NOMS = ["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const days      = new Date(year, month, 0).getDate();
+  const mStr      = String(month).padStart(2,"0");
+  const activeTeam = team.filter(e => e.actif);
+
+  // ── Calcul des semaines du mois (lundi→dimanche, ISO) ──────────────────────
+  function getSemainesDuMois(y, m) {
+    const semaines = [];
+    let d = new Date(y, m-1, 1);
+    // Reculer au lundi de la semaine contenant le 1er
+    const jourSemaine = d.getDay() === 0 ? 7 : d.getDay();
+    d.setDate(d.getDate() - (jourSemaine - 1));
+
+    const finMois = new Date(y, m, 0);
+    while (d <= finMois) {
+      const lundi    = new Date(d);
+      const dimanche = new Date(d);
+      dimanche.setDate(dimanche.getDate() + 6);
+      const luStr = lundi.toISOString().slice(0,10);
+      const diStr = dimanche.toISOString().slice(0,10);
+      // Calculer numéro ISO de semaine
+      const tmp = new Date(Date.UTC(lundi.getFullYear(), lundi.getMonth(), lundi.getDate()));
+      const dayNb = tmp.getUTCDay() || 7;
+      tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNb);
+      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+      const wkNum = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+      semaines.push({ lundi: luStr, dimanche: diStr, num: wkNum });
+      d.setDate(d.getDate() + 7);
+    }
+    return semaines;
+  }
+
+  const semaines = getSemainesDuMois(year, month);
+
+  // ── Pour chaque salarié : calcul mensuel + détail par semaine ──────────────
+  function calcEmpMois(emp) {
+    let totalH=0, totalJ=0, reposJ=0, congesJ=0, absJ=0, malJ=0, retardH=0, ecoleJ=0, ecoleH=0;
+    const detailSem = semaines.map(sem => {
+      let semH=0, semJ=0, semConges=0, semAbs=0, semMal=0, semEcole=0, semEcoleH=0;
+      // Itérer jour par jour dans la semaine
+      let d = new Date(sem.lundi + "T12:00");
+      const fin = new Date(sem.dimanche + "T12:00");
+      while (d <= fin) {
+        const ds = d.toISOString().slice(0,10);
+        // Uniquement les jours du mois en cours
+        if (ds.slice(0,7) === `${year}-${mStr}`) {
+          if (ds >= (emp.debut||"") && ds <= (emp.fin||"9999-12-31")) {
+            const sh = shifts[`${emp.id}_${ds}`];
+            if (sh) {
+              if (sh.type === "travail") { semH += sh.h||0; semJ++; }
+              // École CFA / POEI = temps de travail effectif (IDCC 1790 apprentis)
+              // → 7h par défaut si non renseigné, salaire maintenu au taux normal
+              else if (sh.type === "ecole" || sh.type === "poei") {
+                const hEcole = (sh.h && sh.h > 0) ? sh.h : 7.0;
+                semEcole++;
+                semEcoleH += hEcole;
+                semH += hEcole; // inclus dans le total heures rémunérées
+                semJ++;
+              }
+              else if (sh.type === "repos") {} // non comptabilisé
+              else if (sh.type === "conges") semConges++;
+              else if (sh.type === "absent" || sh.type === "absent_inj") semAbs++;
+              else if (sh.type === "malade") semMal++;
+            }
+          }
+        }
+        d.setDate(d.getDate() + 1);
+      }
+      totalH += semH; totalJ += semJ; congesJ += semConges;
+      absJ += semAbs; malJ += semMal; ecoleJ += semEcole; ecoleH += semEcoleH;
+      return { num: sem.num, lundi: sem.lundi, dimanche: sem.dimanche, h: semH, j: semJ, conges: semConges, abs: semAbs, mal: semMal, ecole: semEcole, ecoleH: semEcoleH };
+    });
+
+    // Repos (jours dans le contrat mais sans shift)
+    for (let i=1; i<=days; i++) {
+      const ds = `${year}-${mStr}-${String(i).padStart(2,"0")}`;
+      if (ds < (emp.debut||"") || ds > (emp.fin||"9999-12-31")) continue;
+      const sh = shifts[`${emp.id}_${ds}`];
+      if (sh && sh.type === "repos") reposJ++;
+    }
+
+    return { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, ecoleJ, ecoleH, detailSem };
+  }
+
+  // ── Générer les colonnes semaines pour le header ───────────────────────────
+  const semCols = semaines.map(s =>
+    `<th style="text-align:center;min-width:48px;background:#E8F5E9">S${s.num}<br/><span style="font-size:8px;font-weight:normal">${s.lundi.slice(5).replace("-","/")}→${s.dimanche.slice(5).replace("-","/")} </span></th>`
+  ).join("");
+
+  // ── Ligne par salarié ──────────────────────────────────────────────────────
+  const rows = activeTeam.map(emp => {
+    const { totalH, totalJ, reposJ, congesJ, absJ, malJ, retardH, ecoleJ, ecoleH, detailSem } = calcEmpMois(emp);
+    const taux  = parseFloat(emp.taux) || 0;
+    const brut  = Math.round(totalH * taux * 100) / 100;
+    const ddn   = emp.ddn ? new Date(emp.ddn + "T12:00").toLocaleDateString("fr-FR") : "—";
+    const hContrat = emp.heures_mois || "—";
+
+    // Diff heures : réel vs contrat
+    const hCtr = parseFloat(emp.heures_mois) || 0;
+    const diff = hCtr > 0 ? Math.round((totalH - hCtr) * 100) / 100 : null;
+    const diffStyle = diff === null ? "" : diff > 0 ? "color:#1565C0;font-weight:700" : diff < 0 ? "color:#C62828;font-weight:700" : "color:#2E7D32";
+    const diffStr  = diff === null ? "—" : (diff > 0 ? "+" : "") + diff.toFixed(2) + "h";
+    // Pour les apprentis : ventilation terrain/école visible
+    const isApprenti = (emp.type === "apprenti" || emp.contrat || "").toLowerCase().indexOf("apprent") >= 0;
+    const hTerrain   = totalH - ecoleH; // heures terrain seules
+    const brutNote   = isApprenti
+      ? `${hTerrain.toFixed(2)}h terrain + ${ecoleH.toFixed(2)}h CFA = ${totalH.toFixed(2)}h × ${(parseFloat(emp.taux)||0).toFixed(4)} €`
+      : "";
+
+    // Cellules semaines
+    const semCells = detailSem.map(s => {
+      const hStr = s.h > 0 ? `<span style="font-weight:700;color:#1B5E20">${s.h.toFixed(2)}h</span>` : `<span style="color:#ccc">—</span>`;
+      const extras = [];
+      if (s.conges > 0) extras.push(`<span style="color:#E65100;font-size:8px">${s.conges}j CP</span>`);
+      if (s.abs > 0)    extras.push(`<span style="color:#C62828;font-size:8px">${s.abs}j ABS</span>`);
+      if (s.mal > 0)    extras.push(`<span style="color:#6A1B9A;font-size:8px">${s.mal}j MAL</span>`);
+      if (s.ecole > 0)  extras.push(`<span style="color:#1565C0;font-size:8px">${s.ecole}j CFA</span>`);
+      return `<td style="text-align:center;padding:3px 4px;background:${s.ecole>0?'#F3F8FF':'inherit'}">${hStr}${extras.length ? "<br/>" + extras.join(" ") : ""}</td>`;
+    }).join("");
+
+    const inContract = (emp.debut||"") <= `${year}-${mStr}-01` && (emp.fin||"9999-12-31") >= `${year}-${mStr}-${String(days).padStart(2,"0")}`;
+
+    return `<tr style="${!inContract ? "background:#FFF9C4" : ""}">
+      <td style="font-weight:700;white-space:nowrap">${emp.prenom ? emp.prenom+" " : ""}${emp.nom}</td>
+      <td style="font-size:9px">${emp.ss || "<span style='color:red'>MANQUANT</span>"}</td>
+      <td style="font-size:9px;white-space:nowrap">${ddn}</td>
+      <td style="font-size:9px">${emp.contrat||"—"}</td>
+      <td style="text-align:center">${taux.toFixed(2)} €</td>
+      <td style="text-align:center">${hContrat}h</td>
+      ${semCells}
+      <td style="text-align:center;font-weight:900;color:#1B5E20;background:#F1F8E9">${totalH.toFixed(2)}h</td>
+      <td style="text-align:center">${totalJ}j</td>
+      <td style="text-align:center;${diffStyle}">${diffStr}</td>
+      <td style="text-align:center;color:${congesJ>0?"#E65100":"#ccc"}">${congesJ > 0 ? congesJ+"j" : "—"}</td>
+      <td style="text-align:center;color:${malJ>0?"#6A1B9A":"#ccc"}">${malJ > 0 ? malJ+"j" : "—"}</td>
+      <td style="text-align:center;color:${absJ>0?"#C62828":"#ccc"}">${absJ > 0 ? absJ+"j" : "—"}</td>
+      <td style="text-align:center;color:${ecoleJ>0?"#1565C0":"#ccc"};background:${ecoleJ>0?"#E3F2FD":"inherit"}">${ecoleJ > 0 ? ecoleJ+"j / "+ecoleH.toFixed(1)+"h" : "—"}</td>
+      <td style="text-align:right;font-weight:900;color:#1B5E20;background:#F1F8E9">${brut.toFixed(2)} €${brutNote ? `<br/><span style="font-size:8px;color:#555;font-weight:normal">${brutNote}</span>` : ""}</td>
+      <td style="font-size:9px;color:#555">${emp.iban || "<span style='color:orange'>IBAN manquant</span>"}</td>
+      <td style="font-size:8px;color:#999">${!inContract ? "Hors période" : ""}</td>
+    </tr>`;
+  }).join("");
+
+  // ── Total masse salariale ──────────────────────────────────────────────────
+  const totalBrut = activeTeam.reduce((s, emp) => {
+    const { totalH } = calcEmpMois(emp);
+    return s + totalH * (parseFloat(emp.taux) || 0);
+  }, 0);
+
+  // ── Total semaines (ligne de cumul) ──────────────────────────────────────
+  const totalsSem = semaines.map((sem, idx) => {
+    let h = 0;
+    activeTeam.forEach(emp => {
+      const { detailSem } = calcEmpMois(emp);
+      h += detailSem[idx] ? detailSem[idx].h : 0;
+    });
+    return `<td style="text-align:center;font-weight:700;background:#c8e6c9">${h > 0 ? h.toFixed(2)+"h" : "—"}</td>`;
+  }).join("");
+
+  const totalH_all = activeTeam.reduce((s, emp) => s + calcEmpMois(emp).totalH, 0);
+
+  const htmlP = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Export Paie ${MOIS_NOMS[month]} ${year} — AbracadaParc</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 10px; margin: 1cm; }
+    h2 { font-size: 13px; margin: 0 0 4px; color: #1B5E20; }
+    h3 { font-size: 11px; margin: 12px 0 4px; color: #555; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th, td { border: 1px solid #ccc; padding: 4px 5px; }
+    th { background: #E8F5E9; font-weight: bold; font-size: 9px; text-align: left; }
+    .sem-th { background: #C8E6C9; text-align: center; font-size: 9px; }
+    tfoot td { background: #c8e6c9; font-weight: bold; }
+    @media print { @page { size: A3 landscape; margin: 8mm; } body { font-size: 9px; } }
+  </style>
+  </head><body>
+
+  <h2>🌿 AbracadaParc — Export Paie ${MOIS_NOMS[month]} ${year}</h2>
+  <p style="font-size:9px;color:#666;margin-bottom:12px">
+    SIREN : 979 489 929 · IDCC 1790 · Gérante : Vanessa Schweitzer ·
+    À transmettre au cabinet avant le 5 du mois suivant
+  </p>
+
+  <h3>📊 Détail des heures par semaine — ${MOIS_NOMS[month]} ${year}</h3>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="2">Salarié·e</th>
+        <th rowspan="2">N° SS</th>
+        <th rowspan="2">Né(e) le</th>
+        <th rowspan="2">Contrat</th>
+        <th rowspan="2">Taux/h</th>
+        <th rowspan="2">H contrat</th>
+        ${semCols}
+        <th class="sem-th" rowspan="2">TOTAL H<br/>travaillées</th>
+        <th rowspan="2" style="text-align:center">J trav.</th>
+        <th rowspan="2" style="text-align:center">Écart<br/>contrat</th>
+        <th rowspan="2" style="text-align:center;color:#E65100">CP</th>
+        <th rowspan="2" style="text-align:center;color:#6A1B9A">Mal.</th>
+        <th rowspan="2" style="text-align:center;color:#C62828">Abs.</th>
+        <th rowspan="2" style="text-align:center;color:#1565C0;background:#E3F2FD">École CFA</th>
+        <th rowspan="2" style="text-align:right;background:#F1F8E9">Brut calculé</th>
+        <th rowspan="2">IBAN</th>
+        <th rowspan="2">Note</th>
+      </tr>
+      <tr></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="6" style="font-weight:bold">TOTAUX</td>
+        ${totalsSem}
+        <td style="text-align:center;font-weight:900">${totalH_all.toFixed(2)}h</td>
+        <td colspan="7"></td>
+        <td style="text-align:right;font-weight:900">${totalBrut.toFixed(2)} €</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <h3>⚠️ Absences et situations particulières</h3>
+  <table style="width:60%">
+    <thead><tr>
+      <th>Salarié·e</th><th>Type</th><th>Nb jours</th><th>Commentaire</th>
+    </tr></thead>
+    <tbody>
+      ${activeTeam.flatMap(emp => {
+        const { congesJ, absJ, malJ } = calcEmpMois(emp);
+        const lignes = [];
+        if (congesJ > 0) lignes.push(`<tr><td>${emp.prenom||""} ${emp.nom}</td><td style="color:#E65100">Congés payés</td><td style="text-align:center">${congesJ}j</td><td></td></tr>`);
+        if (malJ   > 0) lignes.push(`<tr><td>${emp.prenom||""} ${emp.nom}</td><td style="color:#6A1B9A">Arrêt maladie</td><td style="text-align:center">${malJ}j</td><td>Justificatif requis</td></tr>`);
+        if (absJ   > 0) lignes.push(`<tr><td>${emp.prenom||""} ${emp.nom}</td><td style="color:#C62828">Absence</td><td style="text-align:center">${absJ}j</td><td></td></tr>`);
+        return lignes;
+      }).join("") || "<tr><td colspan='4' style='color:#999;text-align:center'>Aucune absence ce mois</td></tr>"}
+    </tbody>
+  </table>
+
+  <p style="margin-top:16px;font-size:8px;color:#999;border-top:1px solid #eee;padding-top:6px">
+    Document généré le ${new Date().toLocaleDateString("fr-FR")} · AbracadaParc - Goussainville (95) ·
+    Bruts indicatifs avant charges sociales, primes et CP — À valider avec votre gestionnaire de paie<br/>
+    Apprentis (IDCC 1790) : jours CFA/école = temps de travail effectif, salaire maintenu (C. trav. art. L6221-1)<br/>
+    Myron CANDUN : 151.67h × 6.1302 €/h = 929.77 € brut/mois (51% SMIC 2026) — Exonération charges patronales apprentissage
+  </p>
+  <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`;
+
+  const blob = new Blob([htmlP], {type:"text/html"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.target = "_blank"; a.rel = "noopener";
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+// Rendre accessible globalement
+if (typeof window !== "undefined") window.exportPaie = exportPaie;
+
 
 function RecapECTab({ team, shifts }) {
   const [generated, setGenerated] = useState("");
