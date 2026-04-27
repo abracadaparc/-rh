@@ -2376,7 +2376,7 @@ const TEAM_INIT = [
   {
     id:"t1", nom:"MYRON", prenom:"", color:"#1565C0",
     type:"apprenti", contrat:"Contrat d'apprentissage",
-    debut:"2026-04-01", fin:"2027-08-31", heures_mois:151.67, taux:6.13,
+    debut:"2026-04-01", fin:"2027-08-31", heures_mois:151.67, taux:6.1302,
     disponibilite:"Disponible tous les jours par défaut. Marquer manuellement 'ÉCOLE' les jours de formation.",
     ecole_periodes:["18–22 mai","23 juin","17–21 août"],
     poste:"Polyvalent", actif:true, note:"51% SMIC = 929,75 €/mois brut. Charges patronales quasi nulles (exo apprentissage). Entrée: 01/09/2025. CP: 14.84acq / 23.00pris = -8.16 au 28/02/2026.",
@@ -5057,7 +5057,7 @@ const STATUTS = {
 function shH(sh) {
   if (!sh) return 0;
   if (sh.type === "travail")    return sh.h || 0;
-  if (sh.type === "ecole")      return 7.0;  // ✅ école = 7h, salaire maintenu
+  if (sh.type === "ecole")      return sh.h && sh.h > 0 ? sh.h : 7.0;  // ✅ école = heures réelles ou 7h par défaut, salaire maintenu
   if (sh.type === "soir")       return sh.h || 7.0; // créneau soir
   if (sh.type === "absent_inj") return 0;    // ❌ absent injustifié = 0h, déduit
   if (sh.type === "absent")     return 0;    // absence à justifier
@@ -5471,9 +5471,9 @@ function exportPaie(team, shifts, year, month) {
             if (sh) {
               if (sh.type === "travail") { semH += sh.h||0; semJ++; }
               // École CFA / POEI = temps de travail effectif (IDCC 1790 apprentis)
-              // → compte dans les heures rémunérées au taux normal
+              // → 7h par défaut si non renseigné, salaire maintenu au taux normal
               else if (sh.type === "ecole" || sh.type === "poei") {
-                const hEcole = sh.h || 7.0; // 7h par défaut si non renseigné
+                const hEcole = (sh.h && sh.h > 0) ? sh.h : 7.0;
                 semEcole++;
                 semEcoleH += hEcole;
                 semH += hEcole; // inclus dans le total heures rémunérées
@@ -5522,6 +5522,12 @@ function exportPaie(team, shifts, year, month) {
     const diff = hCtr > 0 ? Math.round((totalH - hCtr) * 100) / 100 : null;
     const diffStyle = diff === null ? "" : diff > 0 ? "color:#1565C0;font-weight:700" : diff < 0 ? "color:#C62828;font-weight:700" : "color:#2E7D32";
     const diffStr  = diff === null ? "—" : (diff > 0 ? "+" : "") + diff.toFixed(2) + "h";
+    // Pour les apprentis : ventilation terrain/école visible
+    const isApprenti = (emp.type === "apprenti" || emp.contrat || "").toLowerCase().indexOf("apprent") >= 0;
+    const hTerrain   = totalH - ecoleH; // heures terrain seules
+    const brutNote   = isApprenti
+      ? `${hTerrain.toFixed(2)}h terrain + ${ecoleH.toFixed(2)}h CFA = ${totalH.toFixed(2)}h × ${(parseFloat(emp.taux)||0).toFixed(4)} €`
+      : "";
 
     // Cellules semaines
     const semCells = detailSem.map(s => {
@@ -5551,7 +5557,7 @@ function exportPaie(team, shifts, year, month) {
       <td style="text-align:center;color:${malJ>0?"#6A1B9A":"#ccc"}">${malJ > 0 ? malJ+"j" : "—"}</td>
       <td style="text-align:center;color:${absJ>0?"#C62828":"#ccc"}">${absJ > 0 ? absJ+"j" : "—"}</td>
       <td style="text-align:center;color:${ecoleJ>0?"#1565C0":"#ccc"};background:${ecoleJ>0?"#E3F2FD":"inherit"}">${ecoleJ > 0 ? ecoleJ+"j / "+ecoleH.toFixed(1)+"h" : "—"}</td>
-      <td style="text-align:right;font-weight:900;color:#1B5E20;background:#F1F8E9">${brut.toFixed(2)} €</td>
+      <td style="text-align:right;font-weight:900;color:#1B5E20;background:#F1F8E9">${brut.toFixed(2)} €${brutNote ? `<br/><span style="font-size:8px;color:#555;font-weight:normal">${brutNote}</span>` : ""}</td>
       <td style="font-size:9px;color:#555">${emp.iban || "<span style='color:orange'>IBAN manquant</span>"}</td>
       <td style="font-size:8px;color:#999">${!inContract ? "Hors période" : ""}</td>
     </tr>`;
@@ -5653,7 +5659,8 @@ function exportPaie(team, shifts, year, month) {
   <p style="margin-top:16px;font-size:8px;color:#999;border-top:1px solid #eee;padding-top:6px">
     Document généré le ${new Date().toLocaleDateString("fr-FR")} · AbracadaParc - Goussainville (95) ·
     Bruts indicatifs avant charges sociales, primes et CP — À valider avec votre gestionnaire de paie<br/>
-    Apprentis (IDCC 1790) : jours CFA/école inclus dans les heures rémunérées (temps de travail effectif — Code du travail art. L6221-1)
+    Apprentis (IDCC 1790) : jours CFA/école = temps de travail effectif, salaire maintenu (C. trav. art. L6221-1)<br/>
+    Myron CANDUN : 151.67h × 6.1302 €/h = 929.77 € brut/mois (51% SMIC 2026) — Exonération charges patronales apprentissage
   </p>
   <script>window.onload=function(){window.print();}<\/script>
   </body></html>`;
