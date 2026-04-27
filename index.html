@@ -637,7 +637,7 @@ contact@abracadaparc.fr`;
   function buildResaDetailModal(r) {
     var seg = getSegment(r.segment);
     var st = getStatut(r.statut || '1');
-    var isAnniv = r.segment === 'anniversaire' || (r.id && r.id.indexOf('CMD') === 0);
+    var isAnniv = r.segment === 'anniversaire' && (r.type === 'anniversaire' || r.type === 'anniv' || (!r.type && r.prenom_enfant));
     var nom = esc(r.prenom_enfant || r.organisation || r.nom_contact || r.client || '—');
     var dateStr = r.date ? new Date(r.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '—';
     var total = calcTotal(r);
@@ -846,7 +846,7 @@ contact@abracadaparc.fr`;
     var byDay = {};
     getReservations().forEach(function(r) {
       if (!r.date) return;
-      var isAnniv = r.segment === 'anniversaire' || (r.id && r.id.indexOf('CMD') === 0);
+      var isAnniv = r.segment === 'anniversaire' && (r.type === 'anniversaire' || r.type === 'anniv' || (!r.type && r.prenom_enfant));
       var statutNum = parseInt(r.statut || '1');
       if (!isAnniv && statutNum < 3) return;
       if (!byDay[r.date]) byDay[r.date] = [];
@@ -958,11 +958,10 @@ contact@abracadaparc.fr`;
     dans7j.setDate(dans7j.getDate() + 7);
     var ds7 = dans7j.toISOString().slice(0,10);
 
-    // Visites dans les 7 prochains jours + aujourd'hui
     var visites = Object.values(state.reservations)
       .filter(function(r) {
         if (!r.date) return false;
-        var isGroupe = r.segment !== 'anniversaire' && !(r.id && r.id.indexOf('CMD') === 0);
+        var isGroupe = r.segment !== 'anniversaire' && !(r.type === 'anniversaire');
         var dateOk = r.date >= aujourd_hui && r.date <= ds7;
         var statutOk = parseInt(r.statut || '1') >= 3;
         return isGroupe && dateOk && statutOk;
@@ -978,43 +977,170 @@ contact@abracadaparc.fr`;
     }
 
     var rows = visites.map(function(r) {
-      var enf_p   = parseInt(r.effectif_enfants || 0);
-      var acc_p   = parseInt(r.effectif_adultes || 0);
+      var enf_p   = parseInt(r.enfants || r.nb_enfants || r.effectif_enfants || 0);
+      var acc_p   = parseInt(r.accompagnants || r.nb_adultes || r.effectif_adultes || 0);
       var enf_r   = parseInt(r.effectif_enfants_reel || 0);
       var acc_r   = parseInt(r.effectif_adultes_reel || 0);
-      var montant = parseFloat(r.montant_total || 0);
-      var acompte = parseFloat(r.acompte_paye || r.acompte || 0);
-
-      // Calcul solde ajusté : si effectif réel < effectif devis → -10% max
-      var soldeAffiche = montant - acompte;
-      var soldeAjuste  = soldeAffiche;
-      var ajustement   = '';
-      if (enf_r > 0 && enf_r < enf_p) {
-        var diffPct = (enf_p - enf_r) / enf_p;
-        var reduction = Math.min(diffPct, 0.10); // max 10%
-        var nouveauMontant = Math.round(montant * (1 - reduction) * 100) / 100;
-        soldeAjuste = Math.max(0, nouveauMontant - acompte);
-        var econom = Math.round((montant - nouveauMontant) * 100) / 100;
-        ajustement = '<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 7px;border-radius:10px;font-weight:700;">-' + econom.toFixed(2) + '€ ajusté</span>';
-      }
+      var montant = parseFloat(r.montant_total || r.total || 0);
+      var acompte = parseFloat(r.acompte_paye || r.acompte_recu || r.acompte || 0);
 
       var isToday = r.date === aujourd_hui;
       var diffJ   = Math.round((new Date(r.date + 'T12:00') - new Date(aujourd_hui + 'T12:00')) / 86400000);
       var urgBg   = isToday ? '#E8F5E9' : diffJ === 1 ? '#FFF8E1' : '#FAFAFA';
       var urgBorder = isToday ? '#A5D6A7' : diffJ === 1 ? '#FFD54F' : '#EEEEEE';
-
       var saisiOk = enf_r > 0;
+
+      // ── CALCUL CGV ──────────────────────────────────────────────────────────
+      // Calcul en temps réel uniquement si réel saisi
+      var calcHtml = '';
+      var soldeDevis = Math.max(0, montant - acompte);
+
+      if (saisiOk && enf_p > 0) {
+        var diffPct  = (enf_p - enf_r) / enf_p; // positif si moins d'enfants
+        var plusEnf  = enf_r - enf_p;            // positif si plus d'enfants
+
+        if (plusEnf > 0) {
+          // ── CAS : PLUS d'enfants que prévu ──────────────────────────────────
+          // Calculer tarif unitaire moyen
+          var tarifUnit = enf_p > 0 ? montant / enf_p : 0;
+          var supplement = Math.round(plusEnf * tarifUnit * 100) / 100;
+          var nouveauMontant = montant + supplement;
+          var soldeSupplement = Math.max(0, nouveauMontant - acompte);
+
+          calcHtml = '<div style="background:#E3F2FD;border:1.5px solid #90CAF9;border-radius:10px;padding:12px 14px;margin-bottom:10px;">' +
+            '<div style="font-size:11px;font-weight:700;color:#1565C0;text-transform:uppercase;margin-bottom:8px;">📊 Calcul CGV — Effectif supérieur au devis</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">' +
+              '<div style="background:#fff;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#9E9E9E;">Prévu</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#1565C0;">' + enf_p + ' enf.</div>' +
+              '</div>' +
+              '<div style="background:#fff;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#9E9E9E;">Réel</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#E65100;">+' + plusEnf + ' enf.</div>' +
+              '</div>' +
+              '<div style="background:#E3F2FD;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#1565C0;">Supplément</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#1565C0;">+' + supplement.toFixed(2) + ' €</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="background:#1565C0;color:#fff;border-radius:8px;padding:10px;text-align:center;">' +
+              '<div style="font-size:11px;opacity:0.85;">SOLDE À ENCAISSER (avec supplément)</div>' +
+              '<div style="font-size:22px;font-weight:900;">' + soldeSupplement.toFixed(2) + ' €</div>' +
+              '<div style="font-size:10px;opacity:0.75;margin-top:2px;">Montant recalculé : ' + nouveauMontant.toFixed(2) + ' € (vs devis ' + montant.toFixed(2) + ' €)</div>' +
+            '</div>' +
+          '</div>';
+
+        } else if (diffPct > 0 && diffPct <= 0.10) {
+          // ── CAS : Moins d'enfants ≤ 10% — réduction possible sur demande ──
+          var nvMontant10 = Math.round(montant * (1 - diffPct) * 100) / 100;
+          var soldeAvecReduc = Math.max(0, nvMontant10 - acompte);
+          var econom = Math.round((montant - nvMontant10) * 100) / 100;
+
+          calcHtml = '<div style="background:#FFF8E1;border:1.5px solid #FFD54F;border-radius:10px;padding:12px 14px;margin-bottom:10px;">' +
+            '<div style="font-size:11px;font-weight:700;color:#E65100;text-transform:uppercase;margin-bottom:8px;">📊 Calcul CGV — Effectif inférieur (dans la limite -10%)</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">' +
+              '<div style="background:#fff;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#9E9E9E;">Prévu</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#424242;">' + enf_p + ' enf.</div>' +
+              '</div>' +
+              '<div style="background:#fff;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#9E9E9E;">Réel</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#E65100;">' + enf_r + ' enf.</div>' +
+              '</div>' +
+              '<div style="background:#FFF8E1;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#E65100;">Écart</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#E65100;">-' + Math.round(diffPct * 100) + '%</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">' +
+              '<div style="background:#fff;border:1px solid #E0E0E0;border-radius:8px;padding:10px;text-align:center;">' +
+                '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Sans ajustement</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#2E7D32;">' + soldeDevis.toFixed(2) + ' €</div>' +
+                '<div style="font-size:9px;color:#9E9E9E;">Montant devis maintenu</div>' +
+              '</div>' +
+              '<div style="background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;padding:10px;text-align:center;">' +
+                '<div style="font-size:10px;color:#E65100;margin-bottom:2px;">Avec ajustement (-' + Math.round(diffPct*100) + '%)</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#E65100;">' + soldeAvecReduc.toFixed(2) + ' €</div>' +
+                '<div style="font-size:9px;color:#E65100;">Économie client : -' + econom.toFixed(2) + ' €</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#757575;font-style:italic;text-align:center;">⚠️ Ajustement sur demande uniquement — pas automatique</div>' +
+          '</div>';
+
+        } else if (diffPct > 0.10) {
+          // ── CAS : Moins d'enfants > 10% — CGV : montant devis maintenu ──
+          calcHtml = '<div style="background:#FFEBEE;border:1.5px solid #EF9A9A;border-radius:10px;padding:12px 14px;margin-bottom:10px;">' +
+            '<div style="font-size:11px;font-weight:700;color:#C62828;text-transform:uppercase;margin-bottom:8px;">📊 Calcul CGV — Écart > 10% : montant devis maintenu</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">' +
+              '<div style="background:#fff;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#9E9E9E;">Prévu</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#424242;">' + enf_p + ' enf.</div>' +
+              '</div>' +
+              '<div style="background:#fff;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#9E9E9E;">Réel</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#C62828;">' + enf_r + ' enf.</div>' +
+              '</div>' +
+              '<div style="background:#FFEBEE;border-radius:8px;padding:8px;">' +
+                '<div style="font-size:10px;color:#C62828;">Écart</div>' +
+                '<div style="font-size:16px;font-weight:800;color:#C62828;">-' + Math.round(diffPct*100) + '%</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="background:#C62828;color:#fff;border-radius:8px;padding:10px;text-align:center;">' +
+              '<div style="font-size:11px;opacity:0.85;">CGV : SOLDE DEVIS MAINTENU</div>' +
+              '<div style="font-size:22px;font-weight:900;">' + soldeDevis.toFixed(2) + ' €</div>' +
+              '<div style="font-size:10px;opacity:0.75;margin-top:2px;">Écart > 10% — aucune réduction applicable (CGV)</div>' +
+            '</div>' +
+          '</div>';
+
+        } else {
+          // ── CAS : Effectif identique ──────────────────────────────────────
+          calcHtml = '<div style="background:#E8F5E9;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#2E7D32;text-align:center;">✅ Effectif conforme au devis — solde standard : <strong>' + soldeDevis.toFixed(2) + ' €</strong></div>';
+        }
+      }
+
+      // ── BOUTONS VALIDATION ──────────────────────────────────────────────────
+      var btnHtml = '';
+      if (saisiOk) {
+        var diffPctBtn = enf_p > 0 ? (enf_p - enf_r) / enf_p : 0;
+        var plusEnfBtn = enf_r - enf_p;
+
+        // Bouton "Valider sans ajustement" → toujours présent
+        btnHtml += '<button data-terrain-save="' + r.id + '" data-ajust="non" ' +
+          'style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">' +
+          '✅ Valider (' + soldeDevis.toFixed(0) + ' €)</button>';
+
+        // Bouton "Demander ajustement" → seulement si écart ≤ 10% et négatif
+        if (diffPctBtn > 0 && diffPctBtn <= 0.10) {
+          var tarifUnitBtn = enf_p > 0 ? montant / enf_p : 0;
+          var nvMontantBtn = Math.round(montant * (1 - diffPctBtn) * 100) / 100;
+          var soldeAjustBtn = Math.max(0, nvMontantBtn - acompte);
+          btnHtml += '<button data-terrain-save="' + r.id + '" data-ajust="oui" data-montant-ajust="' + nvMontantBtn + '" data-solde-ajust="' + soldeAjustBtn + '" ' +
+            'style="flex:1;padding:10px;background:#E65100;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">' +
+            '📧 Demander ajustement (' + soldeAjustBtn.toFixed(0) + ' €)</button>';
+        }
+
+        // Bouton "Valider supplément" → si plus d'enfants
+        if (plusEnfBtn > 0) {
+          var tarifUnitSupp = enf_p > 0 ? montant / enf_p : 0;
+          var supplement = Math.round(plusEnfBtn * tarifUnitSupp * 100) / 100;
+          var nouveauMontantSupp = montant + supplement;
+          var soldeSupp = Math.max(0, nouveauMontantSupp - acompte);
+          btnHtml += '<button data-terrain-save="' + r.id + '" data-ajust="supplement" data-montant-ajust="' + nouveauMontantSupp + '" data-solde-ajust="' + soldeSupp + '" ' +
+            'style="flex:1;padding:10px;background:#1565C0;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;">' +
+            '📧 Valider supplément +' + supplement.toFixed(0) + ' € (' + soldeSupp.toFixed(0) + ' €)</button>';
+        }
+      }
 
       return '<div style="background:' + urgBg + ';border:1.5px solid ' + urgBorder + ';border-radius:12px;padding:14px 16px;margin-bottom:12px;">' +
         // En-tête
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
           '<div>' +
-            '<div style="font-size:13px;font-weight:800;color:#1B5E20;">' + esc(r.organisation || r.nom_contact || r.id) + '</div>' +
+            '<div style="font-size:13px;font-weight:800;color:#1B5E20;">' + esc(r.organisation || r.client || r.nom_contact || r.id) + '</div>' +
             '<div style="font-size:11px;color:#757575;margin-top:2px;">' +
-              fmtDate(r.date) + ' · ' + (r.heure_debut||'') + '-' + (r.heure_fin||'') +
-              ' · ' + (r.formule_id === 'matin' ? 'Matin' : r.formule_id === 'apres-midi' ? 'Après-midi' : 'Journée') +
+              fmtDate(r.date) + ' · ' + (r.heure_debut||'') + (r.creneau && r.creneau.indexOf(' - ') >= 0 ? ' - ' + r.creneau.split(' - ')[1] : '') +
+              ' · ' + esc(r.formule || '') +
             '</div>' +
-            (r.tel_contact ? '<a href="tel:' + r.tel_contact.replace(/ /g,'') + '" style="font-size:11px;color:#1565C0;text-decoration:none;">📞 ' + esc(r.tel_contact) + '</a>' : '') +
+            (r.tel || r.tel_contact ? '<a href="tel:' + esc(r.tel||r.tel_contact||'') + '" style="font-size:11px;color:#1565C0;text-decoration:none;">📞 ' + esc(r.tel||r.tel_contact||'') + '</a>' : '') +
           '</div>' +
           '<div style="text-align:right;">' +
             '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:' + (isToday?'#2E7D32':'#FFF8E1') + ';color:' + (isToday?'#fff':'#E65100') + ';">' +
@@ -1022,30 +1148,38 @@ contact@abracadaparc.fr`;
             '</span>' +
           '</div>' +
         '</div>' +
+
         // Ligne devis
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">' +
-          '<div style="background:#fff;border-radius:8px;padding:8px 10px;text-align:center;">' +
-            '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Devis enfants</div>' +
-            '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + enf_p + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">' +
+          '<div style="background:#fff;border-radius:8px;padding:8px 6px;text-align:center;">' +
+            '<div style="font-size:9px;color:#9E9E9E;margin-bottom:2px;">Devis enf.</div>' +
+            '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + (enf_p||'?') + '</div>' +
           '</div>' +
-          '<div style="background:#fff;border-radius:8px;padding:8px 10px;text-align:center;">' +
-            '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Devis acc.</div>' +
-            '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + acc_p + '</div>' +
+          '<div style="background:#fff;border-radius:8px;padding:8px 6px;text-align:center;">' +
+            '<div style="font-size:9px;color:#9E9E9E;margin-bottom:2px;">Devis acc.</div>' +
+            '<div style="font-size:16px;font-weight:800;color:#1B5E20;">' + (acc_p||'?') + '</div>' +
           '</div>' +
-          '<div style="background:#fff;border-radius:8px;padding:8px 10px;text-align:center;">' +
-            '<div style="font-size:10px;color:#9E9E9E;margin-bottom:2px;">Montant devis</div>' +
-            '<div style="font-size:14px;font-weight:800;color:#1B5E20;">' + montant.toFixed(2) + '€</div>' +
+          '<div style="background:#fff;border-radius:8px;padding:8px 6px;text-align:center;">' +
+            '<div style="font-size:9px;color:#9E9E9E;margin-bottom:2px;">Montant devis</div>' +
+            '<div style="font-size:13px;font-weight:800;color:#1B5E20;">' + montant.toFixed(2) + '€</div>' +
+          '</div>' +
+          '<div style="background:' + (soldeDevis > 0 ? '#FFF8E1' : '#E8F5E9') + ';border-radius:8px;padding:8px 6px;text-align:center;">' +
+            '<div style="font-size:9px;color:#9E9E9E;margin-bottom:2px;">Solde devis</div>' +
+            '<div style="font-size:14px;font-weight:900;color:' + (soldeDevis > 0 ? '#C62828' : '#2E7D32') + ';">' + soldeDevis.toFixed(2) + '€</div>' +
           '</div>' +
         '</div>' +
+
         // Saisie effectif réel
-        '<div style="background:#fff;border:1px solid #C8E6C9;border-radius:10px;padding:12px;margin-bottom:10px;">' +
+        '<div style="background:#fff;border:1px solid #C8E6C9;border-radius:10px;padding:12px;margin-bottom:8px;">' +
           '<div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">📍 Effectif réel du jour</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
             '<div>' +
               '<label style="font-size:11px;color:#757575;display:block;margin-bottom:4px;">Enfants présents</label>' +
               '<input type="number" min="0" max="500" ' +
                 'data-terrain-id="' + r.id + '" data-terrain-field="effectif_enfants_reel" ' +
+                'data-enf-p="' + enf_p + '" data-montant="' + montant + '" data-acompte="' + acompte + '" ' +
                 'value="' + (enf_r || '') + '" placeholder="' + enf_p + '" ' +
+                'oninput="terrainCGVLive(this)" ' +
                 'style="width:100%;padding:8px;border:1.5px solid ' + (saisiOk?'#A5D6A7':'#FFD54F') + ';border-radius:8px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box;">' +
             '</div>' +
             '<div>' +
@@ -1056,33 +1190,30 @@ contact@abracadaparc.fr`;
                 'style="width:100%;padding:8px;border:1.5px solid #E8F5E9;border-radius:8px;font-size:14px;font-weight:700;text-align:center;box-sizing:border-box;">' +
             '</div>' +
           '</div>' +
-        '</div>' +
-        // Solde à encaisser
-        '<div style="display:flex;justify-content:space-between;align-items:center;background:' + (saisiOk?'#E8F5E9':'#FFF8E1') + ';border-radius:10px;padding:10px 14px;">' +
-          '<div>' +
-            '<div style="font-size:11px;color:#757575;">Acompte encaissé</div>' +
-            '<div style="font-size:13px;font-weight:700;color:#1565C0;">' + acompte.toFixed(2) + '€</div>' +
-          '</div>' +
-          '<div style="text-align:center;">' +
-            ajustement +
-          '</div>' +
-          '<div style="text-align:right;">' +
-            '<div style="font-size:11px;color:#757575;">Solde à encaisser</div>' +
-            '<div style="font-size:18px;font-weight:900;color:' + (saisiOk?'#2E7D32':'#E65100') + ';">' + soldeAjuste.toFixed(2) + '€</div>' +
+          // Indicateur CGV live
+          '<div id="cgv_' + r.id + '" style="margin-top:8px;font-size:12px;font-weight:600;color:#9E9E9E;min-height:18px;">' +
+            (saisiOk ? (function() {
+              var d = enf_p > 0 ? (enf_p - enf_r) / enf_p : 0;
+              var p = enf_r - enf_p;
+              if (p > 0) return '🔵 +' + p + ' enf. → supplément applicable';
+              if (d > 0 && d <= 0.1) return '🟡 -' + Math.round(d*100) + '% (≤10%) → réduction possible sur demande';
+              if (d > 0.1) return '🔴 -' + Math.round(d*100) + '% (>10%) → CGV : montant devis maintenu';
+              return '✅ Effectif conforme';
+            })() : '') +
           '</div>' +
         '</div>' +
-        // Bouton sauvegarder
-        '<div style="margin-top:10px;text-align:center;">' +
-          '<button data-terrain-save="' + r.id + '" ' +
-            'style="width:100%;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">' +
-            '💾 Sauvegarder l\'effectif réel' +
-          '</button>' +
-        '</div>' +
+
+        // Calcul CGV (affiché si réel saisi)
+        calcHtml +
+
+        // Boutons validation
+        (saisiOk ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' + btnHtml + '</div>' : '') +
+
         // Notes terrain
-        '<div style="margin-top:8px;">' +
+        '<div>' +
           '<textarea data-terrain-id="' + r.id + '" data-terrain-field="notes_terrain" ' +
-            'placeholder="Notes terrain (incidents, retard, remarques...)" ' +
-            'style="width:100%;padding:8px;border:1px solid #E8F5E9;border-radius:8px;font-size:11px;font-family:inherit;resize:vertical;min-height:50px;box-sizing:border-box;">' +
+            'placeholder="Notes terrain (incidents, retard, remarques...)..." ' +
+            'style="width:100%;padding:8px;border:1px solid #E8F5E9;border-radius:8px;font-size:11px;font-family:inherit;resize:vertical;min-height:44px;box-sizing:border-box;">' +
             esc(r.notes_terrain || '') +
           '</textarea>' +
         '</div>' +
@@ -1092,12 +1223,11 @@ contact@abracadaparc.fr`;
     return '<div>' +
       '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:12px;padding:12px 16px;margin-bottom:14px;">' +
         '<div style="font-size:13px;font-weight:700;color:#1B5E20;">📍 Vue Terrain — ' + visites.length + ' visite(s) dans les 7 prochains jours</div>' +
-        '<div style="font-size:11px;color:#2E7D32;margin-top:3px;">Saisir l\'effectif réel · Le solde ajusté est calculé automatiquement (max -10% CGV)</div>' +
+        '<div style="font-size:11px;color:#2E7D32;margin-top:3px;">Saisir l'effectif réel · Le calcul CGV s'affiche automatiquement · Ajustement sur demande uniquement</div>' +
       '</div>' +
       rows +
     '</div>';
   }
-
   // ─── VUE GÂTEAUX ─────────────────────────────────────────────────────────────
 
   function buildGateauxView() {
@@ -1695,49 +1825,134 @@ contact@abracadaparc.fr`;
       });
     });
 
-    // ── Terrain : sauvegarder effectif réel ──────────────────────────────────
+    // ── Terrain : sauvegarder effectif réel + calcul CGV + email ────────────
     el.querySelectorAll('[data-terrain-save]').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        var id = this.getAttribute('data-terrain-save');
-        var r  = state.reservations[id];
+        var id        = this.getAttribute('data-terrain-save');
+        var ajust     = this.getAttribute('data-ajust') || 'non';
+        var montantAjust = parseFloat(this.getAttribute('data-montant-ajust') || '0');
+        var soldeAjust   = parseFloat(this.getAttribute('data-solde-ajust') || '0');
+        var r = state.reservations[id];
         if (!r) return;
-        var enfInput = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="effectif_enfants_reel"]');
-        var accInput = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="effectif_adultes_reel"]');
+
+        var enfInput   = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="effectif_enfants_reel"]');
+        var accInput   = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="effectif_adultes_reel"]');
         var notesInput = el.querySelector('[data-terrain-id="' + id + '"][data-terrain-field="notes_terrain"]');
-        var enfR  = enfInput  ? (parseInt(enfInput.value)  || 0) : 0;
-        var accR  = accInput  ? (parseInt(accInput.value)  || 0) : 0;
+        var enfR  = enfInput   ? (parseInt(enfInput.value)  || 0) : 0;
+        var accR  = accInput   ? (parseInt(accInput.value)  || 0) : 0;
         var notes = notesInput ? notesInput.value : '';
-        // Calcul solde ajuste (regle -10% max CGV)
-        var enf_p   = parseInt(r.effectif_enfants || 0);
-        var montant = parseFloat(r.montant_total || 0);
-        var acompte = parseFloat(r.acompte_paye || r.acompte || 0);
-        var solde   = montant - acompte;
-        if (enfR > 0 && enfR < enf_p) {
-          var diffPct   = (enf_p - enfR) / enf_p;
-          var reduction = Math.min(diffPct, 0.10);
-          var nvMontant = Math.round(montant * (1 - reduction) * 100) / 100;
-          solde = Math.max(0, nvMontant - acompte);
+
+        var enf_p   = parseInt(r.enfants || r.nb_enfants || r.effectif_enfants || 0);
+        var montant = parseFloat(r.montant_total || r.total || 0);
+        var acompte = parseFloat(r.acompte_paye || r.acompte_recu || r.acompte || 0);
+
+        // Déterminer montant final selon bouton cliqué
+        var montantFinal, soldeFinal, labelAction;
+        if (ajust === 'non') {
+          montantFinal = montant;
+          soldeFinal   = Math.max(0, montant - acompte);
+          labelAction  = 'Maintien montant devis';
+        } else if (ajust === 'oui') {
+          montantFinal = montantAjust;
+          soldeFinal   = soldeAjust;
+          labelAction  = 'Ajustement demandé (CGV ≤10%)';
+        } else if (ajust === 'supplement') {
+          montantFinal = montantAjust;
+          soldeFinal   = soldeAjust;
+          labelAction  = 'Supplément enfants';
         }
-        // Sauvegarder dans Firebase via fbSave
+
+        var nomGroupe = r.organisation || r.client || r.nom_contact || r.id;
+        var dateVisite = r.date ? new Date(r.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : r.date;
+
+        // Sauvegarder dans Firebase
         var updated = Object.assign({}, r, {
           effectif_enfants_reel: enfR,
           effectif_adultes_reel: accR,
           effectif_total_reel:   enfR + accR,
-          solde_ajuste:          Math.round(solde * 100) / 100,
+          montant_final:         montantFinal,
+          solde_encaisse:        soldeFinal,
+          ajustement_cgv:        ajust,
           notes_terrain:         notes,
           modified_at:           Date.now(),
           modified_by:           state.currentUser || 'Equipe',
+          statut:                '5'
         });
         fbSave(id, updated);
         state.reservations[id] = updated;
+
+        // Générer brouillon Gmail si ajustement ou supplément
+        if (ajust === 'oui' || ajust === 'supplement') {
+          var sujet = '[AbracadaParc] Ajustement facturation — ' + nomGroupe + ' — ' + (r.date || '');
+          var corps = 'Bonjour,
+
+' +
+            'Suite à la visite du ' + dateVisite + ', voici le récapitulatif pour facturation :
+
+' +
+            '═══════════════════════════════════
+' +
+            'GROUPE : ' + nomGroupe + '
+' +
+            'DATE   : ' + dateVisite + '
+' +
+            'CRÉNEAU: ' + (r.creneau || r.heure_debut || '') + '
+' +
+            '═══════════════════════════════════
+
+' +
+            '📋 EFFECTIFS
+' +
+            '  Prévu au devis   : ' + enf_p + ' enfants
+' +
+            '  Présents réels   : ' + enfR + ' enfants / ' + accR + ' accompagnants
+' +
+            '  Écart            : ' + (enfR - enf_p > 0 ? '+' : '') + (enfR - enf_p) + ' enfants
+
+' +
+            '💶 FACTURATION
+' +
+            '  Montant devis    : ' + montant.toFixed(2) + ' €
+' +
+            '  Acompte reçu     : ' + acompte.toFixed(2) + ' €
+' +
+            '  ' + labelAction + '
+' +
+            '  ─────────────────────────────────
+' +
+            '  MONTANT FINAL    : ' + montantFinal.toFixed(2) + ' €
+' +
+            '  SOLDE À FACTURER : ' + soldeFinal.toFixed(2) + ' €
+
+' +
+            (notes ? '📝 Notes terrain : ' + notes + '
+
+' : '') +
+            '→ À saisir dans MEG / Pennylane pour établir la facture.
+
+' +
+            'Cordialement,
+AbracadaParc';
+
+          // Ouvrir Gmail avec brouillon pré-rempli
+          var gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1' +
+            '&to=' + encodeURIComponent('contact@abracadaparc.fr') +
+            '&su=' + encodeURIComponent(sujet) +
+            '&body=' + encodeURIComponent(corps);
+          window.open(gmailUrl, '_blank');
+        }
+
+        // Feedback visuel
         var btn2 = this;
-        btn2.textContent = '✅ Sauvegarde OK !';
+        var origText = btn2.textContent;
+        var origBg   = btn2.style.background;
+        btn2.textContent = '✅ Enregistré !';
         btn2.style.background = '#388E3C';
         setTimeout(function() {
-          btn2.textContent = "💾 Sauvegarder l'effectif reel";
-          btn2.style.background = '#2E7D32';
+          btn2.textContent = origText;
+          btn2.style.background = origBg;
           render();
-        }, 1500);
+        }, 2000);
       });
     });
 
@@ -2001,7 +2216,7 @@ contact@abracadaparc.fr`;
         var tot=parseFloat(g.montant_total||g.total||g.montant||g.totalTTC||0);
         var ac=parseFloat(g.acompte_paye||g.acompte_verse||g.acompte||0);
         var sol=parseFloat(g.solde_restant||g.solde||(tot-ac)||0);
-        var isAnniv = (g.type||g.segment||'').toLowerCase().indexOf('anniv')>=0 || key.indexOf('CMD')===0;
+        var isAnniv = (g.type||g.segment||'').toLowerCase().indexOf('anniv')>=0 && (g.type||g.segment||'').toLowerCase().indexOf('billet')<0 && (g.type||'').toLowerCase().indexOf('journee')<0;
         gNorm[key]={
           id:key, segment:isAnniv?'anniversaire':(g.segment||'alsh'), statut:String(st),
           nom:g.client||g.nom||key,
@@ -7246,6 +7461,40 @@ function HistoriquePlanningModal({onClose, onRestore}) {
       </div>
     </div>
   );
+}
+
+// ── Terrain : calcul CGV live (appelé depuis oninput) ─────────────────────
+function terrainCGVLive(el) {
+  var enf_r   = parseInt(el.value) || 0;
+  var enf_p   = parseInt(el.getAttribute('data-enf-p'))   || 0;
+  var montant = parseFloat(el.getAttribute('data-montant')) || 0;
+  var id      = el.getAttribute('data-terrain-id');
+  var el2     = document.getElementById('cgv_' + id);
+  if (!el2 || enf_p === 0) return;
+
+  var diffPct = (enf_p - enf_r) / enf_p;
+  var plus    = enf_r - enf_p;
+
+  if (enf_r === 0) {
+    el2.innerHTML = '';
+    return;
+  }
+  if (plus > 0) {
+    var sup = Math.round(plus * (montant / enf_p) * 100) / 100;
+    el2.innerHTML  = '🔵 +' + plus + ' enf. → supplément : +' + sup.toFixed(2) + ' €';
+    el2.style.color = '#1565C0';
+  } else if (diffPct > 0 && diffPct <= 0.10) {
+    var nv  = Math.round(montant * (1 - diffPct) * 100) / 100;
+    var eco = Math.round((montant - nv) * 100) / 100;
+    el2.innerHTML  = '🟡 -' + Math.round(diffPct * 100) + '% (≤10%) → réduction possible : -' + eco.toFixed(2) + ' €';
+    el2.style.color = '#E65100';
+  } else if (diffPct > 0.10) {
+    el2.innerHTML  = '🔴 -' + Math.round(diffPct * 100) + '% (>10%) → CGV : montant devis maintenu';
+    el2.style.color = '#C62828';
+  } else {
+    el2.innerHTML  = '✅ Effectif conforme au devis';
+    el2.style.color = '#2E7D32';
+  }
 }
 
 var _fbDomEl = document.getElementById('fallback-loader');
