@@ -5251,19 +5251,16 @@ function exportPaie(team, shifts, year, month) {
   // ── Lignes salariés ──────────────────────────────────────────────────────────
   const rows = activeTeam.map(emp => {
     const { totalH, totalJ, reposJ, congesJ, absJ, malJ, ecoleJ, ecoleH, detailSem } = calcEmpMois(emp);
-    const taux   = parseFloat(emp.taux)||0;
-    // Vérifier si le 1er mai est travaillé ce mois (mois=5)
-    const has1Mai = month === 5;
-    const sh1Mai  = has1Mai ? shifts[`${emp.id}_${year}-05-01`] : null;
-    const h1Mai   = (sh1Mai && sh1Mai.type === "travail") ? (sh1Mai.h||0) : 0;
-    const majorationMai = Math.round(h1Mai * taux * 100) / 100; // +100% = doublement
-    const brut   = Math.round((totalH * taux + majorationMai) * 100) / 100;
-    const brutBase = Math.round(totalH * taux * 100) / 100;
-    const { acquis, pris, restants, detail_conges } = calcCP(emp, shifts, season);
-    const ddn      = emp.ddn   ? new Date(emp.ddn+"T12:00").toLocaleDateString("fr-FR") : "—";
-    const debutFR  = emp.debut ? new Date(emp.debut+"T12:00").toLocaleDateString("fr-FR") : "—";
-    const finFR    = emp.fin   ? new Date(emp.fin+"T12:00").toLocaleDateString("fr-FR")   : "—";
-    // Jours CP posés CE mois-ci
+    const { acquis, pris, restants } = calcCP(emp, shifts, season);
+    const taux    = parseFloat(emp.taux)||0;
+    const hCtr    = parseFloat(emp.heures_mois)||0;
+
+    // Dates formatées
+    const ddn     = emp.ddn   ? new Date(emp.ddn+"T12:00").toLocaleDateString("fr-FR") : "—";
+    const debutFR = emp.debut ? new Date(emp.debut+"T12:00").toLocaleDateString("fr-FR") : "—";
+    const finFR   = emp.fin   ? new Date(emp.fin+"T12:00").toLocaleDateString("fr-FR")   : "—";
+
+    // CP posés CE mois-ci — liste des dates exactes
     const cpCeMois = (() => {
       const liste = [];
       for (let i=1;i<=days;i++) {
@@ -5273,11 +5270,10 @@ function exportPaie(team, shifts, year, month) {
       }
       return liste;
     })();
-    const hCtr    = parseFloat(emp.heures_mois)||0;
-    // Modulation : calculer l'écart cumulé depuis début de saison
+
+    // Modulation : écart cumulé depuis début contrat jusqu'à fin du mois
     const modulEcart = (() => {
       if (hCtr <= 0) return null;
-      // Heures théoriques cumulées depuis début contrat jusqu'à fin du mois en cours
       const debutContrat = emp.debut || SEASON_START;
       const finMoisStr   = `${year}-${mStr}-${String(days).padStart(2,"0")}`;
       let hTheoCum = 0, hReelCum = 0;
@@ -5286,8 +5282,8 @@ function exportPaie(team, shifts, year, month) {
       while (d <= finM) {
         const ds2 = d.toISOString().slice(0,10);
         if (ds2 >= SEASON_START && ds2 <= SEASON_END) {
-          const dt = getDayType ? getDayType(ds2) : null;
-          if (dt) hTheoCum += (hCtr / 20); // approximation journalière
+          const dt = typeof getDayType === "function" ? getDayType(ds2) : null;
+          if (dt) hTheoCum += (hCtr / 20);
           const sh2 = shifts[`${emp.id}_${ds2}`];
           if (sh2 && (sh2.type==="travail"||sh2.type==="ecole"||sh2.type==="poei")) {
             hReelCum += (sh2.h && sh2.h > 0) ? sh2.h : 7.0;
@@ -5297,31 +5293,44 @@ function exportPaie(team, shifts, year, month) {
       }
       return Math.round((hReelCum - hTheoCum)*10)/10;
     })();
-    const hCtr   = parseFloat(emp.heures_mois)||0;
-    const diff   = hCtr > 0 ? Math.round((totalH - hCtr)*100)/100 : null;
+
+    // Majoration 1er mai
+    const has1Mai       = month === 5;
+    const sh1Mai        = has1Mai ? shifts[`${emp.id}_${year}-05-01`] : null;
+    const h1Mai         = (sh1Mai && sh1Mai.type === "travail") ? (sh1Mai.h||0) : 0;
+    const majorationMai = Math.round(h1Mai * taux * 100) / 100;
+    const brutBase      = Math.round(totalH * taux * 100) / 100;
+    const brut          = Math.round((totalH * taux + majorationMai) * 100) / 100;
+
+    // Ecart heures vs contrat
+    const diff      = hCtr > 0 ? Math.round((totalH - hCtr)*100)/100 : null;
     const diffColor = diff === null ? "#999" : diff > 0 ? "#1565C0" : diff < 0 ? "#C62828" : "#2E7D32";
-    const diffStr  = diff === null ? "—" : (diff > 0 ? "+" : "") + diff.toFixed(2) + "h";
+    const diffStr   = diff === null ? "—" : (diff > 0 ? "+" : "") + diff.toFixed(2) + "h";
+
+    // Note apprenti : ventilation terrain / CFA
     const isApprenti = (emp.type||"").toLowerCase().indexOf("apprent") >= 0;
     const hTerrain   = totalH - ecoleH;
     const brutNote   = isApprenti && ecoleH > 0
       ? `${hTerrain.toFixed(1)}h terrain + ${ecoleH.toFixed(1)}h CFA = ${totalH.toFixed(1)}h × ${taux.toFixed(4)}€`
       : "";
+
     // Motif fin de contrat
     const motifFin = (() => {
       if (!emp.fin || emp.fin >= "2027-01-01") return "";
-      const finD = new Date(emp.fin+"T12:00");
-      const today = new Date();
+      const finD     = new Date(emp.fin+"T12:00");
+      const today    = new Date();
       const daysLeft = Math.round((finD - today) / 86400000);
-      const type = (emp.type||"").toLowerCase();
-      if (type === "stagiaire")   return "Fin de stage";
-      if (type === "apprenti")    return "Fin apprentissage";
-      if (daysLeft < 0)           return "Contrat terminé";
-      if (daysLeft <= 31)         return `Fin CDD dans ${daysLeft}j`;
+      const type     = (emp.type||"").toLowerCase();
+      if (type === "stagiaire")  return "Fin de stage";
+      if (type === "apprenti")   return "Fin apprentissage";
+      if (daysLeft < 0)          return "Contrat terminé";
+      if (daysLeft <= 31)        return `Fin CDD dans ${daysLeft}j`;
       return "CDD saisonnier";
     })();
 
-        const inContract = (emp.debut||"") <= `${year}-${mStr}-01` && (emp.fin||"9999-12-31") >= `${year}-${mStr}-${String(days).padStart(2,"0")}`;
+    const inContract = (emp.debut||"") <= `${year}-${mStr}-01` && (emp.fin||"9999-12-31") >= `${year}-${mStr}-${String(days).padStart(2,"0")}`;
 
+    // Cellules semaines
     const semCells = detailSem.map(s => {
       const hStr = s.h > 0
         ? `<span style="font-weight:700;color:#1B5E20">${s.h.toFixed(2)}h</span>`
@@ -5346,9 +5355,9 @@ function exportPaie(team, shifts, year, month) {
       <td style="text-align:center;font-weight:900;color:#1B5E20;background:#F1F8E9">${totalH.toFixed(2)}h</td>
       <td style="text-align:center">${totalJ}j</td>
       <td style="text-align:center;color:${diffColor};font-weight:700">${diffStr}</td>
-      <td style="text-align:center;font-size:9px;background:#F0F4FF">${debutFR}</td>
-      <td style="text-align:center;font-size:9px;background:#F0F4FF">${finFR}</td>
-      <td style="text-align:center;color:${congesJ>0?"#E65100":"#ccc"}">${congesJ>0?cpCeMois.map(d=>d.slice(8)).join(", ")+" ("+congesJ+"j)":"—"}</td>
+      <td style="text-align:center;background:#E8F0FE;font-size:9px">${debutFR}</td>
+      <td style="text-align:center;background:#E8F0FE;font-size:9px">${finFR}</td>
+      <td style="text-align:center;color:${congesJ>0?"#E65100":"#ccc"}">${congesJ>0 ? cpCeMois.map(d=>d.slice(8)).join(", ")+" ("+congesJ+"j)" : "—"}</td>
       <td style="text-align:center;color:${malJ>0?"#6A1B9A":"#ccc"}">${malJ>0?malJ+"j":"—"}</td>
       <td style="text-align:center;color:${absJ>0?"#C62828":"#ccc"}">${absJ>0?absJ+"j":"—"}</td>
       <td style="text-align:center;color:${ecoleJ>0?"#1565C0":"#ccc"};background:${ecoleJ>0?"#E8F0FE":"inherit"}">${ecoleJ>0?ecoleJ+"j / "+ecoleH.toFixed(1)+"h":"—"}</td>
@@ -5357,9 +5366,8 @@ function exportPaie(team, shifts, year, month) {
         ${brutNote ? `<br/><span style="font-size:8px;color:#555;font-weight:normal">${brutNote}</span>` : ""}
         ${majorationMai > 0 ? `<br/><span style="font-size:8px;color:#C62828;font-weight:700">🔴 +${majorationMai.toFixed(2)}€ (1er mai ×2)</span>` : ""}
       </td>
-      <td style="text-align:center;font-size:9px">${acquis}j acq. / ${pris}j pris<br/><b style="color:${restants<0?'#C62828':'#2E7D32'}">${restants}j rest.</b></td>
-      <td style="font-size:9px">${emp.iban || "<span style='color:orange'>IBAN ?</span>"}</td>
-      <td style="font-size:9px;color:${motifFin.includes('terminé')||motifFin.includes('dans')?"#E65100":"#757575"}">${motifFin||"—"}</td>
+      <td style="text-align:center;font-size:9px">${acquis}j acq. / ${pris}j pris<br/><b style="color:${restants<0?"#C62828":"#2E7D32"}">${restants}j rest.</b></td>
+      <td style="font-size:9px;color:${motifFin.includes("terminé")||motifFin.includes("dans")?"#E65100":"#757575"}">${motifFin||"—"}</td>
       <td style="text-align:center;font-size:9px;color:${modulEcart===null?"#ccc":modulEcart>0?"#1565C0":modulEcart<0?"#C62828":"#2E7D32"};font-weight:${modulEcart!==null&&modulEcart!==0?"700":"400"}">
         ${modulEcart === null ? "—" : (modulEcart > 0 ? "+" : "") + modulEcart.toFixed(1) + "h"}
         ${modulEcart !== null ? `<br/><span style="font-size:8px;font-weight:normal;color:#999">cumul saison</span>` : ""}
