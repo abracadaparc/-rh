@@ -185,35 +185,10 @@ const CAL_EVENT_TYPES = [
   function getFormule(id) { return FORMULES.find(f => f.id === id); }
 
   function calcTotal(r) {
-    // Pour les groupes : toujours lire montant_total Firebase
-    if (r.segment !== 'anniversaire') return parseFloat(r.montant_total) || 0;
-
-    // Pour les anniversaires : si montant_total est saisi manuellement → le respecter
-    // (permet à Vanessa de corriger le total sans que calcTotal l'écrase)
-    if (r.montant_total && parseFloat(r.montant_total) > 0) {
-      return parseFloat(r.montant_total);
-    }
-
-    // Sinon : calcul automatique depuis la formule
-    if (r.total && parseFloat(r.total) > 0) { return parseFloat(r.total); }
-    // const f = getFormule(r.formule_id);
-    if (!f || f.prix === 0) return 0;
-    // Fantastique : prix différent selon horaire (matin 176€ / après-midi 208€)
-    const isApm = !r.heure_debut || r.heure_debut >= '13:00';
-    const base = isApm ? (f.prix_apm || f.prix) : (f.prix_matin || f.prix);
-    const nbEnf = parseInt(r.effectif_enfants) || 0;
-    const nbAdu = parseInt(r.effectif_adultes) || 0;
-    const supEnf = Math.max(0, nbEnf - (f.base || 8)) * 26;
-    const supAdu = Math.max(0, nbAdu - (f.adultes_inclus || 2)) * 10;
-    // Animateur : lire le tarif exact si disponible, sinon 100€ par défaut
-    const animateur = r.option_animateur ? (parseFloat(r.option_animateur_tarif) || 100) : 0;
-    // Gâteau Nacima principal
-    const gateau = r.gateau_nacima ? (parseFloat(r.gateau_prix) || 25.90) : 0;
-    // Droit d'apport gâteau famille
-    const droitGateau = (!r.gateau_nacima && r.gateau_type && r.gateau_type.indexOf('+10') >= 0) ? 10 : 0;
-    // Gâteau supplémentaire (ex : 2ème anniversaire)
-    const gateauSupp = r.gateau_supp ? (parseFloat(r.gateau_supp_prix) || 25.90) : 0;
-    return base + supEnf + supAdu + animateur + gateau + droitGateau + gateauSupp;
+    // Source de vérité unique : montant_total ou total depuis Firebase
+    if (r.montant_total && parseFloat(r.montant_total) > 0) return parseFloat(r.montant_total);
+    if (r.total        && parseFloat(r.total)         > 0) return parseFloat(r.total);
+    return 0;
   }
 
   // SOURCE DE VÉRITÉ UNIQUE — utilisée par toutes les vues
