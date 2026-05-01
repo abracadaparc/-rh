@@ -3726,11 +3726,19 @@ function RecapECTab({ team, shifts }) {
           Document à transmettre avant le <strong>5 du mois</strong> : heures travaillées, absences, CP, brut calculé, IBAN de chaque salarié.
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {[4,5,6,7,8,9,10].map(m => (
-            <button key={m} onClick={()=>{ if(typeof exportPaie === "function") exportPaie(team,shifts,2026,m); else if(window.exportPaie) window.exportPaie(team,shifts,2026,m); else alert("Export non disponible — rechargez la page"); }}} style={{ ...S.btn, ...S.btnS, padding:"7px 12px", fontSize:11 }}>
-              🖨️ {["","","","","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"][m]} 2026
-            </button>
-          ))}
+          {[4,5,6,7,8,9,10].map(m => {
+            const handleExport = () => {
+              if (typeof exportPaie === "function") exportPaie(team, shifts, 2026, m);
+              else if (window.exportPaie) window.exportPaie(team, shifts, 2026, m);
+              else alert("Rechargez la page");
+            };
+            const moisLabels = ["","","","","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
+            return (
+              <button key={m} onClick={handleExport} style={{ ...S.btn, ...S.btnS, padding:"7px 12px", fontSize:11 }}>
+                🖨️ {moisLabels[m]} 2026
+              </button>
+            );
+          })}
         </div>
       </div>
 
