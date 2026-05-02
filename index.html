@@ -3802,22 +3802,36 @@ function exportPaie(team, shifts, year, month) {
   // ── Section absences ─────────────────────────────────────────────────────────
   const absRows = activeTeam.flatMap(emp => {
     const { congesJ, absJ, malJ, ecoleJ, ecoleH } = calcEmpMois(emp);
-    const nom = `${emp.prenom||""} ${emp.nom}`.trim();
+    const { acquis, pris, restants } = calcCP(emp, shifts, season);
+    const taux = parseFloat(emp.taux) || 0;
+    const nom  = `${emp.prenom||""} ${emp.nom}`.trim();
     const lignes = [];
-    const cpDates = cpCeMois.map(d => {
+    // Recalculer cpCeMois localement (scope propre)
+    const cpCeMoisLocal = (() => {
+      const liste = [];
+      for (let i = 1; i <= days; i++) {
+        const ds = `${year}-${mStr}-${String(i).padStart(2,"0")}`;
+        const sh = shifts[`${emp.id}_${ds}`];
+        if (sh && sh.type === "conges") liste.push(ds);
+      }
+      return liste;
+    })();
+    const cpDates = cpCeMoisLocal.map(d => {
       const dd = new Date(d+"T12:00");
       return dd.toLocaleDateString("fr-FR",{weekday:"short",day:"2-digit",month:"short"});
     }).join(", ");
-    if (congesJ > 0) lignes.push(`<tr><td>${nom}</td><td style="color:#E65100">Congés payés</td><td style="text-align:center">${congesJ}j</td><td style="font-size:9px">${cpDates} · Acquis: ${acquis}j · Pris total: ${pris}j · Restants: ${restants}j</td></tr>`);
+    // Majoration 1er mai locale
+    const sh1MaiLocal = (month === 5) ? shifts[`${emp.id}_${year}-05-01`] : null;
+    const h1MaiLocal  = (sh1MaiLocal && sh1MaiLocal.type === "travail") ? (sh1MaiLocal.h||0) : 0;
+    const majMaiLocal = Math.round(h1MaiLocal * taux * 100) / 100;
+    const { totalH } = calcEmpMois(emp);
+    const brutLocal   = Math.round((totalH * taux + majMaiLocal) * 100) / 100;
+    const brutBaseLocal = Math.round(totalH * taux * 100) / 100;
+    if (congesJ > 0) lignes.push(`<tr><td>${nom}</td><td style="color:#E65100">Congés payés</td><td style="text-align:center">${congesJ}j</td><td style="font-size:9px">${cpDates||"—"} · Acquis: ${acquis}j · Pris: ${pris}j · Restants: ${restants}j</td></tr>`);
     if (malJ    > 0) lignes.push(`<tr><td>${nom}</td><td style="color:#6A1B9A">Maladie</td><td style="text-align:center">${malJ}j</td><td>Justificatif requis</td></tr>`);
     if (absJ    > 0) lignes.push(`<tr><td>${nom}</td><td style="color:#C62828">Absence</td><td style="text-align:center">${absJ}j</td><td>À justifier</td></tr>`);
     if (ecoleJ  > 0) lignes.push(`<tr><td>${nom}</td><td style="color:#1565C0">École CFA</td><td style="text-align:center">${ecoleJ}j / ${ecoleH.toFixed(1)}h</td><td>Inclus dans heures rémunérées (IDCC 1790)</td></tr>`);
-    // Majoration 1er mai
-    if (majorationMai > 0) lignes.push(
-      `<tr><td>${nom}</td><td style="color:#C62828;font-weight:700">🔴 1er mai — majoration 100%</td>` +
-      `<td style="text-align:center">${h1Mai.toFixed(2)}h</td>` +
-      `<td>Brut base: ${brutBase.toFixed(2)}€ + majoration: +${majorationMai.toFixed(2)}€ = <b>${brut.toFixed(2)}€</b></td></tr>`
-    );
+    if (majMaiLocal > 0) lignes.push(`<tr><td>${nom}</td><td style="color:#C62828;font-weight:700">🔴 1er mai ×2</td><td style="text-align:center">${h1MaiLocal.toFixed(2)}h</td><td>${brutBaseLocal.toFixed(2)}€ + ${majMaiLocal.toFixed(2)}€ maj = <b>${brutLocal.toFixed(2)}€</b></td></tr>`);
     return lignes;
   }).join("") || `<tr><td colspan="4" style="color:#999;text-align:center">Aucune absence ce mois</td></tr>`;
 
