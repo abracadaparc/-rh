@@ -4824,12 +4824,28 @@ function fbSave(path, data) {
     var LOCAL_ONLY = ['abr26_levels_v1','abr26_notes_v1','abr_reservations'];
     if (LOCAL_ONLY.indexOf(path) >= 0) return;
 
-    // Sauvegarde Firebase
+    // Sauvegarde Firebase — Planning et équipe
     if (path === 'abr26_shifts_v4' || path === 'abr26_team_v2') {
-      // Planning et équipe : merge (update) pour ne pas écraser les autres appareils
       var obj2 = (typeof obj === 'string') ? JSON.parse(obj) : obj;
-      if (obj2 && typeof obj2 === 'object') {
-        db.ref("abracadaparc/" + path).update(obj2);
+      if (!obj2 || typeof obj2 !== 'object') return;
+      // Construire le patch : null pour les clés supprimées, valeur pour les autres
+      // On compare avec la version précédente stockée en localStorage
+      var prevRaw = null;
+      try { prevRaw = localStorage.getItem(path); } catch(e) {}
+      var prev = prevRaw ? JSON.parse(prevRaw) : {};
+      var patch = {};
+      // Nouvelles valeurs et modifications
+      Object.keys(obj2).forEach(function(k) {
+        patch[k] = obj2[k];
+      });
+      // Suppressions : clés qui étaient dans prev mais plus dans obj2 → null
+      Object.keys(prev).forEach(function(k) {
+        if (!(k in obj2)) {
+          patch[k] = null; // null = suppression dans Firebase
+        }
+      });
+      if (Object.keys(patch).length > 0) {
+        db.ref("abracadaparc/" + path).update(patch);
       }
       return;
     }
@@ -5743,7 +5759,24 @@ function PlanningEquipeTab({team,shifts,setShifts,calEvents={},setCalEvents=()=>
   const displayTeam=filterEmp==="equipe"?activeTeam:activeTeam.filter(e=>e.id===filterEmp);
 
   const getShift=(eid,ds)=>shifts[`${eid}_${ds}`];
-  const putShift=(eid,ds,data)=>{if(readonly)return;setShifts(p=>{const n={...p};data===null?delete n[`${eid}_${ds}`]:(n[`${eid}_${ds}`]=data);return n;});};
+  const putShift=(eid,ds,data)=>{
+    if(readonly)return;
+    // Sauvegarder atomiquement dans Firebase IMMÉDIATEMENT
+    // (un seul shift, pas tout l'objet)
+    const key = `${eid}_${ds}`;
+    try {
+      const db = typeof getFbDb === 'function' ? getFbDb() : null;
+      if (db) {
+        if (data === null) {
+          db.ref(`abracadaparc/abr26_shifts_v4/${key}`).remove();
+        } else {
+          db.ref(`abracadaparc/abr26_shifts_v4/${key}`).set(data);
+        }
+      }
+    } catch(e) { console.warn('putShift Firebase:', e); }
+    // Mettre à jour le state local (déclenche aussi useStorage → localStorage)
+    setShifts(p=>{const n={...p};data===null?delete n[key]:(n[key]=data);return n;});
+  };
   const weekH=eid=>week.reduce((s,d)=>{return s+shH(getShift(eid,fmtLocal(d)));},0);
   const dayH=d=>displayTeam.reduce((s,e)=>{const sh=getShift(e.id,fmtLocal(d));return s+(sh?.type==="travail"?(sh.h||0):0);},0);
   const weekLabel=()=>{const a=safeMon.toLocaleDateString("fr-FR",{day:"2-digit",month:"long"});const b=addDaysLocal(safeMon,6).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});return `${a} → ${b}`;};
