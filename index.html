@@ -699,9 +699,9 @@ contact@abracadaparc.fr`;
         '</div>' +
         lignesInfos +
         '<div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E8F5E9;">' +
-          '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:10px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
-          '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
-          (r.date ? '<a href="' + buildGCalUrl(r, hFin) + '" target="_blank" style="padding:10px 14px;background:#F3E5F5;color:#6A1B9A;border-radius:8px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ajouter à Google Agenda">📅 Agenda</a>' : '') +
+          '<button data-edit="' + r.id + '" id="detail-edit-btn" style="flex:1;padding:14px;background:#2E7D32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;">✏️ Modifier</button>' +
+          '<button data-history="' + r.id + '" id="detail-hist-btn" style="padding:14px 20px;background:#E3F2FD;color:#1565C0;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;">📋 Historique</button>' +
+          (r.date ? '<a href="' + buildGCalUrl(r, hFin) + '" target="_blank" style="padding:14px 18px;background:#F3E5F5;color:#6A1B9A;border-radius:8px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ajouter à Google Agenda">📅 Agenda</a>' : '') +
           (r.drive_dossier_url ? '<a href="' + r.drive_dossier_url + '" target="_blank" style="padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Dossier Drive">📁 Drive</a>' : '') +
           (r.gmail_devis_url ? '<a href="' + r.gmail_devis_url + '" target="_blank" style="padding:10px 14px;background:#FFF3E0;color:#E65100;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir devis Gmail">📧 Devis</a>' : '') +
           (r.gmail_bc_url ? '<a href="' + r.gmail_bc_url + '" target="_blank" style="padding:10px 14px;background:#E3F2FD;color:#1565C0;border-radius:8px;cursor:pointer;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" title="Voir BC Gmail">📋 BC</a>' : '') +
@@ -1880,7 +1880,7 @@ contact@abracadaparc.fr`;
       // Ignorer si Firebase renvoie null ou objet vide (protège contre écrasement)
       if (data && typeof data === 'object' && Object.keys(data).length > 0) {
         // Fusionner avec les groupes déjà chargés
-        var groupes = state._groupes || {};
+        var groupes = state._groupes || {}; if(Object.keys(groupes).length===0){try{var _gc=localStorage.getItem('abr26_groupes_cache');if(_gc)groupes=JSON.parse(_gc);}catch(e){}}
         state.reservations = Object.assign({}, groupes, data);
         try { localStorage.setItem('abr_reservations', JSON.stringify(state.reservations)); } catch (e) {}
         render();
@@ -1914,7 +1914,7 @@ contact@abracadaparc.fr`;
         if(g.date&&typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)) dv=g.date;
         // Montants
         var tot=parseFloat(g.montant_total||g.total||g.montant||g.totalTTC||0);
-        var ac=parseFloat(g.acompte_paye||g.acompte_verse||g.acompte||0);
+        var ac=parseFloat(g.acompte_paye||g.acompte_recu||g.acompte_verse||g.acompte||0);
         var sol=parseFloat(g.solde_restant||g.solde||(tot-ac)||0);
         var isAnniv = (g.type||g.segment||'').toLowerCase().indexOf('anniv')>=0 || key.indexOf('CMD')===0;
         gNorm[key]={
@@ -1942,7 +1942,7 @@ contact@abracadaparc.fr`;
           decision:(g.decision||g.etape_dossier||'').toString(),
         };
       });
-      state._groupes=gNorm;
+      state._groupes=gNorm; try{localStorage.setItem('abr26_groupes_cache',JSON.stringify(gNorm));}catch(e){}
       var anniv={};
       Object.keys(state.reservations||{}).forEach(function(k){
         var rv=state.reservations[k];
@@ -1964,7 +1964,7 @@ contact@abracadaparc.fr`;
         if (!r.segment) r.segment = 'anniversaire';
         anniversaires[key] = r;
       });
-      var groupes = state._groupes || {};
+      var groupes = state._groupes || {}; if(Object.keys(groupes).length===0){try{var _gc=localStorage.getItem('abr26_groupes_cache');if(_gc)groupes=JSON.parse(_gc);}catch(e){}}
       var ancResas = {};
       Object.keys(state.reservations||{}).forEach(function(k) {
         var rv=state.reservations[k];
