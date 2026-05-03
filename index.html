@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
@@ -6928,23 +6928,100 @@ function LoginScreen({team,onAdmin,onEmployee}) {
   const [newPin,setNewPin]=useState("");
   const [newPin2,setNewPin2]=useState("");
   const [pinMsg,setPinMsg]=useState("");
+  // États pour le lien magique
+  const [magicEmail,setMagicEmail]=useState("");
+  const [magicMsg,setMagicMsg]=useState("");
+  const [magicSending,setMagicSending]=useState(false);
+  const [empMagicMsg,setEmpMagicMsg]=useState("");
+  const [empMagicSending,setEmpMagicSending]=useState(false);
 
   const tryAdmin=async()=>{setLoading(true);const ok=await checkPwd(pin);setLoading(false);ok?onAdmin():setErr("Mot de passe incorrect");};
 
+  // Envoyer un lien magique pour l'admin
+  const envoyerLienAdmin=async()=>{
+    const emailToSend = magicEmail || "contact@abracadaparc.fr";
+    if (!emailToSend.includes("@")) { setMagicMsg("❌ Email invalide"); return; }
+    setMagicSending(true); setMagicMsg("");
+    if (typeof window.abr_envoyerLienMagique !== "function") {
+      setMagicSending(false); setMagicMsg("❌ Service non disponible — utilisez le mot de passe");
+      return;
+    }
+    const res = await window.abr_envoyerLienMagique(emailToSend, "Vanessa Schweitzer");
+    setMagicSending(false);
+    if (res.ok) {
+      setMagicMsg("✅ Lien envoyé à " + emailToSend + " — vérifiez votre boîte mail (et les spams au 1er envoi)");
+    } else {
+      setMagicMsg("❌ " + res.err);
+    }
+  };
+
+  // Envoyer un lien magique pour un salarié
+  const envoyerLienEmploye=async()=>{
+    if (!selEmp || !selEmp.email) {
+      setEmpMagicMsg("❌ Aucun email enregistré pour ce salarié — contactez Vanessa");
+      return;
+    }
+    setEmpMagicSending(true); setEmpMagicMsg("");
+    if (typeof window.abr_envoyerLienMagique !== "function") {
+      setEmpMagicSending(false); setEmpMagicMsg("❌ Service non disponible");
+      return;
+    }
+    const nomComplet = selEmp.prenom ? selEmp.prenom + " " + selEmp.nom : selEmp.nom;
+    const res = await window.abr_envoyerLienMagique(selEmp.email, nomComplet);
+    setEmpMagicSending(false);
+    if (res.ok) {
+      setEmpMagicMsg("✅ Lien envoyé à " + selEmp.email + " — vérifiez vos mails");
+    } else {
+      setEmpMagicMsg("❌ " + res.err);
+    }
+  };
+
   if(mode==="admin") return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F4F8F4"}}>
-      <div style={{...S.card,maxWidth:360,width:"100%",textAlign:"center",padding:"32px 28px"}}>
+      <div style={{...S.card,maxWidth:400,width:"100%",textAlign:"center",padding:"32px 28px"}}>
         <div style={{fontSize:36,marginBottom:12}}>🔐</div>
         <div style={{fontSize:17,fontWeight:800,color:"#1B5E20",marginBottom:4}}>Espace Gestion</div>
         <div style={{fontSize:12,color:"#9E9E9E",marginBottom:20}}>Accès Vanessa Schweitzer</div>
-        <input type="password" value={pin} onChange={e=>{setPin(e.target.value);setErr("");}} placeholder="Mot de passe" style={{...S.inp,marginBottom:10,textAlign:"center",letterSpacing:"0.12em"}} onKeyDown={e=>{if(e.key==="Enter")tryAdmin();}}/>
-        {err&&<div style={{color:"#C62828",fontSize:12,marginBottom:8}}>{err}</div>}
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={tryAdmin} disabled={loading} style={{...S.btn,...S.btnG,flex:1,opacity:loading?0.6:1}}>{loading?"Vérification…":"Accéder"}</button>
-          <button onClick={()=>{setMode("choose");setPin("");setErr("");}} style={{...S.btn,...S.btnS}}>Retour</button>
+
+        {/* MÉTHODE PRINCIPALE : LIEN MAGIQUE */}
+        <div style={{background:"#E8F5E9",border:"1.5px solid #A5D6A7",borderRadius:12,padding:"16px 14px",marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#1B5E20",marginBottom:8}}>📨 Connexion sécurisée par email</div>
+          <div style={{fontSize:11,color:"#2E7D32",marginBottom:12,lineHeight:1.4}}>Recevez un lien magique sur votre boîte mail. Aucun mot de passe à retenir.</div>
+          <input
+            type="email"
+            value={magicEmail}
+            onChange={e=>{setMagicEmail(e.target.value);setMagicMsg("");}}
+            placeholder="contact@abracadaparc.fr"
+            style={{...S.inp,marginBottom:8,fontSize:13,textAlign:"center"}}
+            onKeyDown={e=>{if(e.key==="Enter") envoyerLienAdmin();}}
+          />
+          <button
+            onClick={envoyerLienAdmin}
+            disabled={magicSending}
+            style={{...S.btn,...S.btnG,width:"100%",opacity:magicSending?0.6:1}}
+          >
+            {magicSending ? "⏳ Envoi…" : "📨 M'envoyer le lien magique"}
+          </button>
+          {magicMsg && (
+            <div style={{fontSize:11,marginTop:8,color:magicMsg.startsWith("✅")?"#1B5E20":"#C62828",fontWeight:600,lineHeight:1.4}}>
+              {magicMsg}
+            </div>
+          )}
         </div>
+
+        {/* MÉTHODE DE SECOURS : MOT DE PASSE (replié) */}
+        <details style={{marginBottom:8,textAlign:"left"}}>
+          <summary style={{cursor:"pointer",fontSize:11,color:"#9E9E9E",padding:"6px 0"}}>🔑 Connexion par mot de passe (secours)</summary>
+          <div style={{padding:"10px 4px"}}>
+            <input type="password" value={pin} onChange={e=>{setPin(e.target.value);setErr("");}} placeholder="Mot de passe" style={{...S.inp,marginBottom:8,textAlign:"center",letterSpacing:"0.12em"}} onKeyDown={e=>{if(e.key==="Enter")tryAdmin();}}/>
+            {err&&<div style={{color:"#C62828",fontSize:12,marginBottom:8}}>{err}</div>}
+            <button onClick={tryAdmin} disabled={loading} style={{...S.btn,...S.btnG,width:"100%",opacity:loading?0.6:1}}>{loading?"Vérification…":"Accéder"}</button>
+            <button onClick={async()=>{await resetToDefaultPwd();setErr("✅ Mot de passe réinitialisé — réessayez");}} style={{marginTop:6,background:"none",border:"none",fontSize:10,color:"#BDBDBD",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit",width:"100%"}}>Mot de passe oublié ? Réinitialiser</button>
+          </div>
+        </details>
+
+        <button onClick={()=>{setMode("choose");setPin("");setErr("");setMagicMsg("");setMagicEmail("");}} style={{...S.btn,...S.btnS,width:"100%",marginTop:8}}>← Retour</button>
         <div style={{marginTop:10,fontSize:10,color:"#BDBDBD"}}>Accès réservé — contact@abracadaparc.fr</div>
-          <button onClick={async()=>{await resetToDefaultPwd();setErr("✅ Mot de passe réinitialisé — réessayez");}} style={{marginTop:6,background:"none",border:"none",fontSize:10,color:"#BDBDBD",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>Mot de passe oublié ? Réinitialiser</button>
       </div>
     </div>
   );
@@ -6972,13 +7049,47 @@ function LoginScreen({team,onAdmin,onEmployee}) {
           <div style={{fontSize:11,color:"#9E9E9E",marginBottom:20}}>{selEmp.poste}</div>
           {!changingPin?(
             <>
+              {/* OPTION 1 : PIN classique */}
               <input type="password" value={empPin} onChange={e=>{setEmpPin(e.target.value);setEmpErr("");}} placeholder="Code PIN (4 chiffres)" inputMode="numeric" maxLength={8} style={{...S.inp,textAlign:"center",letterSpacing:"0.3em",marginBottom:8,fontSize:20}} onKeyDown={e=>{if(e.key==="Enter")tryEmpLogin();}}/>
               {empErr&&<div style={{color:"#C62828",fontSize:12,marginBottom:8}}>{empErr}</div>}
               <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button onClick={tryEmpLogin} disabled={empLoading} style={{...S.btn,...S.btnG,flex:1,opacity:empLoading?0.6:1}}>{empLoading?"…":"Se connecter"}</button>
-                <button onClick={()=>{setSelEmp(null);setEmpPin("");setEmpErr("");}} style={{...S.btn,...S.btnS}}>Retour</button>
+                <button onClick={tryEmpLogin} disabled={empLoading} style={{...S.btn,...S.btnG,flex:1,opacity:empLoading?0.6:1}}>{empLoading?"…":"Se connecter avec PIN"}</button>
+                <button onClick={()=>{setSelEmp(null);setEmpPin("");setEmpErr("");setEmpMagicMsg("");}} style={{...S.btn,...S.btnS}}>Retour</button>
               </div>
-              <button onClick={()=>setChangingPin(true)} style={{fontSize:11,color:"#1565C0",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Changer mon code PIN</button>
+
+              {/* SÉPARATEUR "OU" */}
+              <div style={{display:"flex",alignItems:"center",gap:10,margin:"12px 0 10px"}}>
+                <div style={{flex:1,height:1,background:"#E0E0E0"}}/>
+                <span style={{fontSize:11,color:"#9E9E9E",fontWeight:600}}>OU</span>
+                <div style={{flex:1,height:1,background:"#E0E0E0"}}/>
+              </div>
+
+              {/* OPTION 2 : LIEN MAGIQUE PAR EMAIL */}
+              {selEmp.email ? (
+                <>
+                  <div style={{fontSize:11,color:"#2E7D32",marginBottom:8,lineHeight:1.4}}>
+                    📨 Recevoir un lien de connexion sur <strong>{selEmp.email}</strong>
+                  </div>
+                  <button
+                    onClick={envoyerLienEmploye}
+                    disabled={empMagicSending}
+                    style={{...S.btn,width:"100%",background:"#E8F5E9",color:"#1B5E20",border:"1.5px solid #A5D6A7",opacity:empMagicSending?0.6:1}}
+                  >
+                    {empMagicSending ? "⏳ Envoi…" : "📨 M'envoyer un lien magique"}
+                  </button>
+                  {empMagicMsg && (
+                    <div style={{fontSize:11,marginTop:8,color:empMagicMsg.startsWith("✅")?"#1B5E20":"#C62828",fontWeight:600,lineHeight:1.4}}>
+                      {empMagicMsg}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{fontSize:11,color:"#9E9E9E",fontStyle:"italic",padding:"8px 0"}}>
+                  ℹ️ Aucun email enregistré — demandez à Vanessa de l'ajouter pour pouvoir utiliser le lien magique.
+                </div>
+              )}
+
+              <button onClick={()=>setChangingPin(true)} style={{fontSize:11,color:"#1565C0",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",marginTop:14}}>Changer mon code PIN</button>
               
             </>
           ):(
