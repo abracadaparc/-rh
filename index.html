@@ -196,7 +196,7 @@ const CAL_EVENT_TYPES = [
 
     // Sinon : calcul automatique depuis la formule
     if (r.total && parseFloat(r.total) > 0) { return parseFloat(r.total); }
-    // const f = getFormule(r.formule_id);
+    const f = getFormule(r.formule_id);
     if (!f || f.prix === 0) return 0;
     // Fantastique : prix différent selon horaire (matin 176€ / après-midi 208€)
     const isApm = !r.heure_debut || r.heure_debut >= '13:00';
@@ -4003,15 +4003,24 @@ function ReservationsV2Tab(){
   // Persistance Firebase + localStorage
   React.useEffect(()=>{
     try{ localStorage.setItem("abr_rv2", JSON.stringify(dossiers)); }catch(e){}
-    try{ if(typeof fbSave==="function") fbSave("abr_rv2", dossiers); }catch(e){}
+    try{
+      if(typeof fbSave==="function") {
+        // Firebase n'accepte pas les tableaux — convertir en objet indexé par id
+        const obj = {};
+        dossiers.forEach(d => { if(d && d.id) obj[d.id] = d; });
+        fbSave("abr_rv2", obj);
+      }
+    }catch(e){}
   },[dossiers]);
 
   React.useEffect(()=>{
     try{
       if(typeof fbListen==="function"){
         fbListen("abr_rv2", data=>{
-          if(data && typeof data==="object" && Array.isArray(data) && data.length>0){
-            setDossiers(data);
+          if(data && typeof data==="object") {
+            // Firebase renvoie un objet — reconvertir en tableau
+            const arr = Array.isArray(data) ? data : Object.values(data).filter(Boolean);
+            if(arr.length > 0) setDossiers(arr);
           }
         });
       }
