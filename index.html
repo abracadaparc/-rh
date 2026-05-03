@@ -196,7 +196,7 @@ const CAL_EVENT_TYPES = [
 
     // Sinon : calcul automatique depuis la formule
     if (r.total && parseFloat(r.total) > 0) { return parseFloat(r.total); }
-    const f = getFormule(r.formule_id);
+    // const f = getFormule(r.formule_id);
     if (!f || f.prix === 0) return 0;
     // Fantastique : prix différent selon horaire (matin 176€ / après-midi 208€)
     const isApm = !r.heure_debut || r.heure_debut >= '13:00';
@@ -4003,24 +4003,15 @@ function ReservationsV2Tab(){
   // Persistance Firebase + localStorage
   React.useEffect(()=>{
     try{ localStorage.setItem("abr_rv2", JSON.stringify(dossiers)); }catch(e){}
-    try{
-      if(typeof fbSave==="function") {
-        // Firebase n'accepte pas les tableaux — convertir en objet indexé par id
-        const obj = {};
-        dossiers.forEach(d => { if(d && d.id) obj[d.id] = d; });
-        fbSave("abr_rv2", obj);
-      }
-    }catch(e){}
+    try{ if(typeof fbSave==="function") fbSave("abr_rv2", dossiers); }catch(e){}
   },[dossiers]);
 
   React.useEffect(()=>{
     try{
       if(typeof fbListen==="function"){
         fbListen("abr_rv2", data=>{
-          if(data && typeof data==="object") {
-            // Firebase renvoie un objet — reconvertir en tableau
-            const arr = Array.isArray(data) ? data : Object.values(data).filter(Boolean);
-            if(arr.length > 0) setDossiers(arr);
+          if(data && typeof data==="object" && Array.isArray(data) && data.length>0){
+            setDossiers(data);
           }
         });
       }
@@ -4436,6 +4427,11 @@ function ReservationsV2Tab(){
     <div>
       {msg&&<div style={{background:msg.startsWith("✅")?"#E8F5E9":"#FFEBEE",color:msg.startsWith("✅")?"#1B5E20":"#C62828",padding:"8px 12px",borderRadius:8,marginBottom:10,fontSize:12,fontWeight:700}}>{msg}</div>}
 
+      {/* Bandeau test — refonte Kanban prévue septembre 2026 */}
+      <div style={{background:"#FFF8E1",border:"1.5px solid #FFD54F",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#E65100"}}>
+        🧪 <strong>Pipeline (version de test)</strong> — Cet onglet est en cours de développement. La <strong>source de vérité reste l'onglet 📋 Réservations</strong>. Refonte complète Kanban prévue en septembre 2026.
+      </div>
+
       {/* KPIs */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8,marginBottom:12}}>
         {[
@@ -4815,39 +4811,11 @@ async function setEmpPin(empId, pin) {
   const pins = getEmpPins();
   pins[empId] = await sha256(pin);
   localStorage.setItem(EMP_PINS_KEY, JSON.stringify(pins));
-  // ── Log Firebase : notifier Vanessa du changement de PIN ──
-  try {
-    const db2 = getFbDb();
-    if (db2) {
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'});
-      const heureStr = now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
-      await db2.ref("abracadaparc/abr26_pin_logs/" + empId).set({
-        modifie_le: dateStr,
-        heure: heureStr,
-        timestamp: now.toISOString(),
-        statut: "personnalise"
-      });
-    }
-  } catch(e) { /* silencieux — ne pas bloquer le changement de PIN */ }
 }
 async function resetEmpPin(empId) {
   const pins = getEmpPins();
   delete pins[empId]; // removes custom PIN
   localStorage.setItem(EMP_PINS_KEY, JSON.stringify(pins));
-  // ── Log Firebase : reset PIN → Vanessa voit que le PIN a été réinitialisé ──
-  try {
-    const db2 = getFbDb();
-    if (db2) {
-      const now = new Date();
-      await db2.ref("abracadaparc/abr26_pin_logs/" + empId).set({
-        modifie_le: new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'}),
-        heure: new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}),
-        timestamp: now.toISOString(),
-        statut: "reinitialise"
-      });
-    }
-  } catch(e) { /* silencieux */ }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -6885,126 +6853,6 @@ function ValidationPaieTab({team, shifts, setShifts}) {
 
 
 // ═══════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════
-// SÉCURITÉ TAB — Suivi des PIN de l'équipe (visible admin uniquement)
-// ═══════════════════════════════════════════════════════════
-
-function SecuriteTab({ team }) {
-  const [logs, setLogs] = React.useState({});
-  const [loading, setLoading] = React.useState(true);
-  const [resetMsg, setResetMsg] = React.useState({});
-
-  // Charger les logs depuis Firebase
-  React.useEffect(() => {
-    const db2 = getFbDb();
-    if (!db2) { setLoading(false); return; }
-    const ref = db2.ref("abracadaparc/abr26_pin_logs");
-    ref.on("value", snap => {
-      setLogs(snap.val() || {});
-      setLoading(false);
-    });
-    return () => ref.off();
-  }, []);
-
-  const handleReset = async (empId, empNom) => {
-    if (!window.confirm(`Réinitialiser le PIN de ${empNom} au code par défaut (1234) ?`)) return;
-    await resetEmpPin(empId);
-    setResetMsg(prev => ({ ...prev, [empId]: "✅ PIN réinitialisé" }));
-    setTimeout(() => setResetMsg(prev => { const n={...prev}; delete n[empId]; return n; }), 3000);
-  };
-
-  const membres = team.filter(e => e.id && e.id !== 'admin');
-
-  return (
-    <div style={{ maxWidth: 700, margin: "0 auto", padding: "20px 0" }}>
-      <div style={{ fontSize: 17, fontWeight: 800, color: "#1B5E20", marginBottom: 4 }}>🔐 Sécurité & Accès équipe</div>
-      <div style={{ fontSize: 12, color: "#757575", marginBottom: 20 }}>
-        Suivi des codes PIN de chaque membre. Mis à jour en temps réel à chaque changement.
-      </div>
-
-      {loading ? (
-        <div style={{ color: "#9E9E9E", fontSize: 13 }}>Chargement…</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {membres.map(emp => {
-            const log = logs[emp.id];
-            const prenom = emp.prenom || emp.nom || emp.id;
-            const nom = emp.prenom ? emp.nom : "";
-            const initiale = prenom.charAt(0).toUpperCase();
-            const hasCustomPin = !!log && log.statut === "personnalise";
-            const wasReset = !!log && log.statut === "reinitialise";
-
-            return (
-              <div key={emp.id} style={{
-                background: "#fff", border: `1.5px solid ${hasCustomPin ? "#C8E6C9" : "#FFE0B2"}`,
-                borderRadius: 10, padding: "14px 16px",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: "50%", background: emp.color || "#2E7D32",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "#fff", fontWeight: 800, fontSize: 17, flexShrink: 0
-                  }}>{initiale}</div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1B5E20" }}>
-                      {prenom} {nom}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#9E9E9E" }}>{emp.poste || "Employé(e)"}</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  {/* Statut PIN */}
-                  <div style={{
-                    padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700,
-                    background: hasCustomPin ? "#E8F5E9" : wasReset ? "#FFF3E0" : "#FFF3E0",
-                    color: hasCustomPin ? "#1B5E20" : "#E65100"
-                  }}>
-                    {hasCustomPin ? "✅ PIN personnalisé" : wasReset ? "🔄 PIN réinitialisé" : "⚠️ PIN par défaut"}
-                  </div>
-
-                  {/* Date dernière modif */}
-                  {log ? (
-                    <div style={{ fontSize: 11, color: "#757575", textAlign: "right" }}>
-                      <div>Modifié le {log.modifie_le}</div>
-                      <div>à {log.heure}</div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 11, color: "#BDBDBD" }}>Jamais modifié</div>
-                  )}
-
-                  {/* Bouton reset */}
-                  <button
-                    onClick={() => handleReset(emp.id, prenom)}
-                    style={{
-                      padding: "5px 12px", background: "#fff", border: "1.5px solid #EF9A9A",
-                      borderRadius: 7, fontSize: 11, color: "#C62828", cursor: "pointer",
-                      fontFamily: "inherit", fontWeight: 600
-                    }}
-                  >
-                    Réinitialiser
-                  </button>
-                  {resetMsg[emp.id] && (
-                    <span style={{ fontSize: 11, color: "#1B5E20", fontWeight: 600 }}>{resetMsg[emp.id]}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Légende */}
-      <div style={{ marginTop: 20, padding: "12px 16px", background: "#F1F8E9", borderRadius: 8, fontSize: 11, color: "#2E7D32" }}>
-        <strong>💡 Comment ça marche :</strong> Chaque membre peut changer son code PIN depuis l'écran de connexion.
-        Dès qu'il le fait, la date apparaît ici. Le bouton "Réinitialiser" remet le PIN à <strong>1234</strong> (code par défaut)
-        — utile si un salarié oublie son code.
-      </div>
-    </div>
-  );
-}
-
 // LOGIN
 // ═══════════════════════════════════════════════════════════
 
@@ -7073,7 +6921,6 @@ function LoginScreen({team,onAdmin,onEmployee}) {
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const [selEmp,setSelEmp]=useState(null);
-  const [empEmail,setEmpEmail]=useState("");
   const [empPin,setEmpPin]=useState("");
   const [empErr,setEmpErr]=useState("");
   const [empLoading,setEmpLoading]=useState(false);
@@ -7103,66 +6950,68 @@ function LoginScreen({team,onAdmin,onEmployee}) {
   );
 
   if(mode==="employee") {
-    // ── Connexion Firebase Auth email + mot de passe ──
-    const tryEmpLogin = async () => {
-      if (!empEmail || !empEmail.includes("@")) { setEmpErr("Email invalide"); return; }
-      if (!empPin) { setEmpErr("Mot de passe requis"); return; }
-      setEmpLoading(true); setEmpErr("");
-      try {
-        const auth = getFbAuth();
-        if (!auth) { setEmpErr("Erreur de connexion — réessayez"); setEmpLoading(false); return; }
-        const cred = await auth.signInWithEmailAndPassword(empEmail.trim().toLowerCase(), empPin);
-        const email = cred.user.email.toLowerCase();
-        // Trouver le membre de l'équipe correspondant à cet email
-        const emp = team.find(e => e.email && e.email.toLowerCase() === email);
-        if (!emp) { setEmpErr("Email non reconnu dans l'équipe — contactez Vanessa"); setEmpLoading(false); return; }
-        setEmpLoading(false);
-        onEmployee(emp.id);
-      } catch(e) {
-        setEmpLoading(false);
-        if (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential") {
-          setEmpErr("Mot de passe incorrect");
-        } else if (e.code === "auth/user-not-found") {
-          setEmpErr("Email non reconnu — contactez Vanessa");
-        } else if (e.code === "auth/too-many-requests") {
-          setEmpErr("Trop de tentatives — réessayez dans quelques minutes");
-        } else {
-          setEmpErr("Erreur de connexion : " + (e.message || e.code));
-        }
-      }
+    const tryEmpLogin=async()=>{
+      setEmpLoading(true);
+      const ok=await checkEmpPin(selEmp.id,empPin);
+      setEmpLoading(false);
+      ok?onEmployee(selEmp.id):setEmpErr("Code PIN incorrect. Contactez Vanessa.");
     };
+    const handleChangePin=async()=>{
+      if(!newPin||newPin!==newPin2){setPinMsg("Les codes ne correspondent pas");return;}
+      if(newPin.length<4){setPinMsg("Minimum 4 chiffres");return;}
+      await setEmpPin(selEmp.id,newPin);
+      setPinMsg("✅ Code PIN mis à jour !");
+      setNewPin(""); setNewPin2(""); setChangingPin(false);
+    };
+
+    if(selEmp) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F4F8F4"}}>
+        <div style={{...S.card,maxWidth:360,width:"100%",padding:"28px 24px",textAlign:"center"}}>
+          <div style={{width:48,height:48,borderRadius:"50%",background:selEmp.color,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:22}}>{(selEmp.prenom||selEmp.nom).charAt(0)}</div>
+          <div style={{fontSize:16,fontWeight:800,color:"#1B5E20",marginBottom:2}}>{selEmp.prenom?`${selEmp.prenom} ${selEmp.nom}`:selEmp.nom}</div>
+          <div style={{fontSize:11,color:"#9E9E9E",marginBottom:20}}>{selEmp.poste}</div>
+          {!changingPin?(
+            <>
+              <input type="password" value={empPin} onChange={e=>{setEmpPin(e.target.value);setEmpErr("");}} placeholder="Code PIN (4 chiffres)" inputMode="numeric" maxLength={8} style={{...S.inp,textAlign:"center",letterSpacing:"0.3em",marginBottom:8,fontSize:20}} onKeyDown={e=>{if(e.key==="Enter")tryEmpLogin();}}/>
+              {empErr&&<div style={{color:"#C62828",fontSize:12,marginBottom:8}}>{empErr}</div>}
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <button onClick={tryEmpLogin} disabled={empLoading} style={{...S.btn,...S.btnG,flex:1,opacity:empLoading?0.6:1}}>{empLoading?"…":"Se connecter"}</button>
+                <button onClick={()=>{setSelEmp(null);setEmpPin("");setEmpErr("");}} style={{...S.btn,...S.btnS}}>Retour</button>
+              </div>
+              <button onClick={()=>setChangingPin(true)} style={{fontSize:11,color:"#1565C0",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Changer mon code PIN</button>
+              
+            </>
+          ):(
+            <>
+              <div style={{fontSize:13,fontWeight:700,color:"#1B5E20",marginBottom:14}}>Changer mon code PIN</div>
+              <input type="password" value={newPin} onChange={e=>setNewPin(e.target.value)} placeholder="Nouveau code (min. 4 chiffres)" inputMode="numeric" style={{...S.inp,textAlign:"center",marginBottom:8}}/>
+              <input type="password" value={newPin2} onChange={e=>setNewPin2(e.target.value)} placeholder="Confirmer le code" inputMode="numeric" style={{...S.inp,textAlign:"center",marginBottom:10}}/>
+              {pinMsg&&<div style={{fontSize:12,color:pinMsg.startsWith("✅")?"#1B5E20":"#C62828",marginBottom:8,fontWeight:600}}>{pinMsg}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={handleChangePin} style={{...S.btn,...S.btnG,flex:1}}>Valider</button>
+                <button onClick={()=>{setChangingPin(false);setPinMsg("");}} style={{...S.btn,...S.btnS}}>Annuler</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
 
     return (
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F4F8F4"}}>
-        <div style={{...S.card,maxWidth:380,width:"100%",padding:"32px 28px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:12}}>👤</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#1B5E20",marginBottom:4}}>Mon Planning</div>
-          <div style={{fontSize:12,color:"#9E9E9E",marginBottom:24}}>Connectez-vous avec votre email et mot de passe</div>
-          <input
-            type="email" value={empEmail}
-            onChange={e=>{setEmpEmail(e.target.value);setEmpErr("");}}
-            placeholder="votre.email@exemple.fr"
-            style={{...S.inp,marginBottom:10,textAlign:"center"}}
-            onKeyDown={e=>{if(e.key==="Enter")tryEmpLogin();}}
-          />
-          <input
-            type="password" value={empPin}
-            onChange={e=>{setEmpPin(e.target.value);setEmpErr("");}}
-            placeholder="Mot de passe"
-            style={{...S.inp,marginBottom:12,textAlign:"center"}}
-            onKeyDown={e=>{if(e.key==="Enter")tryEmpLogin();}}
-          />
-          {empErr&&<div style={{color:"#C62828",fontSize:12,marginBottom:10,fontWeight:600}}>{empErr}</div>}
-          <div style={{display:"flex",gap:8,marginBottom:14}}>
-            <button onClick={tryEmpLogin} disabled={empLoading} style={{...S.btn,...S.btnG,flex:1,opacity:empLoading?0.6:1}}>
-              {empLoading?"Connexion…":"Se connecter"}
-            </button>
-            <button onClick={()=>setMode("choose")} style={{...S.btn,...S.btnS}}>Retour</button>
+        <div style={{...S.card,maxWidth:400,width:"100%",padding:"28px 24px"}}>
+          <div style={{fontSize:36,textAlign:"center",marginBottom:10}}>👤</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#1B5E20",marginBottom:4,textAlign:"center"}}>Mon Planning</div>
+          <div style={{fontSize:12,color:"#9E9E9E",marginBottom:18,textAlign:"center"}}>Choisissez votre nom, puis entrez votre code PIN</div>
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {team.filter(e=>e.actif).map(e=>(
+              <button key={e.id} onClick={()=>{setSelEmp(e);setEmpPin("");setEmpErr("");}} style={{...S.btn,padding:"11px 16px",textAlign:"left",display:"flex",alignItems:"center",gap:12,background:"#F9F9F9",border:"1.5px solid #E8F5E9",color:"#212121",fontWeight:400}}>
+                <span style={{width:34,height:34,borderRadius:"50%",background:e.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:14,flexShrink:0}}>{(e.prenom||e.nom).charAt(0)}</span>
+                <div><div style={{fontWeight:700,fontSize:13}}>{e.prenom?`${e.prenom} ${e.nom}`:e.nom}</div><div style={{fontSize:11,color:"#9E9E9E"}}>{e.poste}</div></div>
+              </button>
+            ))}
           </div>
-          <div style={{fontSize:10,color:"#BDBDBD",lineHeight:1.6}}>
-            Mot de passe oublié ? Contactez Vanessa<br/>
-            <span style={{color:"#9E9E9E"}}>contact@abracadaparc.fr</span>
-          </div>
+          <button onClick={()=>setMode("choose")} style={{...S.btn,...S.btnS,width:"100%",marginTop:14}}>Retour</button>
         </div>
       </div>
     );
@@ -7343,9 +7192,8 @@ function App() {
     {id:"dashboard",     icon:"📊",label:"Tableau de bord"},
     {id:"calendrier",    icon:"🗓", label:"Calendrier"},
     {id:"reservations",  icon:"📋",label:"Réservations"},
-    {id:"reservations_v2",icon:"🆕",label:"Réservations V2"},
+    {id:"reservations_v2",icon:"🧪",label:"Pipeline (test)"},
     {id:"equipe",        icon:"👥",label:"Équipe"},
-    {id:"securite",      icon:"🔐",label:"Sécurité"},
     {id:"parametres",    icon:"⚙️", label:"Paramètres"},
   ];
   const now=new Date();
@@ -7397,7 +7245,6 @@ function App() {
         {tab==="reservations"  &&<ReservationsTabWrapper/>}
         {tab==="reservations_v2"&&<ReservationsV2Tab/>}
         {tab==="equipe"        &&<EquipeTab team={team} setTeam={setTeam}/>}
-        {tab==="securite"      &&<SecuriteTab team={team}/>}
         {tab==="parametres"    &&<ParametresTab onChangePwd={async()=>{}} team={team}/>}
       </div>
     </div>
