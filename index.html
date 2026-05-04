@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#F4F8F4;min-height:100vh}
@@ -3432,15 +3433,26 @@ function RecapECTab({ team, shifts }) {
       <div style={{ ...S.card, marginBottom:18, background:"#FFF8E1", border:"1px solid #FFD54F" }}>
         <div style={{ fontSize:14, fontWeight:700, color:"#E65100", marginBottom:8 }}>📊 Export paie mensuelle — Service social</div>
         <div style={{ fontSize:12, color:"#E65100", marginBottom:12, lineHeight:1.7 }}>
-          Document à transmettre avant le <strong>5 du mois</strong> : heures travaillées, absences, CP, brut calculé, IBAN de chaque salarié.
+          Document à transmettre avant le <strong>5 du mois</strong>. Format Excel détaillé (1 onglet par salarié + synthèse globale, modulation hebdo, règle MODE pour CP) — validé par le service paie.
         </div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {[4,5,6,7,8,9,10].map(m => (
-            <button key={m} onClick={()=>exportPaie(team,shifts,2026,m)} style={{ ...S.btn, ...S.btnS, padding:"7px 12px", fontSize:11 }}>
-              🖨️ {["","","","","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"][m]} 2026
+        <div style={{ fontSize:11, fontWeight:700, color:"#BF360C", marginBottom:6 }}>📥 Excel détaillé (à envoyer au service social) :</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+            <button key={`xlsx-${m}`} onClick={()=>exportPaieXLSX(team,shifts,2026,m)} style={{ ...S.btn, ...S.btnG, padding:"7px 12px", fontSize:11 }}>
+              📥 {["","Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"][m]} 2026
             </button>
           ))}
         </div>
+        <details style={{marginTop:8}}>
+          <summary style={{cursor:"pointer", fontSize:11, color:"#BF360C", fontWeight:600}}>🖨️ Versions HTML imprimables (rapide, moins détaillé)</summary>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:8 }}>
+            {[4,5,6,7,8,9,10].map(m => (
+              <button key={`html-${m}`} onClick={()=>exportPaie(team,shifts,2026,m)} style={{ ...S.btn, ...S.btnS, padding:"7px 12px", fontSize:11 }}>
+                🖨️ {["","","","","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"][m]} 2026
+              </button>
+            ))}
+          </div>
+        </details>
       </div>
 
       {/* Export planning mensuel */}
@@ -5423,7 +5435,361 @@ function exportPDFMois(team, shifts, year, month) {
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);}, 1000);
 }
 
-// ── EXPORT PAIE (service social / comptable, 5 du mois) ─────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ── EXPORT PAIE XLSX (Service social — Format Silae validé) ──────────────────
+// Règle CP figée : MODE des heures travaillées le même jour de semaine du mois
+// Modulation hebdo : (heures réelles - hebdo de référence) sous chaque semaine
+// Hebdo réf = heures_mois × 12 ÷ 52
+// ─────────────────────────────────────────────────────────────────────────────
+function exportPaieXLSX(team, shifts, year, month) {
+  if (typeof XLSX === "undefined") { alert("Erreur : librairie Excel non chargée. Réessaie dans quelques secondes."); return; }
+  
+  const MOIS_NOMS = ["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const JOURS_FR = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+  const FERIES_2026 = ["2026-01-01","2026-04-06","2026-05-01","2026-05-08","2026-05-14","2026-05-25","2026-07-14","2026-08-15","2026-11-01","2026-11-11","2026-12-25"];
+  const FERIES_MAJORES = ["2026-05-01"]; // Seul le 1er mai majoré
+  
+  const days = new Date(year, month, 0).getDate();
+  const ymStr = `${year}-${String(month).padStart(2,"0")}`;
+  const activeTeam = team.filter(e => e.actif);
+  
+  // ── Filtrer les shifts du mois pour chaque salarié ──
+  const shiftsMois = {}; // {empId: {date: shift}}
+  activeTeam.forEach(emp => {
+    shiftsMois[emp.id] = {};
+    for (let i = 1; i <= days; i++) {
+      const ds = `${ymStr}-${String(i).padStart(2,"0")}`;
+      const sh = shifts[`${emp.id}_${ds}`];
+      if (sh) shiftsMois[emp.id][ds] = sh;
+    }
+  });
+  
+  // ── Calcul MODE pour CP : heures les + fréquentes par jour de semaine ──
+  function modeHeuresJourSemaine(empId, weekday) {
+    const heures = [];
+    Object.entries(shiftsMois[empId] || {}).forEach(([ds, sh]) => {
+      if (sh.type === "travail" || sh.type === "ecole") {
+        const d = new Date(ds + "T00:00:00");
+        if (d.getDay() === (weekday === 6 ? 0 : weekday + 1) % 7) {
+          // JS getDay : 0=dim, 1=lun ; Python weekday : 0=lun, 6=dim
+          // Donc weekday(Py) === (getDay+6)%7
+        }
+        // Conversion correcte : JS getDay 0=dim,1=lun..6=sam ; Py weekday 0=lun..5=sam,6=dim
+        const pyWeekday = (d.getDay() + 6) % 7;
+        if (pyWeekday === weekday) {
+          const h = parseFloat(sh.h) || 0;
+          if (h > 0) heures.push(Math.round(h * 4) / 4);
+        }
+      }
+    });
+    if (heures.length === 0) return null;
+    // Mode : valeur la + fréquente, en cas d'égalité on prend la + grande
+    const counts = {};
+    heures.forEach(h => { counts[h] = (counts[h]||0) + 1; });
+    let maxCount = 0, mode = null;
+    Object.entries(counts).forEach(([v, c]) => {
+      const vNum = parseFloat(v);
+      if (c > maxCount || (c === maxCount && vNum > mode)) { maxCount = c; mode = vNum; }
+    });
+    return mode;
+  }
+  
+  function cpHours(sh, empId, jourDate) {
+    const pyWeekday = (jourDate.getDay() + 6) % 7;
+    const mode = modeHeuresJourSemaine(empId, pyWeekday);
+    if (mode !== null) return mode;
+    return parseFloat(sh.h) || 0;
+  }
+  
+  // ── Création du workbook ──
+  const wb = XLSX.utils.book_new();
+  
+  // Helper pour appliquer styles via cell properties (XLSX-JS Pro features limited)
+  // On va construire les feuilles via array-of-arrays + post-styling
+  
+  const synthese_rows = [];
+  
+  // ── Groupes types → labels ──
+  const typeLabel = (t) => ({
+    travail: "Travaillé", repos: "Repos", conges: "CP", ecole: "École/Form.",
+    poei: "POEI", absent_inj: "Absence inj.", absent: "Absence", malade: "Maladie", retard: "Retard"
+  }[t] || (t || "—"));
+  
+  // ── Onglet par salarié ──
+  activeTeam.forEach(emp => {
+    if (!shiftsMois[emp.id] || Object.keys(shiftsMois[emp.id]).length === 0) {
+      // Salarié sans shift sur ce mois : on l'ignore
+      return;
+    }
+    
+    const nomComplet = `${(emp.prenom||"").trim()} ${(emp.nom||"").trim()}`.trim();
+    const nomCourt = (emp.prenom || emp.nom || emp.id).split(/\s+/)[0]
+      .replace(/[^a-zA-Z0-9_-]/g, "").substring(0,31) || emp.id;
+    
+    // Hebdo de référence
+    const hMois = parseFloat(emp.heures_mois) || 0;
+    const hebdoRef = hMois > 0 ? Math.round((hMois * 12 / 52) * 100) / 100 : 0;
+    
+    // ── Construire les données ligne par ligne ──
+    const aoa = []; // array of arrays
+    aoa.push([`FICHE PAIE — ${nomComplet.toUpperCase()}`]);
+    aoa.push([`${MOIS_NOMS[month]} ${year} — ${emp.contrat || ""}`]);
+    aoa.push([]);
+    aoa.push(["N° SS :", emp.ss || emp.nss || "—", "", "📐 Horaire moyen avril :", "", ""]);
+    aoa.push(["Date de naissance :", emp.ddn ? new Date(emp.ddn).toLocaleDateString("fr-FR") : "—"]);
+    aoa.push(["Heures contractuelles/mois :", `${emp.heures_mois || ""}h`]);
+    aoa.push(["Hebdo (réf. modulation) :", hebdoRef]);
+    aoa.push(["Période contrat :", `${emp.debut || ""} → ${emp.fin || ""}`]);
+    aoa.push([]);
+    
+    // ── Compteurs pour la synthèse ──
+    let total_h_travail = 0, total_h_cp = 0, total_h_ecole = 0;
+    let total_h_poei = 0, total_h_absent = 0, total_h_malade = 0;
+    let nb_travail_j = 0, nb_cp_j = 0, nb_repos_j = 0;
+    let nb_absent_j = 0, nb_malade_j = 0, nb_ecole_j = 0;
+    let nb_poei_j = 0, nb_ferie_travaille = 0;
+    
+    // ── Détail par semaine ISO ──
+    const semaines = {}; // {weekKey: [date1, date2, ...]}
+    for (let i = 1; i <= days; i++) {
+      const d = new Date(year, month-1, i);
+      // Calculer la semaine ISO (Lundi=début)
+      const target = new Date(d);
+      target.setHours(0,0,0,0);
+      target.setDate(target.getDate() + 3 - ((target.getDay() + 6) % 7));
+      const week1 = new Date(target.getFullYear(), 0, 4);
+      const weekNum = Math.round(((target - week1) / 86400000 - 3 + ((week1.getDay()+6)%7)) / 7) + 1;
+      const key = `${target.getFullYear()}-W${String(weekNum).padStart(2,"0")}`;
+      if (!semaines[key]) semaines[key] = { num: weekNum, jours: [] };
+      semaines[key].jours.push(d);
+    }
+    
+    const weekTotalRows = []; // pour cumul modulation
+    const sortedKeys = Object.keys(semaines).sort();
+    let currentRow = aoa.length;
+    
+    sortedKeys.forEach(key => {
+      const sem = semaines[key];
+      const startD = sem.jours[0], endD = sem.jours[sem.jours.length-1];
+      const fmtD = (d) => `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`;
+      
+      aoa.push([`Semaine ${sem.num} — ${fmtD(startD)} au ${fmtD(endD)}`]);
+      currentRow = aoa.length;
+      
+      aoa.push(["Date","Jour","Type","Heures","Détail","Note","Férié"]);
+      currentRow = aoa.length;
+      const firstDayRow = currentRow + 1; // +1 car aoa est 0-indexed mais Excel rows 1-indexed
+      
+      sem.jours.forEach(d => {
+        const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+        const dStr = `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+        const jourFr = JOURS_FR[(d.getDay() + 6) % 7];
+        const inPeriod = (!emp.debut || ds >= emp.debut) && (!emp.fin || ds <= emp.fin);
+        const sh = shiftsMois[emp.id][ds];
+        const ferie = FERIES_2026.includes(ds);
+        const ferieMajore = FERIES_MAJORES.includes(ds);
+        
+        let typeStr = "", h = 0, detail = "", note = "";
+        if (!inPeriod) {
+          typeStr = "Hors contrat"; h = 0;
+        } else if (!sh) {
+          typeStr = "(non saisi)"; h = 0;
+        } else {
+          typeStr = typeLabel(sh.type);
+          h = parseFloat(sh.h) || 0;
+          const deb = sh.deb || sh.debut || "";
+          const fin = sh.fin || "";
+          detail = (deb && fin) ? `${deb}–${fin}` : "";
+          note = sh.note || "";
+          
+          if (sh.type === "travail") {
+            total_h_travail += h; nb_travail_j++;
+            if (ferie) nb_ferie_travaille++;
+          } else if (sh.type === "conges") {
+            const hCp = cpHours(sh, emp.id, d);
+            h = hCp; total_h_cp += hCp; nb_cp_j++;
+          } else if (sh.type === "repos") nb_repos_j++;
+          else if (sh.type === "ecole") { total_h_ecole += h; nb_ecole_j++; }
+          else if (sh.type === "poei") { total_h_poei += h; nb_poei_j++; h = 0; }
+          else if (sh.type === "absent_inj" || sh.type === "absent") { total_h_absent += h; nb_absent_j++; h = 0; }
+          else if (sh.type === "malade") { total_h_malade += h; nb_malade_j++; }
+        }
+        
+        const ferieLabel = ferieMajore ? "🟠 Férié 1er mai (majoré)" : (ferie ? "🟠 Férié" : "");
+        aoa.push([dStr, jourFr, typeStr, h, detail, note, ferieLabel]);
+      });
+      
+      const lastDayRow = aoa.length;
+      // Total semaine
+      aoa.push([`Total semaine ${sem.num}`, "", "", { f: `SUM(D${firstDayRow}:D${lastDayRow})` }]);
+      const totalRow = aoa.length;
+      weekTotalRows.push(totalRow);
+      // Modulation
+      aoa.push(["Modulation (écart)", "", "", { f: `D${totalRow}-B7` }]);
+      aoa.push([]); // ligne vide
+    });
+    
+    // ── Synthèse mensuelle ──
+    aoa.push([`═══ SYNTHÈSE PAIE — ${MOIS_NOMS[month].toUpperCase()} ${year} ═══`]);
+    aoa.push([]);
+    const synthStartRow = aoa.length + 1;
+    aoa.push(["Heures travaillées (réelles)", "", "", Math.round(total_h_travail*100)/100]);
+    aoa.push(["Heures formation/école payées", "", "", Math.round(total_h_ecole*100)/100]);
+    aoa.push(["Heures CP pris (à payer)", "", "", Math.round(total_h_cp*100)/100]);
+    aoa.push(["Heures maladie", "", "", Math.round(total_h_malade*100)/100]);
+    aoa.push(["Heures POEI (NON payées par AbracadaParc)", "", "", Math.round(total_h_poei*100)/100]);
+    aoa.push(["Heures absences (NON payées)", "", "", Math.round(total_h_absent*100)/100]);
+    aoa.push(["═ TOTAL HEURES À RÉMUNÉRER ═", "", "", { f: `D${synthStartRow}+D${synthStartRow+1}+D${synthStartRow+2}+D${synthStartRow+3}` }]);
+    const totalRemRow = aoa.length;
+    aoa.push([]);
+    aoa.push(["Jours travaillés", "", "", nb_travail_j]);
+    aoa.push(["Jours formation/école", "", "", nb_ecole_j]);
+    aoa.push(["Jours CP", "", "", nb_cp_j]);
+    aoa.push(["Jours repos", "", "", nb_repos_j]);
+    aoa.push(["Jours POEI (info)", "", "", nb_poei_j]);
+    aoa.push(["Jours absence injustifiée", "", "", nb_absent_j]);
+    aoa.push(["Jours maladie", "", "", nb_malade_j]);
+    if (nb_ferie_travaille > 0) {
+      aoa.push(["⚠️ Jours fériés travaillés (info, PAS de majoration sauf 1er mai)", "", "", nb_ferie_travaille]);
+    }
+    aoa.push([]);
+    // Modulation cumulée
+    if (weekTotalRows.length > 0) {
+      const modulSum = weekTotalRows.map(r => `D${r+1}`).join("+");
+      aoa.push(["📐 Modulation cumulée mensuelle :", "", "", { f: modulSum }]);
+    }
+    
+    // ── Création de la feuille avec styles minimaux ──
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    
+    // Largeurs de colonnes
+    ws["!cols"] = [
+      {wch: 14}, {wch: 11}, {wch: 18}, {wch: 12}, {wch: 18}, {wch: 30}, {wch: 18}
+    ];
+    
+    // Fusions pour titres
+    if (!ws["!merges"]) ws["!merges"] = [];
+    ws["!merges"].push({ s:{r:0,c:0}, e:{r:0,c:6} }); // Titre
+    ws["!merges"].push({ s:{r:1,c:0}, e:{r:1,c:6} }); // Sous-titre
+    
+    // Styler la première ligne (titre)
+    if (ws["A1"]) ws["A1"].s = { font: { bold:true, sz:14, color:{rgb:"1B5E20"} }, alignment:{horizontal:"center"} };
+    if (ws["A2"]) ws["A2"].s = { font: { bold:true, sz:11, color:{rgb:"2E7D32"} }, alignment:{horizontal:"center"} };
+    
+    // Format des nombres pour la colonne Heures (D)
+    Object.keys(ws).forEach(k => {
+      if (k.startsWith("D") && k !== "D!") {
+        const cell = ws[k];
+        if (cell && (typeof cell.v === "number" || cell.f)) {
+          if (!cell.z) cell.z = '0.00" h"';
+        }
+      }
+    });
+    
+    // Mise à jour de la cellule Hebdo (B7) pour avoir le bon format
+    if (ws["B7"]) ws["B7"].z = '0.00" h"';
+    
+    // Ajouter au workbook
+    XLSX.utils.book_append_sheet(wb, ws, nomCourt);
+    
+    // Stocker pour synthèse globale
+    synthese_rows.push({
+      nom: nomComplet,
+      contrat: emp.contrat || "",
+      h_contrat: emp.heures_mois || "",
+      hebdo: hebdoRef,
+      h_travail: total_h_travail,
+      h_ecole: total_h_ecole,
+      h_cp: total_h_cp,
+      h_malade: total_h_malade,
+      h_poei: total_h_poei,
+      h_absent: total_h_absent,
+      sheet_name: nomCourt
+    });
+  });
+  
+  // ── Onglet 1 : Synthèse globale (insérée en premier) ──
+  const synthAoa = [];
+  synthAoa.push([`🌿 ABRACADAPARC — EXPORT PAIE ${MOIS_NOMS[month].toUpperCase()} ${year}`]);
+  synthAoa.push([`Document à transmettre au service paie · IDCC 1790 · SIRET 979 489 929`]);
+  synthAoa.push([`Généré le ${new Date().toLocaleDateString("fr-FR")}`]);
+  synthAoa.push([]);
+  synthAoa.push(["Salarié","Contrat","H/mois\ncontrat","Hebdo réf.","H travaillées","H école","H CP","H maladie","H POEI","H absences","TOTAL h à payer","Onglet"]);
+  
+  const firstSynthRow = synthAoa.length + 1;
+  synthese_rows.forEach(s => {
+    const r = synthAoa.length + 1;
+    synthAoa.push([
+      s.nom, s.contrat, s.h_contrat, s.hebdo,
+      Math.round(s.h_travail*100)/100,
+      Math.round(s.h_ecole*100)/100,
+      Math.round(s.h_cp*100)/100,
+      Math.round(s.h_malade*100)/100,
+      Math.round(s.h_poei*100)/100,
+      Math.round(s.h_absent*100)/100,
+      { f: `E${r}+F${r}+G${r}+H${r}` },
+      `→ ${s.sheet_name}`
+    ]);
+  });
+  const lastSynthRow = synthAoa.length;
+  // Total équipe
+  if (synthese_rows.length > 0) {
+    synthAoa.push([
+      "TOTAL ÉQUIPE","","","",
+      { f: `SUM(E${firstSynthRow}:E${lastSynthRow})` },
+      { f: `SUM(F${firstSynthRow}:F${lastSynthRow})` },
+      { f: `SUM(G${firstSynthRow}:G${lastSynthRow})` },
+      { f: `SUM(H${firstSynthRow}:H${lastSynthRow})` },
+      { f: `SUM(I${firstSynthRow}:I${lastSynthRow})` },
+      { f: `SUM(J${firstSynthRow}:J${lastSynthRow})` },
+      { f: `SUM(K${firstSynthRow}:K${lastSynthRow})` },
+      ""
+    ]);
+  }
+  
+  // Légende & règles
+  synthAoa.push([]);
+  synthAoa.push(["LÉGENDE & RÈGLES DE CALCUL"]);
+  synthAoa.push(["✅ Heures travaillées", "Heures effectives saisies dans le planning (pointage)"]);
+  synthAoa.push(["📘 Heures école/formation", "Apprentissage Myron : temps de formation = temps de travail (à payer)"]);
+  synthAoa.push(["🌴 Heures CP", "Valorisés au MODE des heures travaillées le même jour de la semaine dans le mois (validé service paie)"]);
+  synthAoa.push(["📐 Modulation (écart)", "Sous chaque total semaine : écart entre heures réelles et hebdo de référence (heures_mois × 12 ÷ 52)"]);
+  synthAoa.push(["🏥 Heures maladie", "Arrêt maladie"]);
+  synthAoa.push(["📚 Heures POEI", "Formation France Travail/AFDAS : NON payées par AbracadaParc (info uniquement)"]);
+  synthAoa.push(["❌ Heures absences", "Absences injustifiées : NON payées (déduites du salaire)"]);
+  synthAoa.push(["🟠 Jours fériés", "Seul le 1er mai est majoré. Pâques, 8 mai, etc. : signalés mais payés en taux normal."]);
+  
+  const synthWs = XLSX.utils.aoa_to_sheet(synthAoa);
+  synthWs["!cols"] = [
+    {wch: 32}, {wch: 26}, {wch: 11}, {wch: 12}, {wch: 13}, {wch: 12}, {wch: 11}, {wch: 11}, {wch: 11}, {wch: 12}, {wch: 14}, {wch: 14}
+  ];
+  if (!synthWs["!merges"]) synthWs["!merges"] = [];
+  synthWs["!merges"].push({ s:{r:0,c:0}, e:{r:0,c:11} });
+  synthWs["!merges"].push({ s:{r:1,c:0}, e:{r:1,c:11} });
+  synthWs["!merges"].push({ s:{r:2,c:0}, e:{r:2,c:11} });
+  
+  // Format heures pour colonnes E à K
+  ["E","F","G","H","I","J","K"].forEach(col => {
+    for (let r = firstSynthRow; r <= lastSynthRow + 1; r++) {
+      const ref = `${col}${r}`;
+      if (synthWs[ref]) synthWs[ref].z = '0.00" h"';
+    }
+  });
+  // Format hebdo (col D)
+  for (let r = firstSynthRow; r <= lastSynthRow; r++) {
+    if (synthWs[`D${r}`]) synthWs[`D${r}`].z = '0.00" h"';
+  }
+  
+  // Insérer en premier
+  wb.SheetNames.unshift("📋 Synthèse paie");
+  wb.Sheets["📋 Synthèse paie"] = synthWs;
+  
+  // ── Téléchargement ──
+  const filename = `AbracadaParc_Paie_${MOIS_NOMS[month]}_${year}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+
 function exportPaie(team, shifts, year, month) {
   const MOIS_NOMS = ["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
   const days = new Date(year, month, 0).getDate();
